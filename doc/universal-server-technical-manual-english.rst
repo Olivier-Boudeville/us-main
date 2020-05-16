@@ -37,7 +37,7 @@ Technical Manual of the ``Universal Server``
 :Organisation: Copyright (C) 2019-2020 Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: Saturday, May 2, 2020
+:Lastly updated: Friday, May 15, 2020
 :Status: Work in progress
 :Version: 0.0.1
 :Dedication: Users and maintainers of the ``Universal Server``.
@@ -110,11 +110,11 @@ We hope indeed that enhancements will be back-contributed (ex: thanks to merge r
 Current Stable Version & Download
 ---------------------------------
 
-As mentioned, the single, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_, version 22.1 or more recent [#]_.
+As mentioned, the single, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
 
-.. [#] Note that, in the Ceylan-Myriad repository, we have a script to streamline the installation of Erlang, see `install-erlang.sh <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/conf/install-erlang.sh>`_; use ``install-erlang.sh --help`` for guidance.
+We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines), and building the Universal Server from sources, thanks to GNU ``make``.
 
-We recommend securing Erlang thanks to a manual installation, and, for all Erlang-related software, to rely on rebar3.
+We recommend, for all Erlang-related software, to rely on rebar3.
 
 One wanting to be able to operate on the source code of these dependencies may define appropriate symbolic links in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant GIT clones.
 
@@ -208,7 +208,7 @@ Have fun with the Universal Server!
 
 .. figure:: us-main-title.png
    :alt: Universal Server logo
-   :width: 100 %
+   :width: 35%
    :align: center
 
 :raw-html:`<a name="us-main_bottom"></a>`
