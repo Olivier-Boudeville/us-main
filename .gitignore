@@ -7,8 +7,11 @@
 declared-types-in-*.txt
 .eunit
 erl_crash.dump
+
+# For Emacs temporary files:
+*.#*
+
 *~
-ebin/*.app
 
 # Added in relation to rebar3:
 .rebar
