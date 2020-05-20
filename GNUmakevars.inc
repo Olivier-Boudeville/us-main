@@ -57,18 +57,18 @@ MONITOR_SCRIPT = $(US_MAIN_TOP)/priv/bin/monitor-us-main.sh
 
 
 ifndef VM_NAME
-  VM_NAME := us_main_debug
+	VM_NAME := us_main_debug
 endif
 
 
 ifndef VM_TEST_NAME
-  VM_TEST_NAME := us_main_test
+	VM_TEST_NAME := us_main_test
 endif
 
 
 
 ifndef US_CONFIG_FILE
-  US_CONFIG_FILE := $(US_TOP)/conf/us.config
+	US_CONFIG_FILE := $(US_TOP)/conf/us.config
 endif
 
 
@@ -83,7 +83,7 @@ US_MAIN_PLT_FILE := $(US_MAIN_TOP)/us_main.plt
 # This is the merged PLT of the level just below in the software stack.
 # For us-main, it is the PLT of 'us-common':
 ifndef PREDECESSOR_PLT
-   PREDECESSOR_PLT = $(US_COMMON_PLT_FILE)
+	PREDECESSOR_PLT = $(US_COMMON_PLT_FILE)
 endif
 
 
@@ -92,4 +92,4 @@ endif
 # (it may be a symbolic link pointing to the actual us-common package to be
 # used)
 #
-US_COMMON_TOP = $(US_MAIN_TOP)/../us-common
+US_COMMON_TOP = $(US_MAIN_TOP)/../us_common
