@@ -87,9 +87,36 @@ ifndef PREDECESSOR_PLT
 endif
 
 
-# We define the path to the us-common layer:
+# We define the path to the US-Common layer (possibly available as a symbolic
+# link).
 #
-# (it may be a symbolic link pointing to the actual us-common package to be
-# used)
+# For the sake of these build-related makefiles, dependencies may be found
+# either in a local _checkouts child directory (if checkout directories are used
+# and if the top-level package of interest is the current one), or in sibling
+# directories (i.e. whose build root is at the same level as this one).
+# This last case happens notably if not using checkout directories, or if using
+# them and if all the packages mentioned here are themselves dependencies (in
+# which case they are all sitting together in the _checkouts child directory).
 #
-US_COMMON_TOP = $(US_MAIN_TOP)/../us_common
+# Note also we rely on the names of build roots (ex: myriad) as opposed to
+# project/repository names (ex: Ceylan-Myriad):
+#
+ifneq ($(wildcard $(US_MAIN_TOP)/../us_common),)
+
+	# By default, expect sibling directories:
+	US_COMMON_TOP = $(US_MAIN_TOP)/../us_common
+
+else
+
+	# Otherwise assume a checkout one:
+	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/us_common),)
+
+		US_COMMON_TOP = $(US_MAIN_TOP)/_checkouts/us_common
+
+   else
+
+		FORCE_EVAL := $(error Unable to find the build root of US-Common)
+
+	endif
+
+endif
