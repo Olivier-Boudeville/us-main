@@ -1,4 +1,4 @@
-# Here are gathered automatic (generic, pattern-based) rules for us-main.
+# Here are gathered automatic (generic, pattern-based) rules for US-Main.
 #
 # See GNUmakerules-explicit.inc for the explicit (immediate, static)
 # counterparts.

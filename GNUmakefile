@@ -6,8 +6,9 @@ US_MAIN_TOP = .
 		all compile                                                              \
 		ensure-dev-release ensure-prod-release                                   \
 		release release-dev release-prod                                         \
-		export-release just-export-release                                       \
-		start debug status stop log cat-log tail-log                             \
+		export-release just-export-release upgrade-us-common                     \
+		start debug start-as-release status stop stop-as-release                 \
+		log cat-log tail-log                                                     \
 		inspect monitor-development monitor-production                           \
 		kill shell test test-interactive                                         \
 		clean clean-logs real-clean info info-local
@@ -55,9 +56,9 @@ RELEASE_NAME = us_main-$(US_MAIN_VERSION).tar.gz
 
 RELEASE_PATH = $(US_MAIN_PROD_REL_DIR)/$(RELEASE_NAME)
 
+RELEASE_DEPLOY_SCRIPT = $(US_MAIN_TOP)/priv/bin/deploy-us-main-release.sh
 
-
-EXPORT_TARGET := $(WEB_SRV):/tmp
+EXPORT_TARGET := $(MAIN_SRV):/tmp
 
 
 LOG_DIR := $(US_MAIN_DEFAULT_REL_DIR)/log
@@ -104,7 +105,7 @@ stats:
 	@$(MAKE_CODE_STATS) $(US_MAIN_TOP)
 
 
-# The 'compile' target just by itself would not recompile a us-main source file
+# The 'compile' target just by itself would not recompile a US-Main source file
 # that would have been changed:
 #
 #all: compile
@@ -112,7 +113,7 @@ stats:
 
 compile: rebar3-create-app-file
 	@echo "  Compiling us_main from $$(pwd)"
-	@$(REBAR3) compile
+	@$(REBAR3_EXEC) compile
 
 
 # Ensures a relevant development release is available.
@@ -128,39 +129,39 @@ ensure-prod-release:
 
 
 
-# Before generating a release, the 'clean-otp-build-tree' target shall be run,
-# as otherwise past elements (ex: in link with .app files) will be re-used.
+# The 'clean-otp-build-tree' target is run before generating a release, as
+# otherwise past elements (ex: in link with .app files) will be re-used.
 
 release: release-prod
 
 
-# Probably that '@$(REBAR3) tar' exceeds what is needed:
+# Probably that '@$(REBAR3_EXEC) tar' exceeds what is needed:
 #
 # ('compile' is not needed either: same happens because of 'release')
 #
-release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile #update-release
+release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile
 	@echo "  Generating OTP us_main release in development mode"
-	@$(REBAR3) release
+	@$(REBAR3_EXEC) release
 	@cd $(US_MAIN_DEFAULT_REL_DIR)/releases && /bin/ln -sf $(US_MAIN_VERSION) latest-release
 
 
 # Rebuilding all dependencies ('compile' implied):
 # (yes, 'tar', not 'release')
 #
-release-prod: clean-otp-build-tree rebar3-create-app-file rebar.config  #update-release
+release-prod: clean-otp-build-tree rebar3-create-app-file rebar.config
 	@echo "  Generating OTP us_main release in production mode"
-	@$(REBAR3) as prod tar
+	@$(REBAR3_EXEC) as prod tar
 
 
 # Rebuilding the "normal" version thereof (not the testing or Hex one):
 rebar.config: conf/rebar.config.template
-	$(MAKE) -s set-rebar-conf
+	@$(MAKE) -s set-rebar-conf
 
 
 # Just rebuilding us-main:
 release-prod-light: compile
 	@echo "  Generating OTP us_main release in production mode (with lightest rebuild)"
-	@$(REBAR3) as prod tar
+	@$(REBAR3_EXEC) as prod tar
 
 
 export-release: release-prod-light just-export-release
@@ -168,15 +169,17 @@ export-release: release-prod-light just-export-release
 
 just-export-release:
 	@echo "  Exporting production release $(RELEASE_NAME) to $(EXPORT_TARGET)"
-	@scp $(SP) $(RELEASE_PATH) $(EXPORT_TARGET)
+	@scp $(SP) $(RELEASE_PATH) $(RELEASE_DEPLOY_SCRIPT) $(EXPORT_TARGET)
 
 
-# Not used anymore, as the simple_bridge configuration file does not seem to be
-# taken into account:
+# So that any change in US-Common repository can be used here:
 #
-update-release:
-	@echo "  Updating $(SIMPLE_BRIDGE_CONFIG)"
-	@cat $(SIMPLE_BRIDGE_CONFIG) | sed 's|{handler, simple_bridge_handler_sample}|{handler, us_main_handler}|' | sed 's|%% {backend, yaws}|{backend,cowboy}|' > $(SIMPLE_BRIDGE_CONFIG).tmp && /bin/mv $(SIMPLE_BRIDGE_CONFIG).tmp $(SIMPLE_BRIDGE_CONFIG)
+# (note: for actual US development, prefer using a _checkouts directory for all
+# relevant dependencies)
+#
+upgrade-us-common:
+	@$(REBAR3_EXEC) upgrade us_common
+
 
 
 # Release shall have been generated beforehand:
@@ -184,15 +187,29 @@ update-release:
 # (CTRL-C twice in the console will not be sufficient to kill this instance, use
 # 'make kill' instead)
 #
+# (apparently 'start' was replaced with 'foreground' or 'daemon'; we use rather
+# the former as we prefer using the same, relevant inquiry scripts in all
+# contexts)
+#
+# Note also that the daemon option will not return (yet would still run if
+# exiting with CTRL-C); launching it in the background is thus preferable.
+#
 start: kill clean-logs compile
 	@echo "Starting the us_main release (EPMD port: $(EPMD_PORT)):"
-	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main start || echo "Start failed"
+	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main daemon
 	@sleep 1 ; $(MAKE) -s log
 
 
 debug: ensure-dev-release
 	@echo " Running us_main for debug (EPMD port: $(EPMD_PORT))"
-	@killall java 2>/dev/null ; export ERL_EPMD_PORT=$(EPMD_PORT) ; $(MAKE) -s start || $(MAKE) log
+	@killall java 2>/dev/null ; export ERL_EPMD_PORT=$(EPMD_PORT) ; $(MAKE) -s foreground || $(MAKE) -s log
+
+
+# Not tested yet, as we use releases in production mode, through systemd.
+start-as-release:
+	@echo "Starting a us_main release (EPMD port: $(EPMD_PORT)):"
+	@$(US_MAIN_TOP)/priv/bin/start-us-main.sh
+
 
 
 # A rule such as the following would be bound to fail because of a non-matching
@@ -209,7 +226,31 @@ status:
 #
 #  @export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed" ; $(MAKE) -s log )
 #
+# Note: will probably not work due to the VM cookie having been changed; use
+# 'stop-brutal' instead, if run with 'start' or 'debug':
+#
 stop:
+	@echo "Stopping us_main release (EPMD port: $(EPMD_PORT)):"
+	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || $(MAKE) -s log
+
+
+# Useful typically if the runtime cookie was changed:
+stop-brutal: kill
+
+
+# A rule such as the following would be bound to fail because of a non-matching
+# cookie:
+#
+#	-@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop
+#
+# Note: only applies when the target instance has been started as a release.
+#
+# A rule such as the following would be bound to fail because of a non-matching
+# cookie:
+#
+#  @export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed" ; $(MAKE) -s log )
+#
+stop-as-release:
 	@echo "Stopping the us_main release (EPMD port: $(EPMD_PORT)):"
 	@$(US_MAIN_TOP)/priv/bin/stop-us-main.sh
 
@@ -239,15 +280,15 @@ inspect:
 	@$(MAKE) -s log
 
 
-# Monitors a webserver that (already) runs in development mode, from specified
-# US config:
+# Monitors a US-main server that (already) runs in development mode, from
+# specified US config:
 #
 monitor-development:
 	@$(MONITOR_SCRIPT) us-monitor-for-development.config
 
 
-# Monitors a webserver that (already) runs in production mode, from specified
-# US config:
+# Monitors a US-main server that (already) runs in production mode, from
+# specified US config:
 #
 monitor-production:
 	@$(MONITOR_SCRIPT) us-monitor-for-production.config
@@ -270,7 +311,7 @@ shell: test-interactive
 # in following shell:
 #
 test-interactive: compile
-	@$(REBAR3) shell
+	@$(REBAR3_EXEC) shell
 
 
 # Creates the symbolic links that allow the make system to find its Ceylan
@@ -285,10 +326,9 @@ test-interactive: compile
 
 clean-local: clean-log
 	@echo "  Cleaning from $$(pwd)"
-	@$(REBAR3) clean
+	@$(REBAR3_EXEC) clean
 
 
-# Web-related logs already removed by the recursive 'clean' target:
 clean-logs:
 	-@/bin/rm -f $(VM_LOG_FILES)
 
@@ -307,7 +347,6 @@ info: info-local
 
 
 info-local:
-	@echo "REBAR3 = $(REBAR3)"
 	@echo "US_MAIN_DEFAULT_REL_DIR = $(US_MAIN_DEFAULT_REL_DIR)"
 	@echo "US_DEFAULT_REL_EXEC = $(US_DEFAULT_REL_EXEC)"
 	@echo "VM_LOG_FILES = $(VM_LOG_FILES)"
@@ -316,6 +355,8 @@ info-local:
 	@echo "TRACES_TOP = $(TRACES_TOP)"
 	@echo "WOOPER_TOP = $(WOOPER_TOP)"
 	@echo "MYRIAD_TOP = $(MYRIAD_TOP)"
+	@echo "REBAR3_EXEC = $(REBAR3_EXEC)"
+	@echo "REBAR_INCS = $(REBAR_INCS)"
 
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc

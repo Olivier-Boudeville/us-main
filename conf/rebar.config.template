@@ -1,0 +1,114 @@
+% This is a configuration file of rebar3, so that the us_main application can
+% better integrate in the current OTP ecosystem, despite its (more complex,
+% probably more flexible) native build based on GNU make.
+%
+% If the name of this file is 'rebar.config', then it is a generated file,
+% otherwise it is a template (located in conf/rebar.config.template), meant to
+% be filled by information determined at build time or coming from
+% GNUmakevars.inc.
+%
+% See the Myriad counterpart file (same name) for more explanations.
+
+
+% Settings for the 'default' profile follow.
+
+
+% Depends on the following applications (Erlang implied):
+%
+% (note: if changing any information there, run from the root the 'real-clean'
+%  make target, at least to force an update of rebar.lock)
+%
+{deps, [
+
+	{myriad,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Myriad",
+				{branch, "master"}}},
+	{wooper,    {git, "git://github.com/Olivier-Boudeville/Ceylan-WOOPER",
+				{branch, "master"}}},
+	{traces,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Traces",
+				{branch, "master"}}},
+	{us_common, {git, "git://github.com/Olivier-Boudeville/us-common",
+				{branch, "master"}}}
+]}.
+
+
+
+% Include directories found in INC:
+{erl_opts, [ {d,myriad_debug_mode}, {d,wooper_debug_mode}, {d,traces_debug_mode}, {d,us_common_debug_mode}, {d,us_main_debug_mode}, {d,tracing_activated}, debug_info, {debug_info_key,"DEBUG_KEY_FOR_REBAR"}, report_warnings, warn_export_all, warn_export_vars, warn_shadow_vars, warn_obsolete_guards, warn_unused_import, warnings_as_errors, {parse_transform,wooper_parse_transform}, INCS_FOR_REBAR ]}.
+
+
+
+% For release generation:
+%
+% (defaults are for the development mode)
+%
+% With relx, only direct dependencies need to be listed, and version constraints
+% can be used, instead of exact, specific versions.
+%
+{relx, [
+
+  % Not 'us_main_release', otherwise plenty of paths will be cluttered:
+  {release, {us_main, "VERSION_FOR_REBAR3"},
+
+	% Listing an application here seems necessary (otherwise its .app file will
+	% not be found), however it will also result in its automatic starting with
+	% no specified arguments, whereas at least for some we may need to specify
+	% them (ex: which backend to be used).
+	%
+	% Listing 'us_common' here implies its prerequisites (namely Myriad, WOOPER
+	% and Traces) and is needed, otherwise their respective modules will not be
+	% in the code path:
+	%
+	[ us_common, us_main ] },
+
+	{sys_config, "conf/sys.config"},
+
+	% We need specified VM arguments (notably: long node names wanted):
+	{vm_args, "conf/vm.args"},
+
+	{dev_mode, true},
+	{include_erts, false},
+
+	{extended_start_script, true},
+	{include_src, false}
+
+] }.
+
+
+{profiles, [
+
+  % Production mode (the default one when used as a dependency):
+  {prod, [
+
+	% Like for the default profile, except for removed {d,myriad_debug_mode},
+	% {d,wooper_debug_mode}, {d,traces_debug_mode}, {d,us_common_debug_mode},
+	% {d,us_main_debug_mode} and {d,tracing_activated}, and added
+	% {d,exec_target_is_production}:
+	%
+	{erl_opts, [ {d,exec_target_is_production}, debug_info, {debug_info_key,"DEBUG_KEY_FOR_REBAR"}, report_warnings, warn_export_all, warn_export_vars, warn_shadow_vars, warn_obsolete_guards, warn_unused_import, warnings_as_errors, {parse_transform,wooper_parse_transform}, INCS_FOR_REBAR ]},
+
+	% For the build makefiles:
+	{env, [ { 'REBAR_PROFILE', "prod" } ] },
+
+	{relx, [
+
+	  % Not wanting the release to contain symlinks to applications:
+	  {dev_mode, false},
+
+	  % Creating a full target system:
+	  %{include_erts, true},
+
+	  % Or sharing a local Erlang environment (then the OTP versions must
+	  % precisely match):
+	  %
+	  {include_erts, false},
+
+	  {extended_start_script, true},
+	  {include_src, false}
+
+  ]} ] }
+
+  % No test profile currently needed.
+
+]}.
+
+% No Hex package wanted with this version.
