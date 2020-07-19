@@ -1,0 +1,29 @@
+[Unit]
+Description=Universal Server service (US-Main)
+Requires=network.target
+After=network.target
+
+
+[Service]
+
+# The started UNIX process is expected to call fork() as part of its start-up.
+#
+# The parent process is expected to exit when start-up is complete and all
+# communication channels are set up. The child continues to run as the main
+# service process, and the service manager will consider the unit started when
+# the parent process exits. This is the behavior of traditional UNIX services.
+#
+Type=forking
+
+
+# The two scripts below are typically symlinks pointing to an install of US-Main.
+
+# To inspect the outputs, use:
+# journalctl --pager-end --unit=us-main.service
+#
+ExecStart=/usr/local/bin/start-us-main.sh
+
+ExecStop=/usr/local/bin/stop-us-main.sh
+
+[Install]
+WantedBy=multi-user.target
