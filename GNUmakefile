@@ -1,17 +1,17 @@
 US_MAIN_TOP = .
 
 
-.PHONY: help help-intro help-us-main register-version-in-header register-us-main \
-		list-beam-dirs add-prerequisite-plts link-plt stats all                  \
-		all compile                                                              \
-		ensure-dev-release ensure-prod-release                                   \
-		release release-dev release-prod                                         \
-		export-release just-export-release upgrade-us-common                     \
-		start debug start-as-release status stop stop-as-release                 \
-		log cat-log tail-log                                                     \
-		inspect monitor-development monitor-production                           \
-		kill shell test test-interactive                                         \
-		clean clean-logs real-clean info info-local
+.PHONY: help help-intro help-us-main register-version-in-header            \
+		register-us-main list-beam-dirs add-prerequisite-plts link-plt     \
+		stats all compile                                                  \
+		ensure-dev-release ensure-prod-release                             \
+		release release-dev release-prod                                   \
+		export-release just-export-release upgrade-us-common               \
+		start debug start-as-release status stop stop-as-release           \
+		log cat-log tail-log                                               \
+		inspect monitor-development monitor-production                     \
+		kill shell test test-interactive                                   \
+		clean clean-logs real-clean info info-local info-deps
 
 
 MODULES_DIRS = src doc conf priv test
@@ -351,12 +351,15 @@ info-local:
 	@echo "US_DEFAULT_REL_EXEC = $(US_DEFAULT_REL_EXEC)"
 	@echo "VM_LOG_FILES = $(VM_LOG_FILES)"
 	@echo "RELEASE_PATH = $(RELEASE_PATH)"
-	@echo "US_COMMON_TOP = $(US_COMMON_TOP)"
-	@echo "TRACES_TOP = $(TRACES_TOP)"
-	@echo "WOOPER_TOP = $(WOOPER_TOP)"
-	@echo "MYRIAD_TOP = $(MYRIAD_TOP)"
 	@echo "REBAR3_EXEC = $(REBAR3_EXEC)"
 	@echo "REBAR_INCS = $(REBAR_INCS)"
+
+
+info-deps:
+	@echo "MYRIAD_TOP = $(MYRIAD_TOP) (i.e. $$(realpath $(MYRIAD_TOP)))"
+	@echo "WOOPER_TOP = $(WOOPER_TOP)) (i.e. $$(realpath $(WOOPER_TOP)))"
+	@echo "TRACES_TOP = $(TRACES_TOP)) (i.e. $$(realpath $(TRACES_TOP)))"
+	@echo "US_COMMON_TOP = $(US_COMMON_TOP) (i.e. $$(realpath $(US_COMMON_TOP)))"
 
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc

@@ -28,29 +28,16 @@
 :raw-latex:`\includegraphics[scale=1.6]{us-main-title.png}`
 
 
-There are at least 3 kinds of logs:
-
-- the OTP, **VM-level** logs (ex: ``erlang.1.log``, ``run_erl.log``); they are stored in ``@us_app_base_dir@/log`` for the Universal Server
-- the **Traces**-based, higher-level (applicative) traces (a single file; ex: ``us-web.traces``); they are stored in
-- the service-specific logs (ex: for US-Web, the per-virtual host access and error files) are placed in the ``@us_log_dir@`` directory if specified (otherwise the default, ``/var/log``, applies):
-
- - if ``@us_log_dir@`` is an absolute directory, it will be used as is; we recommend for clarity to have it end with ``universal-server``
- - otherwise it will be considered to be relative to ``@us_app_base_dir@``
-
-Note that defining a log directory that is specific to at least these services (i.e. on the last, third case above) is recommended also because these US services will attempt to set specific, relevant permissions for that directory.
-
-
-
 
 ============================================
 Technical Manual of the ``Universal Server``
 ============================================
 
 
-:Organisation: Copyright (C) 2019-2020 Olivier Boudeville
+:Organisation: Copyright (C) 2019-2021 Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: Friday, May 15, 2020
+:Lastly updated: Saturday, January 23, 2021
 :Status: Work in progress
 :Version: 0.0.1
 :Dedication: Users and maintainers of the ``Universal Server``.
