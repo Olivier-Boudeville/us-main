@@ -20,7 +20,7 @@
 
 :raw-html:`<a name="universal-server_top"></a>`
 
-:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#universal-server_bottom">go to bottom</a> <a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
+:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#universal-server_bottom">go to bottom</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
 
 
 
@@ -37,9 +37,9 @@ Technical Manual of the ``Universal Server``
 :Organisation: Copyright (C) 2019-2021 Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: Saturday, January 23, 2021
+:Lastly updated: Monday, February 8, 2021
 :Status: Work in progress
-:Version: 0.0.1
+:Version: 0.0.3
 :Dedication: Users and maintainers of the ``Universal Server``.
 :Abstract:
 
@@ -68,7 +68,9 @@ Overview
 
 We present here a short overview of these services, to introduce them to newcomers.
 
-The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main>`_, which are intensely commented and generally straightforward.
+The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main/src>`_, which are intensely commented and generally straightforward.
+
+The project repository is located `here <https://github.com/Olivier-Boudeville/us-main>`_.
 
 
 -----------
