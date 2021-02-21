@@ -37,7 +37,7 @@ Technical Manual of the ``Universal Server``
 :Organisation: Copyright (C) 2019-2021 Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: Monday, February 8, 2021
+:Lastly updated: Sunday, February 21, 2021
 :Status: Work in progress
 :Version: 0.0.3
 :Dedication: Users and maintainers of the ``Universal Server``.
