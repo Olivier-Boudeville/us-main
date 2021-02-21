@@ -3,20 +3,23 @@ US_MAIN_TOP = ..
 
 DOC_BASE_NAME := universal-server-technical-manual-english
 
-DOC_PDF_NAME := $(DOC_BASE_NAME).pdf
 
-OVERALL_DOCUMENT_TARGET = $(DOC_BASE_NAME).rst
-
-CURRENT_US_MAIN_HTML = $(DOC_BASE_NAME).html
-
-HTML_TARGET = $(CURRENT_US_MAIN_HTML)
-
-DOC_GENERATED_FILES = $(DOC_PDF_NAME) $(HTML_TARGET)
-
-DOC_FILES = $(DOC_GENERATED_FILES)
+OVERALL_DOCUMENT_SOURCE := $(DOC_BASE_NAME).rst
 
 
-CURRENT_US_MAIN_DOC := $(DOC_PDF_NAME)-$(US_MAIN_VERSION).pdf
+CURRENT_US_MAIN_HTML := $(DOC_BASE_NAME).html
+
+HTML_TARGET := $(CURRENT_US_MAIN_HTML)
+
+
+CURRENT_US_MAIN_PDF := $(DOC_BASE_NAME).pdf
+
+PDF_TARGET := $(CURRENT_US_MAIN_PDF)
+
+
+DOC_GENERATED_FILES := $(HTML_TARGET) $(PDF_TARGET)
+
+
 
 PROJECT_CSS := pygments-default.css,us-main.css
 
@@ -28,29 +31,32 @@ WEB_CONTENT = *.html *.css *.png *.pdf
 GITHUB_PAGES_BASE := $(shell basename "$(US_MAIN_WEB_MIRROR_BRANCH)")
 
 
-OVERALL_DOCUMENT_SOURCE = $(DOC_BASE_NAME).rst
 
-
-.PHONY: all doc full-doc clone-mirror                     \
-		export-doc export-to-official export-to-mirror    \
-		info-web clean clean-doc test uml-diagram-test
+.PHONY: doc all full-doc create-links html pdf clone-mirror         \
+		export-doc export-to-official export-to-mirror              \
+		clean clean-doc clean-links info info-web
 
 
 
 # Default do-nothing target:
-all:
-	@echo "  Run 'make full-doc' to generate the manual of the 'us-main' layer."
-
-
 doc:
 
 
-full-doc: $(DOC_BASE_NAME).pdf $(DOC_BASE_NAME).html
+all:
+	@echo "  Run 'make full-doc' to generate the manual of the 'US-Main' layer."
+
+
+full-doc: $(DOC_GENERATED_FILES)
+
+
+# This link does not need to be in version control:
+create-links:
+	@/bin/ln -sf $(CURRENT_US_MAIN_HTML) index.html
 
 
 html: clean-doc $(HTML_TARGET)
 
-pdf: clean-doc $(DOC_PDF_NAME)
+pdf: clean-doc $(PDF_TARGET)
 
 
 # Creates a separate repository for the GitHub pages branch:
@@ -63,29 +69,49 @@ clone-mirror:
 export-doc: clean-doc full-doc export-to-official export-to-mirror
 
 
-export-to-official: $(DOC_GENERATED_FILES)
-	@echo "   Exporting us-main documentation to official website ($(WEB_SRV))"
+# Drawback: scp will not preserve symlinks, it will duplicate files instead.
+#
+# rsync would not, but requires a different source layout (copies a full tree,
+# not a set of files), so currently not used:
+# rsync -avze "ssh $(SP)" $(SOME_WEB_TREE) $(WEB_SRV):$(WEB_ROOT)/US-Main/
+#
+export-to-official: create-links $(DOC_GENERATED_FILES)
+	@echo "   Exporting US-Main documentation to official website ($(WEB_SRV))"
 	@/bin/scp $(SP) $(WEB_CONTENT) $(WEB_SRV):$(WEB_ROOT)/US-Main
 
 
-export-to-mirror: $(DOC_GENERATED_FILES)
-	@echo "   Exporting us-main documentation to mirror website in $(US_MAIN_WEB_MIRROR_BRANCH)"
-	@/bin/cp -f $(WEB_CONTENT) $(US_MAIN_WEB_MIRROR_BRANCH) && cd $(US_MAIN_WEB_MIRROR_BRANCH) && git add . && git merge -s ours && git commit -m "us-main doc updated." && git push && git pull --ff-only
+export-to-mirror: create-links $(DOC_GENERATED_FILES)
+	@echo "   Exporting US-Main documentation to mirror website in $(US_MAIN_WEB_MIRROR_BRANCH)"
+	@/bin/cp -f $(WEB_CONTENT) $(US_MAIN_WEB_MIRROR_BRANCH) && cd $(US_MAIN_WEB_MIRROR_BRANCH) && git add . && git merge -s ours && git commit -m "US-Main doc updated." && git push && git pull --ff-only
+
 
 
 clean: clean-doc
 
-clean-doc:
-	-@/bin/rm -f *.aux *.log *.maf *.mtc* *.stc* *.tex *.toc \
-	$(CURRENT_US_MAIN_DOC) $(DOC_GENERATED_FILES)
+
+clean-doc: clean-links
+	@echo "     Cleaning documentation"
+	-@/bin/rm -f *.aux *.log *.maf *.mtc* *.stc* *.tex *.toc $(DOC_GENERATED_FILES)
+
+
+clean-links:
+	-@/bin/rm -f index.html
+
+
+info: info-web
 
 
 info-web:
+	@echo "HTML_TARGET = $(HTML_TARGET)"
+	@echo "SP = $(SP)"
 	@echo "WEB_CONTENT = $(WEB_CONTENT)"
+	@echo "WEB_SRV = $(WEB_SRV)"
+	@echo "WEB_ROOT = $(WEB_ROOT)"
 	@echo "US_MAIN_WEB_MIRROR_BRANCH = $(US_MAIN_WEB_MIRROR_BRANCH)"
 	@echo "GITHUB_PAGES_BASE = $(GITHUB_PAGES_BASE)"
 
 
 DOCUTILS_TOP = .
 
+# For MYRIAD_TOP:
 include $(US_MAIN_TOP)/GNUmakesettings.inc
