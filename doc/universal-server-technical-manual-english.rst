@@ -12,11 +12,6 @@
 .. role:: raw-latex(raw)
    :format: latex
 
-.. comment Would appear too late, can only be an be used only in preamble:
-.. comment :raw-latex:`\usepackage{graphicx}`
-.. comment As a result, in this document at least a '.. figure:: XXXX' must
-.. exist, otherwise: 'Undefined control sequence \includegraphics.'.
-
 
 :raw-html:`<a name="universal-server_top"></a>`
 
@@ -24,8 +19,8 @@
 
 
 
-:raw-html:`<center><img src="us-main-title.png" width="70%"></img></center>`
-:raw-latex:`\includegraphics[scale=1.6]{us-main-title.png}`
+:raw-html:`<center><img src="us-main-title.png" width="60%"></img></center>`
+:raw-latex:`\centering \includegraphics[scale=1.2]{us-main-title.png}`
 
 
 
@@ -37,7 +32,7 @@ Technical Manual of the ``Universal Server``
 :Organisation: Copyright (C) 2019-2021 Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: Sunday, February 21, 2021
+:Lastly updated: Friday, March 12, 2021
 :Status: Work in progress
 :Version: 0.0.3
 :Dedication: Users and maintainers of the ``Universal Server``.
@@ -205,12 +200,7 @@ Ending Word
 
 Have fun with the Universal Server!
 
-.. comment Mostly added to ensure there is at least one figure directive,
-.. otherwise the LateX graphic support will not be included:
+:raw-html:`<center><img src="us-main-title.png" width="30%"></img></center>`
+:raw-latex:`\begin{figure}[h] \centering \includegraphics[scale=0.7]{us-main-title.png} \end{figure}`
 
-.. figure:: us-main-title.png
-   :alt: Universal Server logo
-   :width: 35%
-   :align: center
-
-:raw-html:`<a name="us-main_bottom"></a>`
+:raw-html:`<a name="universal-server_bottom"></a>`
