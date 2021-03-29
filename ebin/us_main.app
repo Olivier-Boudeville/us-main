@@ -20,7 +20,7 @@
 
 {application, us_main,
  [{description, "US-Main, the OTP active application corresponding to the Universal Server (see http://us-main.esperide.org)"},
-  {vsn, "VERSION_FOR_REBAR"},
+  {vsn, "0.0.1"},
   {registered, [us_main]},
 
  % Active application:
@@ -44,7 +44,7 @@
   {env,[]},
 
   % Flat hierarchy in ebin here:
-  {modules, [MODULES_FOR_REBAR3]},
+  {modules, [us_main_monitor_app3]},
 
   {licenses, ["US-Main is licensed by its author (Olivier Boudeville) under the GNU Affero General Public License (AGPL), version 3.0 or later"]},
 

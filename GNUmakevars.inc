@@ -1,6 +1,67 @@
 # Prerequisite: US_MAIN_TOP must be set.
 
 
+# To understand why taking into account such conditionals requires to specify
+# them first, and in each layer, rather than at the end of the last one, refer
+# to the section about conditionals at the top of the GNUmakevars.inc of Myriad.
+
+
+# Overall settings section.
+
+#EXECUTION_TARGET = production
+
+ifndef EXECUTION_TARGET
+
+	# Other possible value: production
+	EXECUTION_TARGET = development
+
+endif
+
+
+ifeq ($(EXECUTION_TARGET),development)
+
+	#$(info Execution target is development)
+
+	ENABLE_DEBUG = true
+
+else ifeq ($(EXECUTION_TARGET),production)
+
+	#$(info Execution target is production)
+
+	ENABLE_DEBUG = false
+
+else
+
+	$(error Invalid US-Main execution target '$(EXECUTION_TARGET)'; expecting either 'development' or 'production')
+
+endif
+
+
+# Enforce default values:
+
+
+# Defining (optional) layer-specific flags, typically used by in-code
+# conditional compilation primitives (see cond_utils for their management):
+
+# Topics covered by flags:
+#  - xx
+#
+# Defining debug flags (at least the most verbose are by default commented-out):
+ifeq ($(ENABLE_DEBUG),true)
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_xx
+endif
+
+# Defining check flags:
+ifeq ($(EXECUTION_TARGET),development)
+	# Does not exist: US_MAIN_CHECK_FLAGS += -Dus_main_check_xx
+endif
+
+
+ERLANG_COMPILER_OPT_BASE += $(US_MAIN_DEBUG_FLAGS)    \
+							$(US_MAIN_CHECK_FLAGS)
+
+
+
 # Useful to target for example the root of the current layer (ex: to locate the
 # relevant, layer-local '_build' directory):
 #
@@ -34,6 +95,18 @@ ifndef PROJECT_VERSION
 endif
 
 
+# Variable name intentionally not including the current layer, for more generic
+# rules:
+
+ifndef VERSION_FOR_REBAR
+	VERSION_FOR_REBAR := $(PROJECT_VERSION)
+endif
+
+
+ifndef PACKAGE_NAME
+	PACKAGE_NAME := $(PROJECT_NAME)
+endif
+
 ifndef PACKAGE_TOP
 	PACKAGE_TOP := $(US_MAIN_TOP)
 endif
@@ -56,6 +129,10 @@ US_MAIN_BEAM := $(US_MAIN_TOP)/src
 MONITOR_SCRIPT = $(US_MAIN_TOP)/priv/bin/monitor-us-main.sh
 
 
+# We rely on Myriad, WOOPER, Traces and US-Common as well:
+#BEAM_DIRS += $(US_MAIN_BEAM_DIRS)
+
+
 ifndef VM_NAME
 	VM_NAME := us_main_debug
 endif
@@ -64,7 +141,6 @@ endif
 ifndef VM_TEST_NAME
 	VM_TEST_NAME := us_main_test
 endif
-
 
 
 ifndef US_CONFIG_FILE
@@ -101,22 +177,19 @@ endif
 # Note also we rely on the names of build roots (ex: myriad) as opposed to
 # project/repository names (ex: Ceylan-Myriad):
 #
-ifneq ($(wildcard $(US_MAIN_TOP)/../us_common),)
-
-	# By default, expect sibling directories:
-	US_COMMON_TOP = $(US_MAIN_TOP)/../us_common
-
+# First priority is an existing checkout directory:
+ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/us_common/.),)
+	US_COMMON_TOP = $(US_MAIN_TOP)/_checkouts/us_common
 else
-
-	# Otherwise assume a checkout one:
-	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/us_common),)
-
-		US_COMMON_TOP = $(US_MAIN_TOP)/_checkouts/us_common
-
+	# Second, a sibling one is searched for:
+	ifneq ($(wildcard $(US_MAIN_TOP)/../us_common/.),)
+		US_COMMON_TOP = $(US_MAIN_TOP)/../us_common
    else
-
-		FORCE_EVAL := $(error Unable to find the build root of US-Common)
-
+		# Otherwise most probably in a 'rebar3 compile' context:
+		ifneq ($(wildcard $(US_MAIN_TOP)/_build/default/lib/us_common/.),)
+			US_COMMON_TOP = $(US_MAIN_TOP)/_build/default/lib/us_common
+		else
+			FORCE_EVAL := $(error Unable to find the build root of US-Common from $(realpath .).)
+		endif
 	endif
-
 endif

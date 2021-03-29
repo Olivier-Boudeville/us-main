@@ -2,16 +2,19 @@ US_MAIN_TOP = .
 
 
 .PHONY: help help-intro help-us-main register-version-in-header            \
-		register-us-main list-beam-dirs add-prerequisite-plts link-plt     \
-		stats all compile                                                  \
+		register-us-main                                                   \
+		list-beam-dirs add-prerequisite-plts link-plt stats                \
+		all all-rebar3 compile                                             \
 		ensure-dev-release ensure-prod-release                             \
 		release release-dev release-prod                                   \
 		export-release just-export-release upgrade-us-common               \
-		start debug start-as-release status stop stop-as-release           \
+		start debug start-as-release debug-as-release status               \
+		stop stop-as-release                                               \
 		log cat-log tail-log                                               \
 		inspect monitor-development monitor-production                     \
-		kill shell test test-interactive                                   \
-		clean clean-logs real-clean info info-local info-deps
+		kill shell test test-interactive test-ci                           \
+		clean clean-logs real-clean clean-otp-build-tree clean-rebar-cache \
+		info info-local info-conditionals info-deps
 
 
 MODULES_DIRS = src doc conf priv test
@@ -113,7 +116,7 @@ stats:
 
 compile: rebar3-create-app-file
 	@echo "  Compiling us_main from $$(pwd)"
-	@$(REBAR3_EXEC) compile
+	@$(MYRIAD_REBAR_EXEC) compile
 
 
 # Ensures a relevant development release is available.
@@ -135,22 +138,22 @@ ensure-prod-release:
 release: release-prod
 
 
-# Probably that '@$(REBAR3_EXEC) tar' exceeds what is needed:
+# Probably that '@$(MYRIAD_REBAR_EXEC) tar' exceeds what is needed:
 #
 # ('compile' is not needed either: same happens because of 'release')
 #
-release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile
-	@echo "  Generating OTP us_main release in development mode"
-	@$(REBAR3_EXEC) release
+release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile #update-release
+	@echo "  Generating OTP us_main release in development mode, using $(shell rebar3 -v)"
+	@$(MYRIAD_REBAR_EXEC) release
 	@cd $(US_MAIN_DEFAULT_REL_DIR)/releases && /bin/ln -sf $(US_MAIN_VERSION) latest-release
 
 
 # Rebuilding all dependencies ('compile' implied):
 # (yes, 'tar', not 'release')
 #
-release-prod: clean-otp-build-tree rebar3-create-app-file rebar.config
-	@echo "  Generating OTP us_main release in production mode"
-	@$(REBAR3_EXEC) as prod tar
+release-prod: real-clean rebar3-create-app-file set-rebar-conf
+	@echo "  Generating OTP us_main release $(US_MAIN_VERSION) from scratch in production mode, using $(shell rebar3 -v)"
+	@$(MYRIAD_REBAR_EXEC) as prod tar
 
 
 # Rebuilding the "normal" version thereof (not the testing or Hex one):
@@ -159,9 +162,15 @@ rebar.config: conf/rebar.config.template
 
 
 # Just rebuilding us-main:
-release-prod-light: compile
-	@echo "  Generating OTP us_main release in production mode (with lightest rebuild)"
-	@$(REBAR3_EXEC) as prod tar
+#
+# (not updating rebar config for example to take into account changes in release
+# version, as the new release archive contains paths with the former version...)
+#
+# Note: 'rebar3 compile' / 'compile' dependency target not needed here (as implied).
+#
+release-prod-light:
+	@echo "  Generating OTP us_main release $(US_MAIN_VERSION) in production mode"
+	@$(MYRIAD_REBAR_EXEC) as prod tar
 
 
 export-release: release-prod-light just-export-release
@@ -178,7 +187,7 @@ just-export-release:
 # relevant dependencies)
 #
 upgrade-us-common:
-	@$(REBAR3_EXEC) upgrade us_common
+	@$(MYRIAD_REBAR_EXEC) upgrade us_common
 
 
 
@@ -187,28 +196,35 @@ upgrade-us-common:
 # (CTRL-C twice in the console will not be sufficient to kill this instance, use
 # 'make kill' instead)
 #
-# (apparently 'start' was replaced with 'foreground' or 'daemon'; we use rather
-# the former as we prefer using the same, relevant inquiry scripts in all
-# contexts)
-#
+# (apparently 'start' was replaced with 'foreground' or 'daemon', when using a
+# prebuilt version of rebar3; we use rather the former as we prefer using the
+# same, relevant inquiry scripts in all contexts)
+##
 # Note also that the daemon option will not return (yet would still run if
 # exiting with CTRL-C); launching it in the background is thus preferable.
 #
 start: kill clean-logs compile
 	@echo "Starting the us_main release (EPMD port: $(EPMD_PORT)):"
-	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main daemon
+	@#export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main daemon &
+	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main start &
 	@sleep 1 ; $(MAKE) -s log
 
 
-debug: ensure-dev-release
-	@echo " Running us_main for debug (EPMD port: $(EPMD_PORT))"
-	@killall java 2>/dev/null ; export ERL_EPMD_PORT=$(EPMD_PORT) ; $(MAKE) -s foreground || $(MAKE) -s log
+debug:
+	@echo " Running us_main for debug natively (EPMD port: $(EPMD_PORT))"
+	@cd src && $(MAKE) us_main_exec CMD_LINE_OPT="--batch"
+
 
 
 # Not tested yet, as we use releases in production mode, through systemd.
 start-as-release:
 	@echo "Starting a us_main release (EPMD port: $(EPMD_PORT)):"
 	@$(US_MAIN_TOP)/priv/bin/start-us-main.sh
+
+
+debug-as-release: ensure-dev-release
+	@echo " Running us_main for debug as a release (EPMD port: $(EPMD_PORT))"
+	@killall java 2>/dev/null ; export ERL_EPMD_PORT=$(EPMD_PORT) ; $(MAKE) -s start || $(MAKE) -s log
 
 
 
@@ -311,7 +327,13 @@ shell: test-interactive
 # in following shell:
 #
 test-interactive: compile
-	@$(REBAR3_EXEC) shell
+	@$(MYRIAD_REBAR_EXEC) shell
+
+
+# Tests in the context of continuous integration:
+test-ci:
+	@cd test && $(MAKE) -s test-ci
+
 
 
 # Creates the symbolic links that allow the make system to find its Ceylan
@@ -326,14 +348,14 @@ test-interactive: compile
 
 clean-local: clean-log
 	@echo "  Cleaning from $$(pwd)"
-	@$(REBAR3_EXEC) clean
+	@$(MYRIAD_REBAR_EXEC) clean
 
 
 clean-logs:
 	-@/bin/rm -f $(VM_LOG_FILES)
 
 
-real-clean: clean clean-otp-build-tree
+real-clean: clean clean-otp-build-tree clean-rebar-cache
 	@echo "  Real cleaning from $$(pwd)"
 	-@/bin/rm -f rebar.lock
 
@@ -341,6 +363,10 @@ real-clean: clean clean-otp-build-tree
 clean-otp-build-tree:
 	@echo "  Cleaning OTP build tree"
 	-@/bin/rm -rf _build
+
+
+clean-rebar-cache:
+	-@/bin/rm -rf $(HOME)/.cache/rebar3
 
 
 info: info-local
@@ -351,7 +377,7 @@ info-local:
 	@echo "US_DEFAULT_REL_EXEC = $(US_DEFAULT_REL_EXEC)"
 	@echo "VM_LOG_FILES = $(VM_LOG_FILES)"
 	@echo "RELEASE_PATH = $(RELEASE_PATH)"
-	@echo "REBAR3_EXEC = $(REBAR3_EXEC)"
+	@echo "MYRIAD_REBAR_EXEC = $(MYRIAD_REBAR_EXEC)"
 	@echo "REBAR_INCS = $(REBAR_INCS)"
 
 
@@ -361,5 +387,7 @@ info-deps:
 	@echo "TRACES_TOP = $(TRACES_TOP)) (i.e. $$(realpath $(TRACES_TOP)))"
 	@echo "US_COMMON_TOP = $(US_COMMON_TOP) (i.e. $$(realpath $(US_COMMON_TOP)))"
 
+
+info-conditionals:
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc
