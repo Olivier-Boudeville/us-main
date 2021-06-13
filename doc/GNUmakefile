@@ -32,7 +32,7 @@ GITHUB_PAGES_BASE := $(shell basename "$(US_MAIN_WEB_MIRROR_BRANCH)")
 
 
 
-.PHONY: doc all full-doc create-links html pdf api clone-mirror         \
+.PHONY: doc all full-doc create-links html pdf api clone-mirror             \
 		export-doc export-doc-to-official export-doc-to-mirror              \
 		clean clean-doc clean-links info info-web
 
@@ -106,11 +106,6 @@ clean-links:
 
 
 info: info-web
-
-
-info-doc:
-	@echo "OVERALL_DOCUMENT_SOURCE = $(OVERALL_DOCUMENT_SOURCE)"
-	@echo "DOC_TRACKER = $(DOC_TRACKER)"
 
 
 info-web:

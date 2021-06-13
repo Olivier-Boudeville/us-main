@@ -25,6 +25,9 @@
 % (note: if changing any information there, run from the root the 'real-clean'
 %  make target, at least to force an update of rebar.lock)
 %
+% We prefer here listing most dependencies explicitly (ex: Myriad, Seaplus,
+% etc., could be implied):
+%
 {deps, [
 
 	{myriad,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Myriad",
@@ -33,8 +36,19 @@
 				   {branch, "master"}}},
 	{traces,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Traces",
 				   {branch, "master"}}},
+
+	{seaplus,   {git, "git://github.com/Olivier-Boudeville/Ceylan-Seaplus",
+				   {branch, "master"}}},
+	{mobile,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Mobile",
+				   {branch, "master"}}},
+
 	{us_common, {git, "git://github.com/Olivier-Boudeville/us-common",
-				   {branch, "master"}}}
+				   {branch, "master"}}},
+
+	% One of these two JSON parsers is needed for US-Sensor:
+	{jsx, "3.0.0"}
+	%{jiffy , "1.0.8"}
+
 ]}.
 
 

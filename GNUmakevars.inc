@@ -81,7 +81,7 @@ endif
 
 # PROJECT_SHORT_NAME should be defined on a per-project basis.
 ifndef PROJECT_SHORT_NAME
- PROJECT_SHORT_NAME := us_main
+	PROJECT_SHORT_NAME := us_main
 endif
 
 
@@ -92,7 +92,7 @@ endif
 
 
 # The uniquely-defined version of this layer, for all uses, including rebar:
-US_MAIN_VERSION := 0.0.2
+US_MAIN_VERSION := 0.0.3
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
@@ -129,14 +129,17 @@ US_MAIN_RELEASE_ARCHIVE_XZ  := $(US_MAIN_RELEASE_BASE).tar.xz
 US_MAIN_SRC := $(US_MAIN_TOP)/src
 
 # BEAM path section.
-US_MAIN_BEAM := $(US_MAIN_TOP)/src
+US_MAIN_BEAM_DIR := $(US_MAIN_TOP)/src
 
 
 MONITOR_SCRIPT = $(US_MAIN_TOP)/priv/bin/monitor-us-main.sh
 
 
-# We rely on Myriad, WOOPER, Traces and US-Common as well:
-#BEAM_DIRS += $(US_MAIN_BEAM_DIRS)
+# We rely on Myriad, WOOPER, Traces and US-Common as well; we add also the
+# parent directory of the current layer, as the '-include_lib' directives rely
+# on the code path (see Myriad's counterpart file for further information)
+#
+BEAM_DIRS += $(US_MAIN_BEAM_DIRS) $(US_COMMON_TOP)/..
 
 
 ifndef VM_NAME
@@ -155,7 +158,11 @@ endif
 
 
 # See Myriad counterpart variable (MYRIAD_BEAM_DIRS) for explanations:
-US_MAIN_BEAM_DIRS = $(US_MAIN_BEAM)
+US_MAIN_BEAM_DIRS = $(US_MAIN_BEAM_DIR)
+
+
+# JSON parser needed for the decoding of sensors data:
+USE_JSON = true
 
 
 # For later reuse in the next layer of the software stack:
