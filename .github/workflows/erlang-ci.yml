@@ -1,0 +1,40 @@
+name: Erlang CI
+
+on:
+  push:
+	branches: [ master ]
+  pull_request:
+	branches: [ master ]
+
+jobs:
+
+  build:
+
+	runs-on: ubuntu-latest
+
+	# See https://hub.docker.com/_/erlang:
+	container:
+	  image: erlang:latest
+
+	steps:
+	- uses: actions/checkout@v2
+	- name: Compile
+	  run: |
+		rebar3 compile
+		#echo " - building from: $(pwd)"
+		#echo " - content of parent directory: $(ls .. 2>/dev/null | tr '\n' ' ')"
+		#echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
+		#echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
+		make info-context
+	- name: Run tests
+	  run: |
+		base_dir="$(pwd)"
+		echo "Base directory is: '${base_dir}'."
+		cfg_dir="${HOME}/.config/universal-server/"
+		echo "Configuration directory is: '${cfg_dir}'."
+		us_common_base_dir="${base_dir}/_build/default/lib/us_common"
+		mkdir -p "${cfg_dir}"
+		cd "${cfg_dir}"
+		ln -s "${us_common_base_dir}/priv/for-testing/us.config"
+		cd "${base_dir}"
+		make test-ci NODE_NAMING="--sn"
