@@ -1,4 +1,4 @@
-% Copyright (C) 2020-2021 Olivier Boudeville
+% Copyright (C) 2021-2021 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
@@ -16,19 +16,29 @@
 % You should have received a copy of the GNU Affero General Public License along
 % with this program. If not, see <http://www.gnu.org/licenses/>.
 %
-% Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
-% Creation date: Sunday, July 19, 2020.
+% Author: Olivier Boudeville (olivier.boudeville@esperide.com)
+% Creation date: Wednesday, June 9, 2021.
+%
+-module(class_USSensor_test).
 
 
-% Common US-Main defines.
+% Test target:
+-include_lib("traces/include/traces_for_tests.hrl").
 
 
--define( us_main_sensor_server_registration_name, us_main_sensor_server ).
 
+% Runs the tests.
+-spec run() -> no_return().
+run() ->
 
-% Local, as one instance of such server per host may run:
--define( us_main_sensor_server_registration_scope, local_only ).
+	?test_start,
 
+	test_facilities:start( ?MODULE ),
 
-% Same from the upper US-Common level:
--include_lib("us_common/include/us_common_defines.hrl").
+	test_facilities:display( "Testing the sensor-related services." ),
+
+	SensorManagerPid = class_USSensorManager:new_link(),
+
+	wooper:delete_synchronously_instance( SensorManagerPid ),
+
+	?test_stop.
