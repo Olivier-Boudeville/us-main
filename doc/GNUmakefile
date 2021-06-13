@@ -107,7 +107,6 @@ clean-links:
 
 info: info-web
 
-
 info-web:
 	@echo "HTML_TARGET = $(HTML_TARGET)"
 	@echo "SP = $(SP)"

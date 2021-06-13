@@ -165,6 +165,11 @@ US_MAIN_BEAM_DIRS = $(US_MAIN_BEAM_DIR)
 USE_JSON = true
 
 
+ifndef EDOC_OPTS
+	EDOC_OPTS = '[{dir,"$(API_DOC_ROOT)"}, {def,{vsn,"$(PROJECT_VERSION)"}}, {preprocess,true}, {includes,["$(LAYER_TOP)/include", "$(US_COMMON_TOP)/.."]}, {overview, "$(LAYER_TOP)/overview.edoc"}]'
+endif
+
+
 # For later reuse in the next layer of the software stack:
 US_MAIN_PLT_FILE := $(US_MAIN_TOP)/us_main.plt
 

@@ -15,7 +15,7 @@
 
 :raw-html:`<a name="universal-server_top"></a>`
 
-:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#us-main_toc">go to toc</a> <a href="#universal-server_bottom">go to bottom</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
+:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#us-main_toc">go to toc</a> <a href="#universal-server_bottom">go to bottom</a> <a href="api-doc/index.html">browse API</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
 
 
 
@@ -34,7 +34,7 @@ Technical Manual of the ``Universal Server``
 :Creation date: Saturday, May 2, 2020
 :Lastly updated: GENERATION_DATE
 :Version: PROJECT_VERSION
-:Status: Not started yet
+:Status: In progress
 :Dedication: Users and maintainers of the ``Universal Server``.
 :Abstract:
 
@@ -65,7 +65,7 @@ Technical Manual of the ``Universal Server``
 Overview
 --------
 
-We present here a short overview of these services, to introduce them to newcomers.
+We present here a short overview of these services, to introduce them to newcomers. These services, provided by the Universal Server, are implemented by `US-Main <https://github.com/Olivier-Boudeville/us-main>`_, which relies notably on `US-Common <https://github.com/Olivier-Boudeville/us-common>`_.
 
 The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main/src>`_, which are intensely commented and generally straightforward.
 
@@ -81,6 +81,8 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 - the *Universal Server* services themselves (i.e. this `us-main <http://us.esperide.org/>`_ layer)
 - [optional] the *Universal Webserver*, i.e. `US-Web <http://us-web.esperide.org/>`_ (for web interaction)
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
+- [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending)
+- [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile for a bridge to the C language)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
 - `Ceylan-Myriad <http://myriad.esperide.org>`_ (as an Erlang toolbox)
@@ -90,6 +92,20 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 The shorthand for ``Universal Server`` is ``us``.
 
 :raw-latex:`\pagebreak`
+
+
+
+---------------------------------
+Facilities Provided by this Layer
+---------------------------------
+
+These are mainly per-host administration services centralised here.
+
+`USSensorManager <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ manages many **hardware sensors**: at start-up it detect the main available ones, notably regarding temperatures at various locations (the CPU socket, the CPU and cores themselves, ACPI, some disks; adding GPU and RAM modules is considered) and the speed of the fans known of the motherboard (as opposed to any case fan that would be directly connected to the power supply).
+
+Then temperatures are periodically tracked (current, min, max and average) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself. Abnormal temperatures are then automatically reported to the user by the US logic.
+
+
 
 
 .. _`free software`:
@@ -111,7 +127,7 @@ We hope indeed that enhancements will be back-contributed (ex: thanks to merge r
 Current Stable Version & Download
 ---------------------------------
 
-As mentioned, the single, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
+As mentioned, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
 
 We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines), and building the Universal Server from sources, thanks to GNU ``make``.
 
@@ -140,6 +156,14 @@ Once Erlang, Cowboy and possibly Awstats are available, it should be just a matt
  $ git clone https://github.com/Olivier-Boudeville/Ceylan-Traces traces
  $ cd traces && make all && cd ..
 
+ # Possibly:
+ $ git clone https://github.com/Olivier-Boudeville/Ceylan-Seaplus seaplus
+ $ cd seaplus && make all && cd ..
+
+ $ git clone https://github.com/Olivier-Boudeville/Ceylan-Mobile mobile
+ $ cd mobile && make all && cd ..
+
+
  $ git clone https://github.com/Olivier-Boudeville/us-common
  $ cd us-common && make all
 
@@ -148,11 +172,11 @@ Once Erlang, Cowboy and possibly Awstats are available, it should be just a matt
 
 
 
-Running a corresponding test just then boils down to:
+.. Running a corresponding test just then boils down to:
 
-.. code:: bash
+.. .. code:: bash
 
- $ make debug
+..  $ make debug
 
 
 .. Should LogMX be installed and available in the PATH, the test may simply become:
@@ -160,6 +184,7 @@ Running a corresponding test just then boils down to:
 .. .. code:: bash
 
 ..  $ make class_USScheduler_run
+
 
 
 :raw-html:`<a name="otp"></a>`

@@ -156,12 +156,12 @@ fans), and of reporting any abnormal situation" ).
 
 -type sensor_number() :: bin_string().
 % Kept as a (binary) string (even if is an hexadecimal value), for clarity.
-% Ex: <<"0a20">>.
+% Ex: `<<"0a20">>'.
 
 
 -type raw_sensor_id() :: bin_string().
-% Full identifier of a sensor, directly as read; ex: <<"coretemp-isa-0000">>,
-% <<"nct6792-isa-0a20">>, <<"nct6779-isa-0a00">>, <<"nvme-pci-0200">>, etc.
+% Full identifier of a sensor, directly as read; ex: `<<"coretemp-isa-0000">>',
+% `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>', etc.
 
 
 -type sensor_id() ::
@@ -256,7 +256,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type measurement_point_name() :: bin_string().
-% The name of a measurement point (ex: <<"temp1">>) of a sensor (which may
+% The name of a measurement point (ex: `<<"temp1">>') of a sensor (which may
 % provide multiple points).
 
 
@@ -271,7 +271,8 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type point_attribute() :: bin_string().
-% An attribute of a measurement point, as read from JSON (ex: <<"temp1_crit">>).
+% An attribute of a measurement point, as read from JSON (ex:
+% `<<"temp1_crit">>').
 
 -type point_value() :: celsius().
 % The value obtained at a given measurement point, as read from JSON (ex:
@@ -280,7 +281,7 @@ fans), and of reporting any abnormal situation" ).
 
 -type point_value_map() ::
 		map_hashtable:map_hashtable( point_attribute(), point_value() ).
-% Table associating, to an attribute (ex: <<"temp1_crit">>) of a measurement
+% Table associating, to an attribute (ex: `<<"temp1_crit">>') of a measurement
 % point, a value (ex: 105.0).
 
 
