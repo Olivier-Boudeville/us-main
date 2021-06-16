@@ -29,11 +29,11 @@ Technical Manual of the ``Universal Server``
 ============================================
 
 
-:Organisation: Copyright (C) 2019-2021 Olivier Boudeville
+:Organisation: Copyright (C) 2019-GENERATION_YEAR_TAG Olivier Boudeville
 :Contact: about (dash) universal-server (at) esperide (dot) com
 :Creation date: Saturday, May 2, 2020
-:Lastly updated: GENERATION_DATE
-:Version: PROJECT_VERSION
+:Lastly updated: GENERATION_DATE_TAG
+:Version: PROJECT_VERSION_TAG
 :Status: In progress
 :Dedication: Users and maintainers of the ``Universal Server``.
 :Abstract:
