@@ -20,7 +20,7 @@
 
 {application, us_main,
  [{description, "US-Main, the OTP active application corresponding to the Universal Server (see http://us-main.esperide.org)"},
-  {vsn, "0.0.1"},
+  {vsn, "0.0.3"},
   {registered, [us_main]},
 
  % Active application:
@@ -44,7 +44,7 @@
   {env,[]},
 
   % Flat hierarchy in ebin here:
-  {modules, [us_main_monitor_app3]},
+  {modules, [class_USSensorManager, us_main_app, us_main_monitor_app, us_main_sup]},
 
   {licenses, ["US-Main is licensed by its author (Olivier Boudeville) under the GNU Affero General Public License (AGPL), version 3.0 or later"]},
 
