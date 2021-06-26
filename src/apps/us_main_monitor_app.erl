@@ -1,4 +1,4 @@
-% Copyright (C) 2020-2021 Olivier Boudeville
+% Copyright (C) 2021-2021 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
@@ -17,13 +17,16 @@
 % with this program. If not, see <http://www.gnu.org/licenses/>.
 %
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
-% Creation date: Monday, July 20, 2020.
+% Creation date: Sunday, January 19, 2020.
 
 
 
-% Actual US-Main monitoring logic.
+% @doc Actual US-Main <b>trace monitoring logic</b>, as a (Myriad) application.
 %
 % Typically called through the us_main/priv/bin/monitor-us-main.sh script.
+%
+% Designed to monitor a US-Main instance typically from any remote host able to
+% connect to the VM hosting that instance.
 %
 -module(us_main_monitor_app).
 
@@ -40,7 +43,7 @@
 
 
 
-% Runs the app.
+% @doc Runs this monitoring app.
 -spec exec() -> no_return().
 exec() ->
 
@@ -60,22 +63,42 @@ exec() ->
 	Cfg = file_utils:read_terms( CfgFilePath ),
 
 	%trace_utils:debug_fmt( "Read configuration from '~ts': ~p",
-	%					   [ CfgFilePath, Cfg ] ),
+	%						[ CfgFilePath, Cfg ] ),
 
-	TargetNodeName = get_target_node_name( Cfg ),
+	{ MainTargetNodeName, UserTargetNodeName } = get_target_node_names( Cfg ),
 
-	app_facilities:display( "Connecting to node '~ts'.", [ TargetNodeName ] ),
+	app_facilities:display( "Trying to connect to US-Main node '~ts'.",
+							[ MainTargetNodeName ] ),
 
-	case net_adm:ping( TargetNodeName ) of
+	case net_adm:ping( MainTargetNodeName ) of
 
 		pong ->
 			ok;
 
 		pang ->
-			trace_utils:error_fmt( "Unable to connect to '~ts'. Is this node "
-								   "really running?", [ TargetNodeName ] ),
+			trace_utils:warning_fmt( "Unable to connect to a target main "
+				"node '~ts'; trying an alternate one, based on "
+				"user name: '~ts'.",
+				[ MainTargetNodeName, UserTargetNodeName ] ),
 
-			throw( { unable_to_connect_to, TargetNodeName } )
+			case net_adm:ping( UserTargetNodeName ) of
+
+				pong ->
+					ok;
+
+				pang ->
+					trace_utils:error_fmt( "Unable to connect to either node "
+						"names, the main one ('~ts') or the user one ('~ts')."
+						"~nIf the target node is really running and is named "
+						"like either of the two, check that the cookies match "
+						"and, finally, that no firewall is in the way "
+						"(ex: a server may filter the EPMD port of interest).",
+						[ MainTargetNodeName, UserTargetNodeName ] ),
+
+					throw( { unable_to_connect_to,
+							 { MainTargetNodeName, UserTargetNodeName } } )
+
+			end
 
 	end,
 
@@ -83,15 +106,15 @@ exec() ->
 	global:sync(),
 
 	%app_facilities:display( "Globally registered names: ~w.",
-	%						[ global:registered_names() ] ),
+	%						 [ global:registered_names() ] ),
 
 	AggregatorName = ?trace_aggregator_name,
 
 	%app_facilities:display( "Looking up aggregator by name: ~ts.",
-	%						[ AggregatorName ] ),
+	%						 [ AggregatorName ] ),
 
-	AggregatorPid = naming_utils:get_registered_pid_for( AggregatorName,
-														 global ),
+	AggregatorPid =
+		naming_utils:get_registered_pid_for( AggregatorName, global ),
 
 	app_facilities:display( "Creating now a local trace listener." ),
 
@@ -127,6 +150,7 @@ exec() ->
 
 
 
+% @doc Initialises this application from the command line.
 init_from_command_line() ->
 
 	% To force options for testing:
@@ -135,12 +159,12 @@ init_from_command_line() ->
 	ArgTable = shell_utils:get_argument_table(),
 
 	%trace_utils:debug_fmt( "Argument table: ~ts",
-	%					   [ list_table:to_string( ArgTable ) ] ),
+	%						[ list_table:to_string( ArgTable ) ] ),
 
 	% Argument expected to be set by the caller script:
 	{ CfgFilePath, ConfigShrunkTable } =
-		case list_table:extract_entry_if_existing( '-config-file',
-												   ArgTable ) of
+			case list_table:extract_entry_if_existing( '-config-file',
+													   ArgTable ) of
 
 		false ->
 			throw( no_configuration_file_set );
@@ -166,8 +190,8 @@ init_from_command_line() ->
 
 	% Argument also expected to be set by the caller script:
 	{ RemoteCookie, CookieShrunkTable } =
-		case list_table:extract_entry_if_existing( '-target-cookie',
-												   ConfigShrunkTable ) of
+			case list_table:extract_entry_if_existing( '-target-cookie',
+													   ConfigShrunkTable ) of
 
 		false ->
 			throw( no_target_cookie_set );
@@ -180,7 +204,7 @@ init_from_command_line() ->
 
 	end,
 
-	trace_utils:trace_fmt( "Setting remote cookie: '~ts'.", [ RemoteCookie ] ),
+	trace_utils:debug_fmt( "Setting remote cookie: '~ts'.", [ RemoteCookie ] ),
 
 	net_utils:set_cookie( RemoteCookie ),
 
@@ -199,14 +223,18 @@ init_from_command_line() ->
 
 
 
-% Returns the target node name.
-get_target_node_name( Cfg ) ->
+% @doc Returns the possible node names (main or user-based one) corresponding to
+% the target server US-Main instance.
+%
+% Two names are considered, as two approaches can be used to launch US-Main
+% nodes.
+%
+get_target_node_names( Cfg ) ->
 
 	RemoteHostname = list_table:get_value( us_main_hostname, Cfg ),
 
-	%trace_utils:trace_fmt( "Remote host: '~ts'.", [ RemoteHostname ] ),
+	%trace_utils:debug_fmt( "Remote host: '~ts'.", [ RemoteHostname ] ),
 
-	%NodeStringName =
 	case net_utils:localnode() of
 
 		local_node ->
@@ -218,16 +246,29 @@ get_target_node_name( Cfg ) ->
 
 	end,
 
-	text_utils:string_to_atom( "us_main" ++ [ $@ | RemoteHostname ] ).
+	% Note that a two hardcoded node names are used here, the main one (when run
+	% as a service) and one embedding the name of the current user (when run as
+	% an app, typically for testing):
+
+	Prefixes = [ "us_main", text_utils:format( "us_main_exec-~ts",
+										[ system_utils:get_user_name() ] ) ],
+
+	% Long names:
+	Candidates = [ P ++ [ $@ | RemoteHostname ] || P <- Prefixes ],
+
+	% Short names:
+	%Candidates = Prefixes,
+
+	list_to_tuple( [ text_utils:string_to_atom( S ) || S <- Candidates ] ).
 
 
 
-% Returns the TCP port range to use (if any).
+% @doc Returns the TCP port range to use (if any).
 get_tcp_port_range( Cfg ) ->
 
 	MaybePortRange = list_table:get_value_with_defaults( _K=tcp_port_range,
 												_Default=undefined, Cfg ),
 
-	%trace_utils:trace_fmt( "TCP port range: ~p.", [ MaybePortRange ] ),
+	%trace_utils:debug_fmt( "TCP port range: ~p.", [ MaybePortRange ] ),
 
 	MaybePortRange.
