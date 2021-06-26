@@ -2,16 +2,38 @@
 #
 # Allows to avoid code duplication. Meant to be sourced, not directly executed.
 #
-# Used for example by start-us-main.sh and stop-us-main.sh.
+# Used for example by start-us-main-*.sh and stop-us-main-*.sh.
+
+
+# The us_launch_type environment variable might have been set by the caller
+# (typically to the "native" value) so that these helper scripts can locate more
+# easily specific directories (ex: for the VM logs).
+
+
+# We expect us_main_install_root to be already set by the caller:
+if [ -z "${us_main_install_root}" ]; then
+
+	echo "  Error, no us_main_install_root set by the caller." 1>&2
+	exit 10
+
+fi
+
+if [ ! -d "${us_main_install_root}/priv" ]; then
+
+	echo "  Error, invalid us_main_install_root ('$(realpath ${us_main_install_root})') set by the caller." 1>&2
+	exit 11
+
+fi
 
 
 # Determining us_common_root:
 
-us_main_script_root=$(dirname $0)
+us_main_script_root="${us_main_install_root}/priv/bin"
 #echo "US-Main script root: ${us_main_script_root}"
 
 us_common_root_in_checkouts="${us_main_script_root}/../../_checkouts/us_common"
 us_common_root_in_build="${us_main_script_root}/../../_build/default/lib/us_common"
+us_common_root_in_sibling="${us_main_script_root}/../../../us_common"
 
 # To be evaluated from rel_root=/opt/universal-server/us_main-x.y.z (see
 # deploy-us-main-release.sh):
@@ -23,35 +45,36 @@ if [ -d "${us_common_root_in_checkouts}" ]; then
 
 	us_common_root="${us_common_root_in_checkouts}"
 
+elif [ -d "${us_common_root_in_build}" ]; then
+
+	us_common_root="${us_common_root_in_build}"
+
+elif [ -d "${us_common_root_in_sibling}" ]; then
+
+	us_common_root="${us_common_root_in_sibling}"
+
+elif [ -d "${us_common_in_deployed_release}" ]; then
+
+	us_common_root="${us_common_in_deployed_release}"
+
 else
 
-	if [ -d "${us_common_root_in_build}" ]; then
-
-		us_common_root="${us_common_root_in_build}"
-
-	else
-
-		if [ -d "${us_common_in_deployed_release}" ]; then
-
-			us_common_root="${us_common_in_deployed_release}"
-
-		else
-
-			echo "  Error, no US-Common root found: searched in '${us_common_root_in_checkouts}', '${us_common_root_in_build}' and '${us_common_in_deployed_release}' (from $(pwd))." 1>&2
-			exit 95
-
-		fi
-
-	fi
+	echo "  Error, no US-Common root found: searched from $(pwd) as checkout '${us_common_root_in_checkouts}', as _build '${us_common_root_in_build}', as sibling '${us_common_root_in_sibling}' and as release '${us_common_in_deployed_release}'." 1>&2
+	exit 95
 
 fi
+
+us_common_root="$(realpath ${us_common_root})"
+
+echo "US-Common root found as '${us_common_root}'."
+
 
 # As depends on it:
 us_common_script="${us_common_root}/priv/bin/us-common.sh"
 
 if [ -f "${us_common_script}" ]; then
 
-	. "${us_common_script}" 1>/dev/null
+	. "${us_common_script}" #1>/dev/null
 
 else
 
@@ -63,7 +86,7 @@ fi
 
 
 # Sets notably: us_main_config_file, us_main_username, us_main_app_base_dir,
-# us_main_log_dir, us_main_rel_dir, us_main_exec.
+# us_main_rel_dir, us_main_exec.
 #
 # read_us_config_file must have been run beforehand.
 #
@@ -92,7 +115,7 @@ read_us_main_config_file()
 
 	if [ ! -f "${us_main_config_file}" ]; then
 
-		echo "  Error, US-Main configuration filename '${us_main_config_filename}' not found." 1>&2
+		echo "  Error, US-Main configuration filename '${us_main_config_filename}' not found (looked up as '${us_main_config_file}')." 1>&2
 		exit 110
 
 	fi
@@ -136,10 +159,21 @@ read_us_main_config_file()
 		# Environment variable as last-resort:
 		if [ -z "${US_MAIN_APP_BASE_DIR}" ]; then
 
-			# Wild guess:
-			us_main_app_base_dir=$(/bin/ls -d ${us_app_base_dir}/../../*/us_main 2>/dev/null | xargs realpath)
+			if [ "${us_launch_type}" = "native" ]; then
 
-			echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it from the US application one: trying '${us_main_app_base_dir}'."
+				# As sourced from us_main directly:
+				us_main_app_base_dir="$(pwd)"
+
+				echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it, in a native context, from the current directory, and trying '${us_main_app_base_dir}'."
+
+			else
+
+				# Wild guess:
+				us_main_app_base_dir=$(/bin/ls -d ${us_app_base_dir}/../../*/us_main 2>/dev/null | xargs realpath)
+
+				echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it from the release-dependent US application one: trying '${us_main_app_base_dir}'."
+
+			fi
 
 		else
 
@@ -162,13 +196,54 @@ read_us_main_config_file()
 
 	fi
 
+	us_main_data_dir=$(echo "${us_main_base_content}" | grep us_main_data_dir | sed 's|^{[[:space:]]*us_main_data_dir,[[:space:]]*"||1' | sed 's|"[[:space:]]*}.$||1')
 
-	# VM-level logs (not based on us_main_log_dir):
+	if [ -z "${us_main_data_dir}" ]; then
+
+		# Maybe as an environment variable:
+		if [ -z "${US_MAIN_DATA_DIR}" ]; then
+
+			# Then default is:
+			us_main_data_dir="${us_main_app_base_dir}/us-main-data"
+
+			if [ ! -d "${us_main_data_dir}" ]; then
+
+				echo "Creating US-Main data directory '${us_main_data_dir}'."
+				mkdir "${us_main_data_dir}"
+
+			fi
+
+		else
+
+			us_main_data_dir="${US_MAIN_DATA_DIR}"
+			if [ ! -d "${us_main_data_dir}" ]; then
+
+				echo "  Error, the US-Main data directory specified through the US_MAIN_DATA_DIR environment variable (as '${us_main_data_dir}') is not an existing directory." 1>&2
+				exit 135
+
+			fi
+
+		fi
+
+	else
+
+		if [ ! -d "${us_main_data_dir}" ]; then
+
+			echo "  Error, the US-Main data directory specified in the US-Main configuration file (as '${us_main_data_dir}') is not an existing directory." 1>&2
+			exit 140
+
+		fi
+
+	fi
+
+
+	# VM-level logs:
 	#
 	# (note that us_main_vm_log_dir is for US-Main what us_log_dir is for
 	# US-Common)
 	#
-	# (typically here in production mode, as a standard release)
+	# (typically here in production mode, as a standard release, or as a sibling
+	# native directory)
 	#
 	us_main_vm_log_dir="${us_main_app_base_dir}/log"
 
@@ -187,87 +262,78 @@ read_us_main_config_file()
 			#echo "  Error, no US-Main VM log directory found: neither '${saved_log_dir}' (as a standard release) nor '${us_main_vm_log_dir}' (as a rebar3 build tree). Possibly a release not even started?" 1>&2
 			#exit 140
 
-			echo "No US-Main VM log directory found, neither '${saved_log_dir}' (as a standard release) nor '${us_main_vm_log_dir}' (as a rebar3 build tree)."
+			#echo "Warning: no US-Main VM log directory found, neither '${saved_log_dir}' (as a standard release) nor '${us_main_vm_log_dir}' (as a rebar3 build tree)."
+
+			# Not finding this directory is normal, as in the context of a newly
+			# deployed release, it would be created only when starting that
+			# release; not creating it from here, as already done later, in
+			# prepare_us_main_launch.
+			#
+			#us_main_vm_log_dir="LACKING_US_MAIN_VM_LOG_DIR"
+			us_main_vm_log_dir="${saved_log_dir}"
+
+			# As a sibling native build is expected to have created it beforehand:
+			echo "Will use, for US-Main VM log directory, '${us_main_vm_log_dir}' (not created yet), in the context of a standard OTP release."
 
 		else
 
 			echo "Rebar3 build tree detected, US-Main VM log directory found as '${us_main_vm_log_dir}'."
+
 		fi
 
 	else
 
-		echo "Standard OTP release detected, US-Main VM log directory found as '${us_main_vm_log_dir}'."
+		if [ "${us_launch_type}" = "native" ]; then
+
+			echo "Native build installation detected, VM logs expected in '${us_main_vm_log_dir}'."
+
+		else
+
+			echo "Standard OTP release detected (most probably already launched at least once), US-Main VM log directory found as '${us_main_vm_log_dir}'."
+
+		fi
 
 	fi
 
 
-	# Supposing first the path of a real release having been specified; for
-	# example: "/opt/universal-server/us-main-x.y.z":
+	# If not in a native build (where no 'us_main_exec' applies), hunting down
+	# the us_main executable:
 	#
-	us_main_rel_dir="${us_main_app_base_dir}"
+	if [ ! "${us_launch_type}" = "native" ]; then
 
-	us_main_exec="${us_main_app_base_dir}/bin/us_main"
+		# Supposing first that the path of a real release has been specified;
+		# for example: "/opt/universal-server/us-main-x.y.z":
+		#
+		us_main_rel_dir="${us_main_app_base_dir}"
 
-	if [ ! -x "${us_main_exec}" ]; then
-
-		saved_exec="${us_main_exec}"
-
-		# Maybe then in a rebar3 build tree:
-		us_main_rel_dir="${us_main_app_base_dir}/_build/default/rel/us_main"
-
-		us_main_exec="${us_main_rel_dir}/bin/us_main"
+		us_main_exec="${us_main_app_base_dir}/bin/us_main"
 
 		if [ ! -x "${us_main_exec}" ]; then
 
-			echo "  Error, the specified US-Main application base directory ('${us_main_app_base_dir}') does not seem to be a legit one: no '${saved_exec}' (not a standard release) nor '${us_main_exec}' (not a rebar3 build tree)." 1>&2
-			exit 150
+			saved_exec="${us_main_exec}"
+
+			# Maybe then in a rebar3 build tree:
+			us_main_rel_dir="${us_main_app_base_dir}/_build/default/rel/us_main"
+
+			us_main_exec="${us_main_rel_dir}/bin/us_main"
+
+			if [ ! -x "${us_main_exec}" ]; then
+
+				echo "  Error, the specified US-Main application base directory ('${us_main_app_base_dir}') does not seem to be a legit one: no '${saved_exec}' (not a standard release) nor '${us_main_exec}' (not a rebar3 build tree)." 1>&2
+				exit 150
+
+			else
+
+				echo "Rebar3 build tree detected, US-Main application found as '${us_main_exec}'."
+			fi
 
 		else
 
-			echo "Rebar3 build tree detected, US-Main application found as '${us_main_exec}'."
-		fi
-
-	else
-
-		echo "Standard OTP release detected, US-Main application found as '${us_main_exec}'."
-
-	fi
-
-
-	us_main_log_dir=$(echo "${us_main_base_content}" | grep us_main_log_dir | sed 's|^{[[:space:]]*us_main_log_dir,[[:space:]]*"||1' | sed 's|"[[:space:]]*}.$||1')
-
-	if [ -z "${us_main_log_dir}" ]; then
-
-		us_main_log_dir="/var/log"
-		echo "No base directory specified for main logs (no 'us_main_log_dir' entry in the US-Main configuration file '${us_main_config_file}'), trying default log directory '${us_main_log_dir}'."
-
-	else
-
-		# Checks whether absolute:
-		if [[ "${us_main_log_dir:0:1}" == / || "${us_main_log_dir:0:2}" == ~[/a-z] ]]; then
-
-			echo "Using directly specified directory for main logs, '${us_main_log_dir}'."
-
-		else
-
-			# If it is relative, it is relative to the US-Main application base
-			# directory:
-			#
-			us_main_log_dir="${us_main_app_base_dir}/${us_main_log_dir}"
-			echo "Using specified directory for main logs (made absolute), '${us_main_log_dir}'."
+			echo "Standard OTP release detected, US-Main application found as '${us_main_exec}'."
 
 		fi
 
 	fi
-
-	if [ ! -d "${us_main_log_dir}" ]; then
-
-		echo "  Error, no US-Main log directory (for main-level logs) found ('${us_main_log_dir}')." 1>&2
-		exit 160
-
-	fi
-
-	echo "US-Main (main-level) logs expected in the '${us_main_log_dir}' directory."
 
 }
 
@@ -403,15 +469,20 @@ prepare_us_main_launch()
 
 	/bin/rm -f ${us_main_vm_log_dir}/erlang.log.* ${us_main_vm_log_dir}/run_erl.log 2>/dev/null
 
+	# Not removing the state files of a log analyzer, to keep history.
+
 	# Needed as a sign that any future start succeeded:
-	trace_file="${us_log_dir}/us_main.traces"
+	trace_file="${us_main_vm_log_dir}/us_main.traces"
 	echo "Removing any '${trace_file}' trace file."
 	/bin/rm -f "${trace_file}" 2>/dev/null
 
-	echo "Fixing permissions."
+	echo "Fixing permissions to ${us_main_username}:${us_groupname} (as $(id -un))."
 
 	# So that the VM can write its logs despite authbind:
 	chown ${us_main_username}:${us_groupname} ${us_main_vm_log_dir}
+
+	# Raising the maximum number of opened file descriptors:
+	ulimit -n 64000
 
 }
 
@@ -425,24 +496,41 @@ inspect_us_main_log()
 
 	# (run_erl.log not that useful)
 
+	# A bit of waiting to let log file be created and written:
+	sleep 1
+
 	# See https://erlang.org/doc/embedded/embedded_solaris.html to understand
 	# the naming logic of erlang.log.* files.
 	#
-	# The goal here is only to select the latest-produced of these rotated log files:
+	# The goal here is only to select the latest-produced of these rotated log
+	# files:
 	#
 	us_main_vm_log_file=$(/bin/ls -t ${us_main_vm_log_dir}/erlang.log.* 2>/dev/null | head -n 1)
+	# Apparently a log file may vanish/be replaced, so:
+	attempts=1
+	max_attempts=8
+
+	while [ ! ${attempts} -eq ${max_attempts} ] && [ ! -f "${us_main_vm_log_file}" ]; do
+
+		if [ -z "${us_main_vm_log_file}" ]; then
+			echo "(no VM log file found, attempt ${attempts}/${max_attempts})"
+		else
+			# Might happen:
+			echo "(VM log file '${us_main_vm_log_file}' not found, attempt ${attempts}/${max_attempts})"
+		fi
+
+		sleep 1
+		attempts=$(expr ${attempts} + 1)
+		us_main_vm_log_file=$(/bin/ls -t ${us_main_vm_log_dir}/erlang.log.* 2>/dev/null | head -n 1)
+
+	done
 
 	# A common problem is: "Protocol 'inet_tcp': the name xxx@yyy seems to be in
 	# use by another Erlang node". This may not even be true (no VM running),
 	# just a lingering EPMD believing this node still exists.
 
-
-	# Waits a bit if necessary while any writing takes place:
-	if [ ! -f "${us_main_vm_log_file}" ]; then
-		sleep 1
-	fi
-
 	echo
+
 	if [ -f "${us_main_vm_log_file}" ]; then
 
 		echo "EPMD names output:"
@@ -451,17 +539,15 @@ inspect_us_main_log()
 		echo
 		echo "Displaying the end of '${us_main_vm_log_file}':"
 
-		# Still a bit of waiting, otherwise any error may not have been reported
-		# yet:
-		#
-		sleep 1
-
 		# A sufficient height is *necessary*:
 		tail --lines=80 "${us_main_vm_log_file}"
 
+		# Extra information might be gathered from traces_via_otp.traces and/or
+		# us_main.traces.
+
 	else
 
-		echo "  Error, no US-Main VM log file found (no '${us_main_vm_log_file}', searched in '${us_main_vm_log_dir}')." 1>&2
+		echo "No VM log file found, aborting." 1>&2
 		exit 200
 
 	fi
