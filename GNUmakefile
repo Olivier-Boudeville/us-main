@@ -381,11 +381,26 @@ info-local:
 	@echo "REBAR_INCS = $(REBAR_INCS)"
 
 
+# Typically useful to know the software context for continuous integration:
+info-context: info-platform info-versions info-source-layout
+
+
+info-versions:
+	@echo "MYRIAD_VERSION = $(MYRIAD_VERSION)"
+	@echo "WOOPER_VERSION = $(WOOPER_VERSION)"
+	@echo "TRACES_VERSION = $(TRACES_VERSION)"
+	@echo "US_COMMON_VERSION = $(US_COMMON_VERSION)"
+	@echo "SEAPLUS_VERSION = $(SEAPLUS_VERSION)"
+	@echo "MOBILE_VERSION = $(MOBILE_VERSION)"
+
+
 info-deps:
 	@echo "MYRIAD_TOP = $(MYRIAD_TOP) (i.e. $$(realpath $(MYRIAD_TOP)))"
 	@echo "WOOPER_TOP = $(WOOPER_TOP)) (i.e. $$(realpath $(WOOPER_TOP)))"
 	@echo "TRACES_TOP = $(TRACES_TOP)) (i.e. $$(realpath $(TRACES_TOP)))"
 	@echo "US_COMMON_TOP = $(US_COMMON_TOP) (i.e. $$(realpath $(US_COMMON_TOP)))"
+	@echo "SEAPLUS_TOP = $(SEAPLUS_TOP) (i.e. $$(realpath $(SEAPLUS_TOP)))"
+	@echo "MOBILE_TOP = $(MOBILE_TOP) (i.e. $$(realpath $(MOBILE_TOP)))"
 
 
 info-conditionals:

@@ -211,3 +211,23 @@ else
 		endif
 	endif
 endif
+
+
+
+# We do the same for Mobile (which implies Seaplus):
+ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/mobile/.),)
+	# By default, expect a checkout directory:
+	MOBILE_TOP = $(US_MAIN_TOP)/_checkouts/mobile
+else
+	# Second, a sibling one is searched for:
+	ifneq ($(wildcard $(US_MAIN_TOP)/../mobile/.),)
+		MOBILE_TOP = $(US_MAIN_TOP)/../mobile
+   else
+		# Otherwise most probably in a 'rebar3 compile' context:
+		ifneq ($(wildcard $(US_MAIN_TOP)/_build/default/lib/mobile/.),)
+			MOBILE_TOP = $(US_MAIN_TOP)/_build/default/lib/mobile
+		else
+			FORCE_EVAL := $(error Unable to find the build root of Ceylan-Mobile from '$(realpath .)'.)
+		endif
+	endif
+endif
