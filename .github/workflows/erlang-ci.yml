@@ -51,5 +51,6 @@ jobs:
         mkdir -p "${cfg_dir}"
         cd "${cfg_dir}"
         ln -s "${us_common_base_dir}/priv/for-testing/us.config"
-        ln -s "${base_dir}/priv/for-testing/us-web-for-tests.config"
+        #ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
+        cd ${base_dir}
         make test NODE_NAMING="--sn"
