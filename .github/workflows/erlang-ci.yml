@@ -34,7 +34,7 @@ jobs:
         #apt-get update
         echo "## Updating packages"
         apt-get update
-        apt-get install --assume-yes tree
+        apt-get install --assume-yes tree pkg-config libgammu-dev
         rebar3 compile
         echo " - building from: $(pwd)"
         echo " - content of parent directory: $(ls .. 2>/dev/null | tr '\n' ' ')"
