@@ -52,4 +52,4 @@ jobs:
         cd "${cfg_dir}"
         ln -s "${us_common_base_dir}/priv/for-testing/us.config"
         ln -s "${base_dir}/priv/for-testing/us-web-for-tests.config"
-        make test-ci NODE_NAMING="--sn"
+        make test NODE_NAMING="--sn"
