@@ -40,11 +40,11 @@
   % dependency of us_common (dependency of this us_main); as such they may not
   % be listed here, however we stay conservative;
   %
-  {applications, [kernel, stdlib, sasl, myriad, wooper, traces, us_common]},
+  {applications, [kernel, stdlib, sasl, myriad, wooper, traces, jsx, us_common]},
   {env,[]},
 
   % Flat hierarchy in ebin here:
-  {modules, [class_USSensorManager, us_main_app, us_main_monitor_app, us_main_sup]},
+  {modules, [class_USSensorManager, us_main_app, us_main_monitor_app, us_main_stop_app, us_main_sup]},
 
   {licenses, ["US-Main is licensed by its author (Olivier Boudeville) under the GNU Affero General Public License (AGPL), version 3.0 or later"]},
 
