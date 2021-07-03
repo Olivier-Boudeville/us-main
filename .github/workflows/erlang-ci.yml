@@ -53,6 +53,8 @@ jobs:
         ln -s "${us_common_base_dir}/priv/for-testing/us.config"
         #ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
         cd ${base_dir}
-        # To avoid 'No sensors found!' to be returned by 'sensors':
-        sensors-detect --auto
+        # To avoid 'No sensors found!' to be returned by 'sensors', yet
+		# bound to fail with 'No i2c device files found.', typically in a
+		# continuous integration context:
+        sensors-detect --auto || true
         make test NODE_NAMING="--sn"
