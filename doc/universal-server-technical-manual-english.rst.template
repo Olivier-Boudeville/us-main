@@ -6,6 +6,12 @@
 .. comment stylesheet specified through GNUmakefile
 
 
+
+============================================
+Technical Manual of the ``Universal Server``
+============================================
+
+
 .. role:: raw-html(raw)
    :format: html
 
@@ -19,14 +25,9 @@
 
 
 
-:raw-html:`<center><img src="us-main-title.png" id="responsive-image-medium"></img></center>`
+:raw-html:`<center><img src="us-main-title.png" id="responsive-image-medium"></img>`
 :raw-latex:`\centering \includegraphics[scale=1.2]{us-main-title.png}`
 
-
-
-============================================
-Technical Manual of the ``Universal Server``
-============================================
 
 
 :Organisation: Copyright (C) 2019-GENERATION_YEAR_TAG Olivier Boudeville
@@ -47,6 +48,8 @@ Technical Manual of the ``Universal Server``
 
 .. meta::
    :keywords: Universal Server
+
+:raw-html:`</center>`
 
 
 :raw-latex:`\pagebreak`
