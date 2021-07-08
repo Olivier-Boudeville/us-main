@@ -41,6 +41,8 @@ fans), and of reporting any abnormal situation" ).
 -include("us_main_defines.hrl").
 
 
+% TODO: manage fans & intrusion sensors
+
 
 % Design notes:
 %
@@ -98,7 +100,8 @@ fans), and of reporting any abnormal situation" ).
 % - R4: https://www.linux.com/training-tutorials/jazz-lm-sensors-graphics-and-notifications-0/
 % - R5: https://wpitchoune.net/psensor/
 
-% Example of preparation/tuning of one's sensors: https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html
+% Example of preparation/tuning of one's sensors:
+% https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html
 
 
 % Read from a sensor on your CPU:  Core temperature.
@@ -214,6 +217,7 @@ fans), and of reporting any abnormal situation" ).
 % The various data corresponding to various kinds of sensors.
 
 
+
 -record( temperature_data, {
 
 	% The name of the attribute to read from the JSON table in order to
@@ -239,30 +243,44 @@ fans), and of reporting any abnormal situation" ).
 
 	% To compute the average temperature:
 
-	% The sum of all temperatures measured since start:
+	% The sum of all (vetted) temperatures measured since start:
 	avg_sum = 0.0 :: celsius(),
 
-	% The number of all temperature measurements since start:
+	% The number of all (vetted) temperature measurements since start:
 	avg_count = 0 :: count(),
+
+
+
+	% The minimum allowed temperature, below which we consider that an alarm
+	% shall be raised (it is typically set higher than any crit_low):
+	%
+	% (not the most useful of indicators; generally is not set)
+	%
+	alarm_low = undefined :: maybe( celsius() ),
+
+
+	% The maximum allowed temperature, above which we consider that an alarm
+	% shall be raised (it is typically set lower than any crit_high):
+	%
+	alarm_high = undefined :: maybe( celsius() ),
+
+
+
+	% The built-in critical low temperature (i.e. the temperature below which
+	% serious problems are bound to happen), as reported by the sensor (if any
+	% is defined):
+	%
+	% (not the most useful of indicators; generally is not set)
+	%
+	crit_low = undefined :: maybe( celsius() ),
 
 
 	% The built-in critical high temperature (i.e. the temperature above which
 	% serious problems are bound to happen), as reported by the sensor (if any
 	% is defined):
 	%
-	crit_high = undefined :: maybe( celsius() ),
+	crit_high = undefined :: maybe( celsius() ) } ).
 
-	% crit_low would be mostly meaningless.
-
-
-	% The maximum allowed temperature, above which we consider that an alarm
-	% shall be raised (it is typically set lower than any crit_high):
-	%
-	alarm_high = undefined :: maybe( celsius() )
-
-	% alarm_low would be mostly meaningless.
-
-} ).
 
 -type temperature_data() :: #temperature_data{}.
 % Stores information about the temperature measured by a given measurement point
@@ -296,6 +314,10 @@ fans), and of reporting any abnormal situation" ).
 
 % Should none be returned by a sensor (as celsius()):
 -define( default_critical_high_temperature, 95.0 ).
+
+
+% Should none be returned by a sensor (as celsius()):
+-define( default_critical_low_temperature, 5.0 ).
 
 
 
@@ -351,9 +373,11 @@ fans), and of reporting any abnormal situation" ).
 -type bin_string() :: text_utils:bin_string().
 -type indentation_level() :: indentation_level().
 
--type string_json() :: json_utils:string_json().
+-type file_path() :: file_utils:file_path().
 
+-type string_json() :: json_utils:string_json().
 -type decoded_json() :: json_utils:decoded_json().
+-type parser_state() :: json_utils:parser_state().
 
 -type celsius() :: unit_utils:celsius().
 
@@ -367,6 +391,9 @@ fans), and of reporting any abnormal situation" ).
 	{ sensor_exec_pair, system_utils:execution_pair(),
 	  "to run the sensor tool conveniently" },
 
+	{ sensor_monitoring, boolean(),
+	  "tells whether sensor monitoring is enabled" },
+
 	{ parser_state, parser_state(), "state of the JSON parser in use" },
 
 	{ sensor_table, sensor_table(),
@@ -378,9 +405,8 @@ fans), and of reporting any abnormal situation" ).
 	{ us_scheduler_pid, scheduler_pid(), "the PID of the main US scheduler" },
 
 	{ task_id, task_id(),
-	  "the scheduling identifier of the sensor-polling task" }
+	  "the scheduling identifier of the sensor-polling task" } ] ).
 
-] ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -425,20 +451,62 @@ construct( State ) ->
 		?us_main_sensor_server_registration_name,
 		?us_main_sensor_server_registration_scope ),
 
-	InitSensorState = init_sensors( SrvState ),
+	InitSensorState = case init_sensors( SrvState ) of
 
-	% For a first, direct, relevant test run before being periodically
-	% scheduled:
-	%
-	UpdatedSensorState = update_sensor_data( InitSensorState ),
-	%UpdatedSensorState = InitSensorState,
+		{ _SensorEnabled=true, InitState } ->
 
-	%SchedState =
-	%    init_polling( ?default_sensor_poll_periodicity, UpdatedSensorState ),
-	SchedState = UpdatedSensorState,
+			% For a first, direct, relevant test run before being periodically
+			% scheduled:
+			%
+			UpdatedSensorState = update_sensor_data( InitState ),
 
-	?send_info( SchedState, "Constructed: " ++ to_string( SchedState ) ),
-	SchedState.
+			init_polling( ?default_sensor_poll_periodicity,
+						  UpdatedSensorState );
+
+		{ _SensorEnabled=false, InitState } ->
+			?notice( "No sensor enabled, no polling scheduled." ),
+			InitState
+
+	end,
+
+	?send_info( InitSensorState,
+				"Constructed: " ++ to_string( InitSensorState ) ),
+	InitSensorState.
+
+
+
+% @doc Constructs a minimal sensor manager in order to test whether the sensor
+% JSON output stored in the specified file can be propertly interpreted.
+%
+% Such a file is typically obtained thanks to:
+%      $ sensors --no-adapter -j > my_sensor_output.txt
+%
+% Useful to support sensors from third-party computers (transmitting such a file
+% just suffice to update this module accordingly).
+%
+-spec construct( wooper:state(), file_path() ) -> wooper:state().
+construct( State, SensorOutputFilePath ) ->
+
+	ServerTraceName = text_utils:format(
+		"Sensor manager for data from file ~ts", [ SensorOutputFilePath ] ),
+
+	% First the direct mother classes, then this class-specific actions:
+	SrvState = class_USServer:construct( State,
+		?trace_categorize(ServerTraceName),
+		?us_main_sensor_server_registration_name,
+		?us_main_sensor_server_registration_scope ),
+
+	% Internal state of the JSON parser:
+	ParserState = initialise_json_support( SrvState ),
+
+	InitState = setAttributes( SrvState, [ { sensor_monitoring, false },
+										   { parser_state, ParserState } ] ),
+
+	ReadState =
+		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
+
+	?send_info( ReadState, "Constructed: " ++ to_string( ReadState ) ),
+	ReadState.
 
 
 
@@ -461,7 +529,8 @@ destruct( State ) ->
 
 
 % @doc Initialises the sensor management.
--spec init_sensors( wooper:state() ) -> wooper:state().
+-spec init_sensors( wooper:state() ) ->
+						{ SensorEnabled :: boolean(), wooper:state() }.
 init_sensors( State ) ->
 
 	SensorExec = "sensors",
@@ -492,6 +561,20 @@ init_sensors( State ) ->
 
 	?debug_fmt( "Exec pair for sensor reading:~n ~p.", [ ExecPair ] ),
 
+	CheckedParserState = initialise_json_support( State ),
+
+	ReadyState = setAttributes( State, [
+		{ sensor_exec_pair, ExecPair },
+		{ parser_state, CheckedParserState } ] ),
+
+	initialise_sensor_data( ReadyState ).
+
+
+
+% @doc Returns a proper initial state of the JSON parser.
+-spec initialise_json_support( wooper:state() ) -> parser_state().
+initialise_json_support( State ) ->
+
 	% We will interpret the JSON outputs of sensors, so:
 	case json_utils:is_parser_available() of
 
@@ -514,33 +597,38 @@ init_sensors( State ) ->
 	?info_fmt( "JSON parser successfully started (based on a ~ts back-end), "
 			   "and tested.", [ BackendName ] ),
 
-	ReadyState = setAttributes( State, [
-		{ sensor_exec_pair, ExecPair },
-		{ parser_state, CheckedParserState } ] ),
-
-	initialise_sensor_data( ReadyState ).
+	CheckedParserState.
 
 
 
 % @doc Initialises and integrates the first data (ex: temperatures and fan
 % speeds) read from sensors.
 %
+-spec initialise_sensor_data( wooper:state() ) ->
+								{ SensorEnabled :: boolean(), wooper:state() }.
 initialise_sensor_data( State ) ->
 
 	case fetch_sensor_data( State ) of
 
 		{ ok, CmdOutput } ->
-			parse_initial_sensor_output( CmdOutput, State );
+			{ true, parse_initial_sensor_output( CmdOutput, State ) };
 
-		% If it happens at initialisation, this is a showstopper:
-		{ error, ErrorOutput } ->
-			throw( { cannot_read_sensors, ErrorOutput } )
+		% If initialisation detects that no sensor is available, this is not a
+		% showstopper anymore, as on some contexts (ex: continuous integration)
+		% this might happen and should not crash such a manager:
+		%
+		error ->
+			?warning( "Not able to initialise sensor data, not activating "
+					  "their monitoring." ),
+			{ false, setAttribute( State, sensor_monitoring, false ) }
 
 	end.
 
 
 
-% Returns the output of the corresponding sensor command.
+% @doc Returns the output of the corresponding sensor command (may crash on
+% systematic, non-recoverable errors).
+%
 -spec fetch_sensor_data( wooper:state() ) -> fallible( ustring() ).
 fetch_sensor_data( State ) ->
 
@@ -553,21 +641,29 @@ fetch_sensor_data( State ) ->
 						[ CmdOutput ] ),
 			{ ok, CmdOutput };
 
-		{ ReturnCode,ErrorOutput  } ->
+		% Message typically starts with 'No sensors found!...":
+		{ _ReturnCode=1, ErrorOutput } ->
 			?error_fmt( "Error when running '~ts' with arguments ~p: '~ts' "
+				"(exit code: 1); interpreting that as no sensor being found.",
+				[ ExecPath, ExecArgs, ErrorOutput ] ),
+
+			% Do not crash in this case anymore:
+			%throw( { sensor_read_failed, ErrorOutput } )
+			error;
+
+		{ ReturnCode, ErrorOutput  } ->
+			?emergency_fmt( "Error when running '~ts' with arguments ~p: '~ts' "
 				"(exit code: ~B).",
 				[ ExecPath, ExecArgs, ErrorOutput, ReturnCode ] ),
 
-			% Do not crash:
-			%throw( { sensor_read_failed, ErrorOutput } )
-			{ error, ErrorOutput }
+			throw( { sensor_read_failed, ErrorOutput } )
 
 	end.
 
 
 
-% @doc Parses the specified sensor JSON output, returns a state with an initial
-% sensor table.
+% @doc Parses the specified sensor JSON output, returns a state with a
+% corresponding initial sensor table.
 %
 -spec parse_initial_sensor_output( string_json(), wooper:state() ) ->
 										wooper:state().
@@ -582,7 +678,8 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 
 % @doc Parses in turn the specified initial sensor JSON entries.
 parse_initial_sensors( _SensorPairs=[], SensorTable, State ) ->
-	setAttribute( State, sensor_table, SensorTable );
+	setAttributes( State, [ { sensor_table, SensorTable },
+							{ sensor_monitoring, true } ] );
 
 parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 					   SensorTable, State ) ->
@@ -630,6 +727,8 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 									   category=SensorCategory,
 									   data=MaybeSensorData },
 
+			?debug_fmt( "For ~ts: ~p.", [ RawSensorIdBinStr, SensorInfo ] ),
+
 			% Ensures of uniqueness of key:
 			NewSensorTable = table:add_new_entry( RawSensorIdBinStr, SensorInfo,
 												  SensorTable ),
@@ -638,7 +737,6 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 
 
 		_Other ->
-
 			?error_fmt( "Unable to interpret raw sensor identifier '~ts', "
 				"ignoring this sensor as a whole from now.",
 				[ RawSensorIdStr ] ),
@@ -696,14 +794,14 @@ get_interface( _InterfStr ) ->
 						 wooper:state() ) ->  maybe( sensor_data() ).
 parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
-	?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
+	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	{ TempJSONTriples, OtherJSONTriples } =
 		filter_cpu_socket_json( SensorJSON ),
 
-	?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-				[ TempJSONTriples, OtherJSONTriples ] ),
+	%?debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%			 [ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -724,14 +822,13 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
 parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
-	?debug_fmt( "JSON to parse for ~ts for cpu:~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%?debug_fmt( "JSON to parse for ~ts for cpu:~n ~p",
+	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
-	{ TempJSONTriples, OtherJSONTriples } =
-		filter_cpu_json( SensorJSON ),
+	{ TempJSONTriples, OtherJSONTriples } = filter_cpu_json( SensorJSON ),
 
-	?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-				[ TempJSONTriples, OtherJSONTriples ] ),
+	%?debug_fmt( "For cpu: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%			 [ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -752,16 +849,16 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
 parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 
-	?debug_fmt( "JSON to parse for ~ts for motherboard:~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%?debug_fmt( "JSON to parse for ~ts for motherboard:~n ~p",
+	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
-	{ TempJSONTriples, FanJSONTriples, IntrusionJSONTriples,
+	{ TempJSONTriples, _FanJSONTriples, _IntrusionJSONTriples,
 	  OtherJSONTriples } = filter_motherboard_json( SensorJSON ),
 
-	?debug_fmt( "TempJSONTriples: ~p~nFanJSONTriples: ~p~n"
-		"IntrusionJSONTriples: ~p~nOtherJSONTriples: ~p",
-		[ TempJSONTriples, FanJSONTriples, IntrusionJSONTriples,
-		  OtherJSONTriples ] ),
+	%?debug_fmt( "TempJSONTriples: ~p~nFanJSONTriples: ~p~n"
+	%   "IntrusionJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%   [ TempJSONTriples, FanJSONTriples, IntrusionJSONTriples,
+	%     OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -780,10 +877,37 @@ parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 	init_temperature_points( TempJSONTriples, SensorId, State );
 
 
+parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
+
+	?debug_fmt( "JSON to parse for ~ts for disk:~n ~p",
+				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+
+	{ TempJSONTriples, OtherJSONTriples } = filter_disk_json( SensorJSON ),
+
+	?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+				[ TempJSONTriples, OtherJSONTriples ] ),
+
+	case OtherJSONTriples of
+
+		[] ->
+			ok;
+
+		_ ->
+			?warning_fmt( "Following ~B motherboard measurements points "
+				"could not be categorized: ~ts.",
+				[ length( OtherJSONTriples ), text_utils:strings_to_string(
+					[ json_triple_to_string( JT ) || JT <- OtherJSONTriples ]
+												) ] )
+
+	end,
+
+	init_temperature_points( TempJSONTriples, SensorId, State );
+
 parse_sensor_data( SensorJSON, SensorCateg, SensorId, State ) ->
 
-	?debug_fmt( "Ignoring JSON for ~ts of unsupported category ~ts:~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorCateg, SensorJSON ] ),
+	?error_fmt( "Ignoring JSON for ~ts of unsupported category ~ts:~n ~p",
+				  [ sensor_id_to_string( SensorId ), SensorCateg,
+					SensorJSON ] ),
 
 	undefined.
 
@@ -812,8 +936,8 @@ init_temperature_points( _PointTriples=[
 							{ BinPointName, BinDesc, PointValueMap } | T ],
 						 TempPointTable, SensorId, State ) ->
 
-	%?debug_fmt( "Initialising point '~ts' (~ts) with:~n ~p",
-	%			[ BinPointName, BinDesc, PointValueMap ] ),
+	?debug_fmt( "Initialising point '~ts' (~ts) with:~n ~p",
+				[ BinPointName, BinDesc, PointValueMap ] ),
 
 	InitPointData = init_temperature_data( PointValueMap, BinPointName,
 										   BinDesc, SensorId, State ),
@@ -822,7 +946,7 @@ init_temperature_points( _PointTriples=[
 	% constructor:
 	%
 	%DirectPointData = update_temperature_data( BinPointName, PointValueMap,
-	%										   InitPointData, SensorId, State ),
+	%									InitPointData, SensorId, State ),
 
 	% Uniqueness checked:
 	NewTempPointTable =
@@ -851,17 +975,65 @@ init_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
 % (helper)
 % End of recursion:
 init_temp_point( _TempEntries=[], BinPointName,
-				 TempData=#temperature_data{ crit_high=MaybeCritHighTemp,
-											 alarm_high=MaybeMaxTemp },
+				 TempData=#temperature_data{ current=CurrentTemp,
+											 crit_low=MaybeCritLowTemp,
+											 alarm_low=MaybeMinTemp,
+											 crit_high=MaybeCritHighTemp,
+											 alarm_high=MaybeMaxTemp,
+											 min=MaybeReportedMin,
+											 max=MaybeReportedMax },
 				 SensorId, PointValueMap, State ) ->
 
 	% Must have been found beforehand:
-	basic_utils:check_not_undefined( #temperature_data.input_attribute ),
+	basic_utils:check_not_undefined( CurrentTemp ),
 
+	% First, tackle low temperatures (not really of interest generally):
+	CritLowTemp = case MaybeCritLowTemp of
+
+		undefined ->
+			case MaybeReportedMin of
+
+				undefined ->
+					?default_critical_low_temperature;
+
+				ReportedMin ->
+					% Hazardous will negative temperatures:
+					%min( 0.9*ReportedMin, ReportedMin - 15.0 )
+					ReportedMin - 15.0
+
+			end;
+
+		CLTemp ->
+			CLTemp
+
+	end,
+
+	AlarmLowTemp = case MaybeMinTemp of
+
+		undefined ->
+			% Let's establish it then from the critical temperature:
+			%max( CritLowTemp + 12.0, 0.9 * CritLowTemp );
+			CritLowTemp + 12.0;
+
+		AlLowTemp ->
+			AlLowTemp
+
+	end,
+
+
+	% Now the same for max:
 	CritHighTemp = case MaybeCritHighTemp of
 
 		undefined ->
-			?default_critical_high_temperature;
+			case MaybeReportedMax of
+
+				undefined ->
+					?default_critical_high_temperature;
+
+				ReportedMax ->
+					max( 1.1*ReportedMax, ReportedMax + 15.0 )
+
+			end;
 
 		CHTemp ->
 			CHTemp
@@ -872,7 +1044,7 @@ init_temp_point( _TempEntries=[], BinPointName,
 
 		undefined ->
 			% Let's establish it then from the critical temperature:
-			max( CritHighTemp - 15.0, 0.9 * CritHighTemp );
+			max( CritHighTemp - 12.0, 0.9 * CritHighTemp );
 
 		AlHighTemp ->
 			AlHighTemp
@@ -881,8 +1053,15 @@ init_temp_point( _TempEntries=[], BinPointName,
 
 
 	% All constant information then set:
-	ReadyTempData = TempData#temperature_data{ crit_high=CritHighTemp,
-											   alarm_high=AlarmHighTemp },
+	ReadyTempData = TempData#temperature_data{ crit_low=CritLowTemp,
+											   alarm_low=AlarmLowTemp,
+											   crit_high=CritHighTemp,
+											   alarm_high=AlarmHighTemp,
+											   min=CurrentTemp,
+											   max=CurrentTemp },
+
+	%?debug_fmt( "Adding point '~ts' of ~ts.",
+	%			[ BinPointName, sensor_id_to_string( SensorId ) ] ),
 
 	% Now performs the first usual reading:
 	update_temperature_data( BinPointName, PointValueMap, ReadyTempData,
@@ -898,7 +1077,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 	AttrName = text_utils:binary_to_string( AttrNameBin ),
 
 	% We thought tables to be all like: #{<<"temp1">> =>
-	%   #{<<"temp1_crit">> => 105.0, <<"temp1_input">> => 27.8},
+	%    #{<<"temp1_crit">> => 105.0, <<"temp1_input">> => 27.8},
 
 	% (i.e. with attributes of a temperature_data being prefixed by their point
 	% name, like 'temp1' here)
@@ -934,17 +1113,32 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 			case text_utils:join( Separator, OtherElems ) of
 
 				"input" ->
+
 					% Just record the full attribute name once for all:
+					%
 					% (value considered afterwards, as all post-init updates)
 					%
-					SetTempData = TempData#temperature_data{
-									input_attribute=AttrNameBin },
+					case is_float( AttrValue ) of
 
-					% To be taken into account once all other attributes
-					% (especially the static ones) have been processed:
-					%
-					init_temp_point( T, PointNameStr, SetTempData, SensorId,
-									 PointValueMap, State );
+						true ->
+							SetTempData = TempData#temperature_data{
+											input_attribute=AttrNameBin,
+											current=AttrValue },
+
+							% To be taken into account once all other attributes
+							% (especially the static ones) have been processed:
+							%
+							init_temp_point( T, PointNameStr, SetTempData,
+											 SensorId, PointValueMap, State );
+
+						false ->
+							?error_fmt( "No float value associated to attribute"
+								" '~ts' (got '~p'). Information skipped.",
+								[ AttrName, AttrValue ] ),
+							init_temp_point( T, PointNameStr, TempData,
+											 SensorId, PointValueMap, State )
+
+					end;
 
 
 				Suffix="crit" ->
@@ -962,9 +1156,39 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 									 PointValueMap, State );
 
 
+				% Unsurprisingly, nothing like crit/crit_alarm for *low*
+				% temperatures.
+
+
+				% Just during this initialisation, we (ab)use the 'min' field in
+				% order to record the minimum allowed temperature as reported by
+				% the chip (not corresponding to the "real" min, which is the
+				% lowest temperature actually measured):
+				%
+				Suffix="min" ->
+					case vet_temperature( AttrValue, Suffix, PointNameStr,
+										  SensorId, State ) of
+
+						false ->
+							% Just ignored then:
+							init_temp_point( T, PointNameStr, TempData,
+								SensorId, PointValueMap, State );
+
+						true ->
+							NewTempData =
+								TempData#temperature_data{ min=AttrValue },
+
+							init_temp_point( T, PointNameStr, NewTempData,
+											 SensorId, PointValueMap, State )
+
+					end;
+
+
+				% Same as for "min" just above:
 				Suffix="max" ->
 					case vet_temperature( AttrValue, Suffix, PointNameStr,
 										  SensorId, State ) of
+
 						false ->
 							% Just ignored then:
 							init_temp_point( T, PointNameStr, TempData,
@@ -978,6 +1202,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 											 SensorId, PointValueMap, State )
 
 					end;
+
 
 				Suffix="alarm" ->
 					% First ensure that this alarm has not a bogus value:
@@ -1081,7 +1306,7 @@ init_for_crit( AttrValue, TempData, Suffix, PointNameStr, SensorId, State ) ->
 
 
 
-% Returns a term corresponding to specified JSON text.
+% @doc Returns a term corresponding to specified JSON text.
 -spec decode_sensor_json( string_json(), wooper:state() ) -> decoded_json().
 decode_sensor_json( SensorJsonStr, State ) ->
 
@@ -1277,7 +1502,7 @@ update_temperature_data( PointName, PointValueMap, TempData, SensorId,
 
 % @doc Integrates specified vetted temperature in recorded data.
 -spec integrate_temperature( celsius(), temperature_data(),
-				measurement_point_name(), sensor_id(), wooper:state() ) ->
+			measurement_point_name(), sensor_id(), wooper:state() ) ->
 									temperature_data().
 integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
 
@@ -1295,18 +1520,51 @@ integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
 
 	MaybeMax = TempData#temperature_data.max,
 
-		NewMax = case MaybeMax of
+	NewMax = case MaybeMax of
 
-			undefined ->
-				CurrentTemp;
+		undefined ->
+			CurrentTemp;
 
-			_ ->
-				max( CurrentTemp, MaybeMax )
+		_ ->
+			max( CurrentTemp, MaybeMax )
 
 	end,
 
 	NewAvgSum = TempData#temperature_data.avg_sum + CurrentTemp,
 	NewAvgCount = TempData#temperature_data.avg_count + 1,
+
+	CritLow = TempData#temperature_data.crit_low,
+
+	case CritLow =/= undefined andalso CurrentTemp < CritLow of
+
+		true ->
+			?emergency_fmt( "For measurement point ~ts of ~ts, current "
+				"temperature, ~ts, is inferior to the critical low one (~ts).",
+				[ PointName, sensor_id_to_string( SensorId ),
+				  unit_utils:temperature_to_string( CurrentTemp ),
+				  unit_utils:temperature_to_string( CritLow ) ] );
+
+		% As we expect AlarmLow > CritLow:
+		false ->
+
+			AlarmLow = TempData#temperature_data.alarm_low,
+
+			case AlarmLow =/= undefined andalso CurrentTemp < AlarmLow of
+
+				true ->
+					?alert_fmt( "For measurement point ~ts of ~ts, current "
+						"temperature, ~ts, is inferior to the alarm low "
+						"one (~ts).",
+						[ PointName, sensor_id_to_string( SensorId ),
+						  unit_utils:temperature_to_string( CurrentTemp ),
+						  unit_utils:temperature_to_string( AlarmLow ) ] );
+
+				false ->
+					ok
+
+			end
+
+	end,
 
 	CritHigh = TempData#temperature_data.crit_high,
 
@@ -1314,7 +1572,7 @@ integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
 
 		true ->
 			?emergency_fmt( "For measurement point ~ts of ~ts, current "
-				"temperature, ~ts, exceeds the critical one (~ts).",
+				"temperature, ~ts, exceeds the critical high one (~ts).",
 				[ PointName, sensor_id_to_string( SensorId ),
 				  unit_utils:temperature_to_string( CurrentTemp ),
 				  unit_utils:temperature_to_string( CritHigh ) ] );
@@ -1328,7 +1586,7 @@ integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
 
 				true ->
 					?alert_fmt( "For measurement point ~ts of ~ts, current "
-						"temperature, ~ts, exceeds the alarm one (~ts).",
+						"temperature, ~ts, exceeds the alarm high one (~ts).",
 						[ PointName, sensor_id_to_string( SensorId ),
 						  unit_utils:temperature_to_string( CurrentTemp ),
 						  unit_utils:temperature_to_string( AlarmHigh ) ] );
@@ -1348,7 +1606,7 @@ integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
 
 
 
-% Filters the specified JSON content corresponding to a CPU socket.
+% @doc Filters the specified JSON content corresponding to a CPU socket.
 -spec filter_cpu_socket_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_cpu_socket_json( SensorJSON ) ->
@@ -1367,7 +1625,8 @@ filter_cpu_socket_json( SensorJSON ) ->
 
 % (helper)
 filter_cpu_socket_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
-	{ TempAcc, OtherAcc };
+	% Original order is clearer (ex: for core numbers):
+	{ lists:reverse( TempAcc ), OtherAcc };
 
 filter_cpu_socket_json(
 		_BasicTriples=[ { _Name="temp" ++ Num, BinPointName, V } | T ],
@@ -1378,6 +1637,7 @@ filter_cpu_socket_json(
 	JSONTriple = { BinPointName, Desc, V },
 
 	filter_cpu_socket_json( T, [ JSONTriple | TempAcc ], OtherAcc );
+
 
 
 % Ignored entries are typically:
@@ -1393,8 +1653,7 @@ filter_cpu_socket_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-
-% Filters the specified JSON content corresponding to a CPU.
+% @doc Filters the specified JSON content corresponding to a CPU.
 -spec filter_cpu_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_cpu_json( SensorJSON ) ->
@@ -1407,7 +1666,8 @@ filter_cpu_json( SensorJSON ) ->
 
 % (helper)
 filter_cpu_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
-	{ TempAcc, OtherAcc };
+	% Original order is clearer (ex: for core numbers):
+	{ lists:reverse( TempAcc ), OtherAcc };
 
 filter_cpu_json(
 		_BasicTriples=[ { _Name="Package id " ++ Num, BinPointName, V } | T ],
@@ -1453,7 +1713,7 @@ filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% Filters te JSON content corresponding to a motherboard.
+% @doc Filters te JSON content corresponding to a motherboard.
 -spec filter_motherboard_json( decoded_json() ) ->
 	 { [ json_triple() ], [ json_triple() ], [ json_triple() ],
 	   [ json_triple() ] }.
@@ -1469,7 +1729,9 @@ filter_motherboard_json( SensorJSON ) ->
 % (helper)
 filter_motherboard_json( _BasicTriples=[], TempAcc, FanAcc, IntrusionAcc,
 						 OtherAcc ) ->
-	{ TempAcc, FanAcc, IntrusionAcc, OtherAcc };
+	% Original order is clearer:
+	{ lists:reverse( TempAcc ), lists:reverse( FanAcc ),
+	  lists:reverse( IntrusionAcc ), OtherAcc };
 
 % On-CPU temperature sensors, see
 % https://en.wikipedia.org/wiki/Platform_Environment_Control_Interface:
@@ -1565,11 +1827,19 @@ filter_motherboard_json( _BasicTriples=[
 
 % Explicitly ignored entries are typically:
 %  - "in*" (ex: "in1") [voltage? unassigned input port?]
+%  - Vcore, Vbat, AVCC, 3VSB, +3.3V
 %  - beep_enable
 %  - PCH_* (Platform Control Hub) such as PCH_CPU_TEMP
+%
 filter_motherboard_json( _BasicTriples=[
 		{ _Name="in" ++ _, _BinPointName, _V } | T ],
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
+	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
+
+filter_motherboard_json( _BasicTriples=[ { IgnName, _BinPointName, _V } | T ],
+		TempAcc, FanAcc, IntrusionAcc, OtherAcc ) when IgnName == "Vcore"
+			orelse IgnName == "Vbat" orelse IgnName == "AVCC"
+			orelse IgnName == "3VSB" orelse IgnName == "+3.3V" ->
 	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
 
 filter_motherboard_json( _BasicTriples=[
@@ -1593,6 +1863,33 @@ filter_motherboard_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc,
 							 [ JSONTriple | OtherAcc ] ).
+
+
+
+% @doc Filters the specified JSON content corresponding to a disk.
+-spec filter_disk_json( decoded_json() ) ->
+									{ [ json_triple() ], [ json_triple() ] }.
+filter_disk_json( SensorJSON ) ->
+
+	BasicTriples = [ { text_utils:binary_to_string( BinStr ), BinStr, V }
+				|| { BinStr, V } <- map_hashtable:enumerate( SensorJSON ) ],
+
+	filter_disk_json( BasicTriples, _TempAcc=[], _OtherAccc=[] ).
+
+
+% (helper)
+filter_disk_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
+	% Original order may be clearer:
+	{ lists:reverse( TempAcc ), OtherAcc };
+
+filter_disk_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
+						TempAcc, OtherAcc ) ->
+
+	Desc = text_utils:format( "uncategorised disk sensor '~ts'", [ Name ] ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_disk_json( T, [ JSONTriple | TempAcc ], OtherAcc ).
 
 
 
@@ -1642,7 +1939,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 
 
 
-% Vets specified temperature regarding bogus range.
+% @doc Vets specified temperature regarding bogus range.
 -spec vet_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
 vet_temperature( Temp, TempDesc, PointName, SensorId, State ) ->
@@ -1651,7 +1948,7 @@ vet_temperature( Temp, TempDesc, PointName, SensorId, State ) ->
 
 
 
-% Vets specified temperature regarding specified range.
+% @doc Vets specified temperature regarding specified range.
 -spec vet_temperature( celsius(), temperature_description(), celsius(),
 		celsius(), range_description(), measurement_point_name(), sensor_id(),
 		wooper:state() ) -> boolean().
@@ -1681,28 +1978,62 @@ vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _PointName,
 
 
 
+% @doc Parses the sensor JSON output stored in the specified file, returns a
+% state with a corresponding initial sensor table.
+%
+%
+-spec parse_sensor_output_from_file( file_path(), wooper:state() ) ->
+											wooper:state().
+parse_sensor_output_from_file( OutputFilePath, State ) ->
+
+	case file_utils:is_existing_file_or_link( OutputFilePath ) of
+
+		true ->
+			ok;
+
+		false ->
+			?error_fmt( "The file '~ts' from which sensor output is to be read "
+				"does not exist (current directory: '~ts').",
+				[ OutputFilePath, file_utils:get_current_directory() ] ),
+			throw( { sensor_output_file_not_found, OutputFilePath } )
+
+	end,
+
+	% Better integrated than if using json_utils:from_json_file/1:
+	BinJson = file_utils:read_whole( OutputFilePath ),
+
+	parse_initial_sensor_output( BinJson, State ).
+
+
+
 % @doc Returns a textual description of the specified temperature data.
 -spec temperature_data_to_string( temperature_data() ) -> ustring().
 temperature_data_to_string( #temperature_data{ avg_count=0 } ) ->
-	"with no temperature reported yet";
+	"with no (plausible) temperature reported yet";
 
-temperature_data_to_string( #temperature_data{ current=Current,
-											   min=Min,
-											   max=Max,
-											   avg_sum=AvgSum,
-											   avg_count=AvgCount,
-											   crit_high=MaybeCritHigh,
-											   alarm_high=MaybeAlarmHigh } ) ->
+temperature_data_to_string( #temperature_data{
+								current=Current,
+								min=Min,
+								max=Max,
+								avg_sum=AvgSum,
+								avg_count=AvgCount,
+								crit_low=MaybeCritLow,
+								alarm_low=MaybeAlarmLow,
+								crit_high=MaybeCritHigh,
+								alarm_high=MaybeAlarmHigh } ) ->
+
 
 	% Count is non-null by design:
 	Avg = AvgSum / AvgCount,
 
 	TempStrs = [ unit_utils:maybe_temperature_to_string( T )
-		|| T <- [ Current, Min, Max, Avg, MaybeAlarmHigh, MaybeCritHigh ] ],
+		|| T <- [ Current, Min, Max, Avg, MaybeAlarmLow, MaybeCritLow,
+				  MaybeAlarmHigh, MaybeCritHigh ] ],
 
 	text_utils:format( "whose current temperature is ~ts "
 		"(min: ~ts, max: ~ts, average: ~ts; "
-		"thresholds: alarm: ~ts, critical: ~ts)",
+		"thresholds: alarm low: ~ts, critical low: ~ts, "
+		"alarm high: ~ts, critical high: ~ts)",
 		TempStrs ).
 
 
@@ -1770,6 +2101,9 @@ sensor_info_to_string( #sensor_info{ raw_id=RawIdBinStr,
 				cpu ->
 					temperature_points_to_string( Data, _IndentationLevel=1 );
 
+				motherboard ->
+					temperature_points_to_string( Data, _IndentationLevel=1 );
+
 				_ ->
 					"sensor-specific data"
 
@@ -1793,6 +2127,7 @@ json_triple_to_string( { BinPointName, BinDesc, PointValueMap } ) ->
 % @doc Returns a textual description of the specified sensor table.
 -spec sensor_table_to_string( sensor_table() ) -> ustring().
 sensor_table_to_string( SensorTable ) ->
+
 	case table:values( SensorTable ) of
 
 		[] ->
@@ -1810,9 +2145,21 @@ sensor_table_to_string( SensorTable ) ->
 	end.
 
 
+
 % @doc Returns a textual description of this manager.
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
-	text_utils:format( "US sensor manager for '~ts', tracking ~ts",
-		[ net_utils:localhost(),
-		  sensor_table_to_string( ?getAttr(sensor_table) ) ] ).
+
+	TrackStr = case ?getAttr(sensor_monitoring) of
+
+		true ->
+			text_utils:format( "tracking ~ts",
+				[ sensor_table_to_string( ?getAttr(sensor_table) ) ] );
+
+		false ->
+			"with no sensor tracking enabled"
+
+	end,
+
+	text_utils:format( "US sensor manager for '~ts', ~ts",
+					   [ net_utils:localhost(), TrackStr ] ).
