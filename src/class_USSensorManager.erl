@@ -103,19 +103,21 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type raw_sensor_type() :: ustring().
-% The reported type for a sensor, like "coretemp", "acpitz", "nvme", etc.; many
-% exist as they correspond to different chips (ex: "nct6792") on motherboards.
+% The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
+% "radeon", etc.; many exist as they correspond to different chips (ex:
+% "nct6792") on motherboards.
 
 
 -type atom_sensor_type() :: atom().
 % Atom-based version of a raw sensor type (ex: 'coretemp').
 
 
--type sensor_category() :: 'cpu'
+-type sensor_category() :: 'cpu' % Also includes APU (ex: Atom+Radeon)
 						 | 'cpu_socket' % Often less reliable than 'cpu'.
 						 | 'motherboard'
 						 | 'ram'
 						 | 'disk'
+						 | 'battery'
 						 | 'gpu'
 						 | 'unknown'.
 % A higher-level (potentially less precise), clearer (US-assigned) category for
@@ -135,7 +137,8 @@ fans), and of reporting any abnormal situation" ).
 -type raw_sensor_id() :: bin_string().
 % Full identifier of a sensor, directly as read from JSON; ex:
 % `<<"coretemp-isa-0000">>', `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>',
-% etc.
+% `<<"radeon-pci-0008">>', etc.; structure is
+% <<"RawSensorType-SensorInterface-SensorNumber">>.
 
 
 -type sensor_id() ::
@@ -568,11 +571,17 @@ construct( State, SensorOutputFilePath ) ->
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
 
+	?send_notice( ReadState, "After initial read: " ++ to_string( ReadState ) ),
+
+	% Not wanted, as we would read updated data not from file but from local
+	% host instead:
+	%
 	UpdatedSensorState = update_sensor_data( ReadState ),
 
-	?send_info( ReadState, "Constructed: " ++ to_string( UpdatedSensorState ) ),
+	?send_notice( UpdatedSensorState,
+				  "Constructed: " ++ to_string( UpdatedSensorState ) ),
 
-	ReadState.
+	UpdatedSensorState.
 
 
 
@@ -857,6 +866,17 @@ categorise_sensor( _RawSensorType="nvme" ) ->
 categorise_sensor( RawSensorType="nct" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), motherboard };
 
+categorise_sensor( RawSensorType="BAT" ++ _Number ) ->
+	{ text_utils:string_to_atom( RawSensorType ), battery };
+
+% Internal temperature sensor of AMD Family 10h/11h/12h/14h/15h/16h processors:
+categorise_sensor( _RawSensorType="k10temp" ) ->
+	{ coretemp, cpu };
+
+% Probably a APU:
+categorise_sensor( _RawSensorType="radeon" ) ->
+	{ radeon, cpu };
+
 categorise_sensor( RawSensorType ) ->
 	{ text_utils:string_to_atom( RawSensorType ), unknown }.
 
@@ -889,14 +909,14 @@ get_interface( _InterfStr ) ->
 						 wooper:state() ) -> points_data_table().
 parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
-	%?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
-	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
+				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	{ TempJSONTriples, OtherJSONTriples } =
 		filter_cpu_socket_json( SensorJSON ),
 
-	%?debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-	%			 [ TempJSONTriples, OtherJSONTriples ] ),
+	?debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+				[ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -905,9 +925,9 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
 		_ ->
 			?warning_fmt( "Following ~B CPU-socket measurement points "
-				"could not be categorised: ~ts.",
-				[ length( OtherJSONTriples ), text_utils:strings_to_string(
-					[ json_triple_to_string( JT )
+				"could not be categorised for '~ts': ~ts.",
+				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+				  text_utils:strings_to_string( [ json_triple_to_string( JT )
 								|| JT <- OtherJSONTriples ] ) ] )
 
 	end,
@@ -935,8 +955,9 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
 		_ ->
 			?warning_fmt( "Following ~B CPU measurements points "
-				"could not be categorised: ~ts.",
-				[ length( OtherJSONTriples ), text_utils:strings_to_string(
+				"could not be categorised for '~ts': ~ts.",
+				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+				  text_utils:strings_to_string(
 					[ json_triple_to_string( JT )
 								|| JT <- OtherJSONTriples ] ) ] )
 
@@ -966,8 +987,9 @@ parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 
 		_ ->
 			?warning_fmt( "Following ~B motherboard measurements points "
-				"could not be categorised: ~ts.",
-				[ length( OtherJSONTriples ), text_utils:strings_to_string(
+				"could not be categorised for '~ts': ~ts.",
+				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+				  text_utils:strings_to_string(
 					[ json_triple_to_string( JT )
 								|| JT <- OtherJSONTriples ] ) ] )
 
@@ -997,8 +1019,9 @@ parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 
 		_ ->
 			?warning_fmt( "Following ~B disk measurements points "
-				"could not be categorised: ~ts.",
-				[ length( OtherJSONTriples ), text_utils:strings_to_string(
+				"could not be categorised for '~ts': ~ts.",
+				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+				  text_utils:strings_to_string(
 					[ json_triple_to_string( JT )
 								|| JT <- OtherJSONTriples ] ) ] )
 
@@ -1007,6 +1030,17 @@ parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
 
+
+parse_sensor_data( SensorJSON, _SensorCateg=battery, SensorId, State ) ->
+
+	% Batteries are boring.
+	% Ex: <<"BAT0-acpi-0">>: #{<<"curr1">> => #{<<"curr1_input">> => 3.476},
+	%                          <<"in0">> => #{<<"in0_input">> => 12.417}}
+
+	?debug_fmt( "No relevant JSON expected to parse for ~ts for battery:~n ~p",
+				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+
+	undefined;
 
 parse_sensor_data( SensorJSON, SensorCateg, SensorId, State ) ->
 
@@ -1078,20 +1112,20 @@ init_temp_point( _TempEntries=[], BinPointName,
 		TempData=#temperature_data{ current=undefined }, SensorId, State ) ->
 
 	?error_fmt( "For temperature measurement point '~ts' of ~ts, no current "
-		"temperature was reported ; disabling this point.",
+		"temperature was reported; disabling this point.",
 		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
 
 	TempData#temperature_data{ status=disabled };
 
 
-% End of recursion, here with an expected current temperature reading:
+% End of recursion, here with an expected, defined, current temperature reading:
 init_temp_point( _TempEntries=[], _BinPointName,
 				 TempData=#temperature_data{ current=CurrentTemp,
 											 crit_low=MaybeCritLowTemp,
 											 alarm_low=MaybeMinTemp,
 											 crit_high=MaybeCritHighTemp,
 											 alarm_high=MaybeMaxTemp,
-											 min_reached=MaybeReached,
+											 min_reached=MaybeReachedMin,
 											 max_reached=MaybeReachedMax },
 				 _SensorId, _State ) ->
 
@@ -1101,7 +1135,7 @@ init_temp_point( _TempEntries=[], _BinPointName,
 	CritLowTemp = case MaybeCritLowTemp of
 
 		undefined ->
-			case MaybeReached of
+			case MaybeReachedMin of
 
 				undefined ->
 					?default_critical_low_temperature;
@@ -1161,15 +1195,21 @@ init_temp_point( _TempEntries=[], _BinPointName,
 	end,
 
 	% All constant information then set:
-	ReadyTempData = TempData#temperature_data{ crit_low=CritLowTemp,
-											   alarm_low=AlarmLowTemp,
-											   crit_high=CritHighTemp,
-											   alarm_high=AlarmHighTemp,
-											   min_reached=CurrentTemp,
-											   max_reached=CurrentTemp },
+	ReadyTempData = TempData#temperature_data{
+						crit_low=CritLowTemp,
+						alarm_low=AlarmLowTemp,
+						crit_high=CritHighTemp,
+						alarm_high=AlarmHighTemp,
+						% End of field abuse for min/max:
+						min_reached=CurrentTemp,
+						max_reached=CurrentTemp,
+						% Allows to start with actual info:
+						avg_sum=CurrentTemp,
+						avg_count=1 },
 
-	%?debug_fmt( "Adding temperature point '~ts' of ~ts.",
-	%            [ BinPointName, sensor_id_to_string( SensorId ) ] ),
+	%?debug_fmt( "Adding initial temperature point '~ts' of ~ts:~n  ~ts",
+	%			[ BinPointName, sensor_id_to_string( SensorId ),
+	%			  point_data_to_string( ReadyTempData ) ] ),
 
 	% We used to perform the first usual reading here, now done in the final
 	% part of the constructor.
@@ -1229,7 +1269,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 					%
 					% (value considered afterwards, as all post-init updates)
 					%
-					case is_float( AttrValue ) of
+					case vet_temperature( AttrValue, AttrName, BinPointName,
+										  SensorId, State ) of
 
 						true ->
 							SetTempData = TempData#temperature_data{
@@ -1244,12 +1285,16 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 
-							?error_fmt( "Non-float value associated to "
-								"temperature attribute '~ts' (got '~p'); "
-								"skipping that information.",
-								[ AttrName, AttrValue ] ),
+							% Happens very often:
+							%?error_fmt( "Invalid value associated to "
+							%   "temperature attribute '~ts' (got '~p'); "
+							%   "skipping that information.",
+							%   [ AttrName, AttrValue ] ),
 
-							init_temp_point( T, BinPointName, TempData,
+							SetTempData = TempData#temperature_data{
+											input_attribute=AttrNameBin },
+
+							init_temp_point( T, BinPointName, SetTempData,
 											 SensorId, State )
 
 					end;
@@ -1360,13 +1405,15 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 
 				Suffix when Suffix == "beep" orelse Suffix == "type"
-						orelse Suffix == "offset" orelse Suffix == "max_hyst" ->
+						orelse Suffix == "offset" orelse Suffix == "max_hyst"
+						orelse Suffix == "crit_hyst" ->
 
 					%?debug_fmt( "Attribute '~ts' belongs to the ignored ones.",
 					%			 [ Suffix ] ),
 
 					init_temp_point( T, BinPointName, TempData, SensorId,
 									 State );
+
 
 				_OtherSuffix ->
 
@@ -1870,8 +1917,8 @@ update_data_table( PointsDataTable,
 		key_not_found ->
 
 			% Convenient to catch non-interpreted entries:
-			?error_fmt( "No entry in points table found for "
-				"measurement point '~ts' of ~ts; skipping this point.",
+			?warning_fmt( "(no entry in points table found for "
+				"measurement point '~ts' of ~ts; skipping this point)",
 				[ PointNameBin, sensor_id_to_string( SensorId ) ] ),
 
 			PointsDataTable
@@ -2126,6 +2173,7 @@ filter_cpu_socket_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
 	% Original order is clearer (ex: for core numbers):
 	{ lists:reverse( TempAcc ), OtherAcc };
 
+
 filter_cpu_socket_json(
 		_BasicTriples=[ { _Name="temp" ++ Num, BinPointName, V } | T ],
 		TempAcc, OtherAcc ) ->
@@ -2189,6 +2237,18 @@ filter_cpu_json(
 	filter_cpu_json( T, [ JSONTriple | TempAcc ], OtherAcc );
 
 
+% Ex:  <<"k10temp-pci-00c3">>: #{<<"temp1">> =>...
+filter_cpu_json(
+		_BasicTriples=[ { _Name="temp" ++ Num, BinPointName, V } | T ],
+		TempAcc, OtherAcc ) ->
+
+	Desc = integrate_any_number( "CPU temperature sensor", Num ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_cpu_json( T, [ JSONTriple | TempAcc ], OtherAcc );
+
+
 % Ignoring "in*", expected to be voltages:
 filter_cpu_json(
 		_BasicTriples=[ { _Name="in" ++ _, _BinPointName, _V } | T ],
@@ -2201,8 +2261,7 @@ filter_cpu_json(
 filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 						TempAcc, OtherAcc ) ->
 
-	Desc = text_utils:bin_format( "uncategorised CPU socket sensor '~ts'",
-								  [ Name ] ),
+	Desc = text_utils:bin_format( "uncategorised CPU sensor '~ts'", [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
