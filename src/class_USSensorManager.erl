@@ -21,8 +21,8 @@
 
 
 % @doc US server in charge of the <b>monitoring of the sensors available on a
-% local host</b> (notably the temperatures and the operation of fans), and of
-% reporting any abnormal situation.
+% local host</b> (notably the temperatures, chassis intrusion status and the
+% operation of fans), and of reporting any abnormal situation.
 %
 -module(class_USSensorManager).
 
@@ -36,12 +36,9 @@ fans), and of reporting any abnormal situation" ).
 -define( superclasses, [ class_USServer ] ).
 
 
-
 % For settings regarding name registration:
 -include("us_main_defines.hrl").
 
-
-% TODO: manage fans & intrusion sensors
 
 
 % Design notes:
@@ -51,87 +48,58 @@ fans), and of reporting any abnormal situation" ).
 % are used here.
 
 
+% Two phases shall be considered:
+%
+%  - an initial pass through all measurement points of all sensors, in order to
+%  initialise properly them, based on a per-category exhaustive filtering
+%
+%  - regular update passes, just picking the enabled points, updating their
+%  status and possibly reporting any detected issue
+
 
 
 % Implementation notes:
 
+% Regarding sensors, refer to the Technical Manual of the Universal Server
+% (http://us-main.esperide.org).
 
-% Regarding sensors:
+% Note that map_hashtable instances are explicitly mentioned instead of tables
+% as this is the actual type returned by the json_utils.
+
+
+% Section about JSON data being read.
 %
-% The monitoring done by this server relies on the 'sensors' executable
-% (typically /usr/bin/sensors, obtained generally from a package of the same
-% name, relying on lm-sensors, see https://github.com/lm-sensors/lm-sensors).
-% Install the 'i2c-tools' package as well for DIMM information (see R2 below).
-
-% The 'sensors-detect' script must have been run once by root beforehand (select
-% only the default, safer options, by hitting Enter repeatedly or simply use its
-% '--auto' option), in order to configure sensors. Configuration is typically
-% stored in /etc/sensors3.conf.
-%
-% To have information regarding a given sensor, psensor may be used: open the
-% preferences of the sensor (click on its name in the main window, and select
-% the menu item 'Preferences'), and look at the 'Chip' field.  See
-% https://wpitchoune.net/psensor/faq.html for more information.
-
-% Sensors is reporting values found in the Linux virtual file system directory:
-% /sys/class/thermal/thermal_zone*/{temp,type}.
-%
-% Examples:
-%
-% - package id 0 is your (first) CPU
-%
-% - dell_smm-virtual-0 is your CPU fan, managed by your system firmware
-%
-% - acpitz-virtual-0 (ACPI Thermal Zone) is the temperature sensor near/on your
-% CPU socket; this sensor can be unreliable
-%
-% - coretemp-isa-0000 measures the temperature of the specific cores
-
-% Use also: paste <(cat /sys/class/thermal/thermal_zone*/type) <(cat
-% /sys/class/thermal/thermal_zone*/temp) | column -s $'\t' -t | sed
-% 's/...$/.0°C/' for thermal information
+% Types defined from here correspond to elements read from the JSON output of
+% the 'sensors' tool.
 
 
-% See also:
-
-% - R1: https://askubuntu.com/questions/843231/what-is-the-meaning-of-the-output-of-the-command-sensors
-% - R2: https://wiki.archlinux.org/title/lm_sensors
-% - R3: https://www.linux.com/topic/desktop/advanced-lm-sensors-tips-and-tricks-linux-0/
-% - R4: https://www.linux.com/training-tutorials/jazz-lm-sensors-graphics-and-notifications-0/
-% - R5: https://wpitchoune.net/psensor/
-
-% Example of preparation/tuning of one's sensors:
-% https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html
+-type json_read_value() :: float().
+% To designate values read from JSON keys.
 
 
-% Read from a sensor on your CPU:  Core temperature.
-%
-% Read from sensors on the motherboard:
-% - CPUTIN (CPU temperature index): CPU temperature
-% - AUXTIN (auxiliary temperature index): power supply temperature sensor
-% - SYSTIN (system temperature index): motherboard temperature
+-type json_point_map() :: map_hashtable:map_hashtable( measurement_point_name(),
+													   point_attribute_map() ).
+% Table associating, to a measurement point (ex: `<<"Core 0">>'), a table of the
+% associated attributes (i.e. a point_attribute_map/0).
 
 
-% Settings: HYST (hysteresis; this is the value that you want an alarm to turn
-% off. For example, if your alarm temperature is 80C, set your HYST value to
-% stop the alarm when the temperature falls to 75C.)
+-type json_point_entry() :: { measurement_point_name(), point_attribute_map() }.
+% An entry of a json_point_map/0.
 
 
-% More generally temperatures may be monitored regarding:
-% - the motherboard and CPU sensors, thanks to lm-sensors
-% - Hard Disk Drives, thanks to hddtemp, libatasmart, udisks2 or smartmontools
-% - DIMM Temperature sensors (see R2)
-% - GPU, thanks to XNVCtrl for NVidia ones, or ADL SDK for ATI ones
-%
-% Can also be monitored:
-% - the rotation speed of the fans, thanks to lm-sensors
-%
-% Refer to R5 for further details.
+-type json_sensor_entry() :: { raw_sensor_id(), json_point_map() }.
+% An entry corresponding to the top-level information read from JSON, in a
+% corresponding map.
 
 
-% Note that map_hashtables are explicitly mentioned instead of tables as this is
-% the actual type returned by the json_utils.
+-type json_triple() :: { measurement_point_name(),
+						 measurement_point_description(), json_read_value() }.
+% Defined just for convenience.
 
+
+
+
+% Section about sensors.
 
 
 -type raw_sensor_type() :: ustring().
@@ -165,57 +133,92 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type raw_sensor_id() :: bin_string().
-% Full identifier of a sensor, directly as read; ex: `<<"coretemp-isa-0000">>',
-% `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>', etc.
+% Full identifier of a sensor, directly as read from JSON; ex:
+% `<<"coretemp-isa-0000">>', `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>',
+% etc.
 
 
 -type sensor_id() ::
 		{ atom_sensor_type(), sensor_interface(), sensor_number() }.
 % Full identifier of a sensor, directly deriving from a raw one.
+% Ex: `{coretemp, isa, <<"0a20">>}'.
 
 
--export_type([ raw_sensor_type/0, atom_sensor_type/0,
-			   sensor_category/0, sensor_interface/0, sensor_number/0,
-			   raw_sensor_id/0, sensor_id/0 ]).
+-type sensor_table() :: table( raw_sensor_id(), sensor_info() ).
+% Table registering all information regarding all local sensors; useful when
+% parsing a global (JSON) sensor report.
 
 
--record( sensor_info, {
 
 
-	% Duplicated here for convenience (often is an associated key):
-	raw_id :: raw_sensor_id(),
+% Section about measurement points.
 
 
-	% Identifier of this sensor.
-	id :: sensor_id(),
+-type measurement_point_name() :: bin_string().
+% The (raw) name of a measurement point (ex: `<<"temp1">>' or `<<"Core 0">>') of
+% a sensor (which may provide multiple points), as read from JSON.
 
 
-	% Higher-level category of this sensor:
-	category :: sensor_category(),
+-type measurement_point_description() :: bin_string().
+% A description of a measurement point that is more user-friendly than its raw
+% name.
 
 
-	% The data stored regarding that sensor, which depends on its category:
-	%
-	%  - for the cpu category, a temperature_point_table() table is stored,
-	%  for package(s) and core(s)
-	%
-	%  - for the cpu_socket category, a temperature_point_table() table is
-	%  stored
-	%
-	%  - for the motherboard category, a temperature_point_table() table is
-	%  stored
-	%
-	data :: maybe( sensor_data() )
-
-} ).
-
--type sensor_info() :: #sensor_info{}.
-% All information regarding a known sensor.
+-type point_status() :: 'enabled' | 'disabled'.
+% The enable status of a measurement point. Those that reports bogus values
+% shall be disabled.
 
 
--type sensor_data() :: temperature_point_table().
-% The various data corresponding to various kinds of sensors.
+-type point_attribute() :: bin_string().
+% The name of an attribute at a measurement point, as read from JSON.
 
+-type point_value() :: json_read_value().
+% The value associated to a read JSON key, e.g. a key that is an attribute at a
+% measurement point.
+
+
+-type point_attribute_map() ::
+		map_hashtable:map_hashtable( point_attribute(), point_value() ).
+% Table associating, to an attribute (ex: `<<"temp1_crit">>') of a measurement
+% point, a value (ex: 105.0).
+
+
+%-type point_attribute_entry() :: { point_attribute(), point_value() }.
+% An entry of a point_attribute_map/0.
+
+
+
+
+% Section about temperature sensors.
+
+% Read from a sensor on your CPU: Core temperature.
+%
+% Read from sensors on the motherboard:
+% - CPUTIN (CPU temperature index): CPU temperature
+% - AUXTIN (auxiliary temperature index): power supply temperature sensor
+% - SYSTIN (system temperature index): motherboard temperature
+
+% Settings: HYST (hysteresis; this is the value that you want an alarm to turn
+% off. For example, if your alarm temperature is 80C, set your HYST value to
+% stop the alarm when the temperature falls to 75C.)
+
+
+-type temperature_description() :: ustring().
+% The description of a temperature (ex: "alarm").
+
+
+-type range_description() :: ustring().
+% The description of a temperature range (ex: "bogus").
+
+
+% By decreasing temperature:
+-type temp_alert_state() :: 'critical_high'
+						  | 'alarm_high'
+						  | 'nominal'
+						  | 'alarm_low'
+						  | 'critical_low'.
+% The temperature-related alert state of a measurement point. Allows to report
+% issues once, rather than repeatedly.
 
 
 -record( temperature_data, {
@@ -223,22 +226,34 @@ fans), and of reporting any abnormal situation" ).
 	% The name of the attribute to read from the JSON table in order to
 	% determine the current temperature of the associated point:
 	%
+	% (ex: <<"temp9_input">>)
+	%
 	input_attribute :: point_attribute(),
 
 	% The most user-friendly description of the associated measurement point:
 	description :: bin_string(),
 
-	% The status of the associated measurement point:
-	status = enabled :: point_status(),
+	% The enable status of the associated measurement point:
+	status = 'enabled' :: point_status(),
+
+	% The temperature-related alert state of this sensor:
+	alert_state = 'nominal' :: temp_alert_state(),
+
+	% The timestamp of the beginning of the current alert state:
+	alert_timestamp :: timestamp(),
 
 	% The current temperature reading:
 	current :: celsius(),
 
-	% The lowest temperature measured since start:
-	min :: celsius(),
+	% The lowest temperature measured since start (hence an actual measurement,
+	% not a setting):
+	%
+	min_reached :: celsius(),
 
-	% The highest temperature measured since start:
-	max :: celsius(),
+	% The highest temperature measured since start (hence an actual measurement,
+	% not a setting):
+	%
+	max_reached :: celsius(),
 
 
 	% To compute the average temperature:
@@ -251,18 +266,29 @@ fans), and of reporting any abnormal situation" ).
 
 
 
+	% We ensure that all thresholds are set, even if the sensor does not report
+	% corresponding values. We consider that thresholds shall be strictly
+	% exceeded to change severity.
+	%
+	% Of course following inequalities shall hold:
+	%   crit_low < alarm_low < alarm_high < crit_high
+	%
+	% and under nominal conditions, the current measured temperature shall be in
+	% [alarm_low; alarm_high].
+
 	% The minimum allowed temperature, below which we consider that an alarm
 	% shall be raised (it is typically set higher than any crit_low):
 	%
-	% (not the most useful of indicators; generally is not set)
+	% (not the most useful of indicators; generally is not reported, yet we set
+	% it to a sensible value in all cases)
 	%
-	alarm_low = undefined :: maybe( celsius() ),
+	alarm_low = undefined :: celsius(),
 
 
 	% The maximum allowed temperature, above which we consider that an alarm
 	% shall be raised (it is typically set lower than any crit_high):
 	%
-	alarm_high = undefined :: maybe( celsius() ),
+	alarm_high = undefined :: celsius(),
 
 
 
@@ -270,16 +296,17 @@ fans), and of reporting any abnormal situation" ).
 	% serious problems are bound to happen), as reported by the sensor (if any
 	% is defined):
 	%
-	% (not the most useful of indicators; generally is not set)
+	% (not the most useful of indicators; generally is not reported, yet we set
+	% it to a sensible value in all cases)
 	%
-	crit_low = undefined :: maybe( celsius() ),
+	crit_low = undefined :: celsius(),
 
 
 	% The built-in critical high temperature (i.e. the temperature above which
 	% serious problems are bound to happen), as reported by the sensor (if any
-	% is defined):
+	% is defined, otherwise it is estimated by ourselves):
 	%
-	crit_high = undefined :: maybe( celsius() ) } ).
+	crit_high = undefined :: celsius() } ).
 
 
 -type temperature_data() :: #temperature_data{}.
@@ -287,28 +314,102 @@ fans), and of reporting any abnormal situation" ).
 % of a sensor.
 
 
--type temperature_description() :: ustring().
-% The description of a temperature (ex: "alarm").
-
--type range_description() :: ustring().
-% The description of a temperature range (ex: "bogus").
 
 
--type point_status() :: 'enabled' | 'disabled'.
-% The status of a measurement point. Those that reports bogus values shall be
-% disabled.
+% Section regarding intrusion sensors.
 
 
-% A value below this threshold denotes a bogus measure, resulting in the
-% corresponding measurement point to be disabled:
+-type intrusion_detected_status() :: boolean().
+% A status regarding the detection of a chassis intrusion: false if nothing
+% detected, true if an intrusion apparently happened.
+
+
+-record( intrusion_data, {
+
+	% The name of the attribute to read from the JSON table in order to
+	% determine the current intrusion status of the associated point:
+	%
+	% (ex: <<"intrusion0">>)
+	%
+	input_attribute :: point_attribute(),
+
+	% The most user-friendly description of the associated measurement point:
+	description :: bin_string(),
+
+	% The status of the associated measurement point:
+	status = 'enabled' :: point_status(),
+
+	% The current intrusion reading:
+	intrusion_reported :: intrusion_detected_status(),
+
+	% The timestamp of the beginning of the current intrusion status:
+	intrusion_timestamp :: timestamp(),
+
+	% Tells whether the motherboard is to beep in case of intrusion:
+	beep_on_intrusion = false :: boolean() } ).
+
+
+-type intrusion_data() :: #intrusion_data{}.
+% Stores information about any chassis intrusion detected by a given measurement
+% point of a sensor.
+
+
+% For a point P, intrusionP_alarm tells whether a chassis intrusion was detected
+% (if equal to 1.0) or not (if equal to 0.0). Bogus values may be reported (we
+% suppose that when this manager launches no intrusion already occurred), so
+% only transitions from "normal" (an intrusion_detected_status of false) to
+% "alarm" (an intrusion_detected_status of true) are scrutinised here.
+
+
+-export_type([ raw_sensor_type/0, atom_sensor_type/0,
+			   sensor_category/0, sensor_interface/0, sensor_number/0,
+			   raw_sensor_id/0, sensor_id/0 ]).
+
+
+-type point_data() :: temperature_data() | intrusion_data().
+% The data that is associated to a measurement point.
+
+
+-type points_data_table() :: table( measurement_point_name(), point_data() ).
+% A table associating, for a given sensor, to each of its measurement points,
+% its data (ex: regarding temperature, intrusion, etc.).
+
+
+-record( sensor_info, {
+
+	% Duplicated here for convenience (often is an associated key):
+	raw_id :: raw_sensor_id(),
+
+	% Identifier of this sensor.
+	id :: sensor_id(),
+
+	% Higher-level category of this sensor:
+	category :: sensor_category(),
+
+	% All data (of all sorts; and if any, as the category of this sensor must be
+	% known to be interpreted) monitored by that sensor:
+	%
+	data :: maybe( points_data_table() ) } ).
+
+
+-type sensor_info() :: #sensor_info{}.
+% All information regarding a known sensor.
+
+
+
+% Section for temperature defines.
+
+
+% A temperature value below this threshold denotes a bogus measure, resulting in
+% the corresponding measurement point to be disabled:
 %
--define( low_bogus_threshold, 5.0 ).
+-define( low_bogus_temperature_threshold, 5.0 ).
 
 
-% A value above this threshold denotes a bogus measure, resulting in the
-% corresponding measurement point to be disabled:
+% A temperature value above this threshold denotes a bogus measure (ex: 127°C),
+% resulting in the corresponding measurement point to be disabled:
 %
--define( high_bogus_threshold, 110.0 ).
+-define( high_bogus_temperature_threshold, 125.0 ).
 
 
 
@@ -317,52 +418,9 @@ fans), and of reporting any abnormal situation" ).
 
 
 % Should none be returned by a sensor (as celsius()):
--define( default_critical_low_temperature, 5.0 ).
+-define( default_critical_low_temperature, 2.0 ).
 
 
-
--type measurement_point_name() :: bin_string().
-% The (raw) name of a measurement point (ex: `<<"temp1">>' or `<<"Core 0">>') of
-% a sensor (which may provide multiple points).
-
-
--type measurement_point_description() :: bin_string().
-% A description of a measurement point that is more user-friendly than its raw
-% name.
-
-
--type temperature_point_table() ::
-		table( measurement_point_name(), temperature_data() ).
-% A table associating, to a temperature measurement point, its data.
-
-
--type sensor_table() :: table( raw_sensor_id(), sensor_info() ).
-% Table registering all information regarding all local sensors; useful when
-% parsing a global (JSON) sensor report.
-
-
--type point_attribute() :: bin_string().
-% An attribute of a measurement point, as read from JSON (ex:
-% `<<"temp1_crit">>').
-
--type point_value() :: celsius().
-% The value obtained at a given measurement point, as read from JSON (ex:
-% 105.0).
-
-
--type point_value_map() ::
-		map_hashtable:map_hashtable( point_attribute(), point_value() ).
-% Table associating, to an attribute (ex: `<<"temp1_crit">>') of a measurement
-% point, a value (ex: 105.0).
-
-
--type json_read_value() :: float().
-% To designate values read from JSON keys.
-
-
--type json_triple() :: { measurement_point_name(),
-						 measurement_point_description(), json_read_value() }.
-% Defined just for convenience.
 
 
 % Shorthands:
@@ -381,8 +439,12 @@ fans), and of reporting any abnormal situation" ).
 
 -type celsius() :: unit_utils:celsius().
 
+-type timestamp() :: time_utils:timestamp().
+
+
 %-type scheduler_pid() :: class_USScheduler:scheduler_pid().
 %-type task_id() :: class_USScheduler:task_id().
+
 
 
 % The class-specific attributes:
@@ -412,11 +474,9 @@ fans), and of reporting any abnormal situation" ).
 % Used by the trace_categorize/1 macro to use the right emitter:
 -define( trace_emitter_categorization, "US.Sensors" ).
 
--export([init_polling/2,update_sensor_data/1]).
 
 % Exported helpers:
--export([ temperature_points_to_string/1, temperature_points_to_string/2,
-		  temperature_data_to_string/1 ]).
+-export([ intrusion_status_to_string/1 ]).
 
 
 % Note: include order matters.
@@ -455,9 +515,9 @@ construct( State ) ->
 
 		{ _SensorEnabled=true, InitState } ->
 
-			% For a first, direct, relevant test run before being periodically
-			% scheduled:
-			%
+			?send_info( InitState, "Performing a first, direct, relevant "
+				"sensor update before scheduling it periodically." ),
+
 			UpdatedSensorState = update_sensor_data( InitState ),
 
 			init_polling( ?default_sensor_poll_periodicity,
@@ -471,6 +531,7 @@ construct( State ) ->
 
 	?send_info( InitSensorState,
 				"Constructed: " ++ to_string( InitSensorState ) ),
+
 	InitSensorState.
 
 
@@ -499,13 +560,18 @@ construct( State, SensorOutputFilePath ) ->
 	% Internal state of the JSON parser:
 	ParserState = initialise_json_support( SrvState ),
 
-	InitState = setAttributes( SrvState, [ { sensor_monitoring, false },
-										   { parser_state, ParserState } ] ),
+	InitState = setAttributes( SrvState, [
+					{ sensor_monitoring, false },
+					{ sensor_exec_pair, get_sensor_execution_pair( State ) },
+					{ parser_state, ParserState } ] ),
 
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
 
-	?send_info( ReadState, "Constructed: " ++ to_string( ReadState ) ),
+	UpdatedSensorState = update_sensor_data( ReadState ),
+
+	?send_info( ReadState, "Constructed: " ++ to_string( UpdatedSensorState ) ),
+
 	ReadState.
 
 
@@ -525,6 +591,22 @@ destruct( State ) ->
 % Method section.
 
 
+% @doc Reads the local sensors.
+%
+% Typically triggered periodically by the scheduler.
+%
+-spec readSensors( wooper:state() ) -> oneway_return().
+readSensors( State ) ->
+
+	?debug( "Reading sensors now." ),
+
+	ReadState = update_sensor_data( State ),
+
+	wooper:return_state( ReadState ).
+
+
+
+
 % Helper section.
 
 
@@ -532,6 +614,21 @@ destruct( State ) ->
 -spec init_sensors( wooper:state() ) ->
 						{ SensorEnabled :: boolean(), wooper:state() }.
 init_sensors( State ) ->
+
+	CheckedParserState = initialise_json_support( State ),
+
+	ReadyState = setAttributes( State, [
+		{ sensor_exec_pair, get_sensor_execution_pair( State ) },
+		{ parser_state, CheckedParserState } ] ),
+
+	initialise_sensor_data( ReadyState ).
+
+
+
+% @doc Returns how 'sensors' shall be run.
+-spec get_sensor_execution_pair( wooper:state() ) ->
+										system_utils:execution_pair().
+get_sensor_execution_pair( State ) ->
 
 	SensorExec = "sensors",
 
@@ -559,15 +656,9 @@ init_sensors( State ) ->
 
 	ExecPair = { text_utils:string_to_binary( SensorExecPath ), SensorArgs },
 
-	?debug_fmt( "Exec pair for sensor reading:~n ~p.", [ ExecPair ] ),
+	%?debug_fmt( "Exec pair for sensor reading:~n ~p.", [ ExecPair ] ),
 
-	CheckedParserState = initialise_json_support( State ),
-
-	ReadyState = setAttributes( State, [
-		{ sensor_exec_pair, ExecPair },
-		{ parser_state, CheckedParserState } ] ),
-
-	initialise_sensor_data( ReadyState ).
+	ExecPair.
 
 
 
@@ -614,7 +705,7 @@ initialise_sensor_data( State ) ->
 			{ true, parse_initial_sensor_output( CmdOutput, State ) };
 
 		% If initialisation detects that no sensor is available, this is not a
-		% showstopper anymore, as on some contexts (ex: continuous integration)
+		% showstopper anymore, as in some contexts (ex: continuous integration)
 		% this might happen and should not crash such a manager:
 		%
 		error ->
@@ -684,7 +775,7 @@ parse_initial_sensors( _SensorPairs=[], SensorTable, State ) ->
 parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 					   SensorTable, State ) ->
 
-	% To have for example "nct6779-isa-0a00":
+	% Having for example "nct6779-isa-0a00":
 	RawSensorIdStr = text_utils:binary_to_string( RawSensorIdBinStr ),
 
 	case text_utils:split( RawSensorIdStr, _Delimiters=[ $- ] ) of
@@ -727,7 +818,8 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 									   category=SensorCategory,
 									   data=MaybeSensorData },
 
-			?debug_fmt( "For ~ts: ~p.", [ RawSensorIdBinStr, SensorInfo ] ),
+			%?debug_fmt( "For sensor ~ts, we have following information:~n  ~p",
+			%            [ RawSensorIdBinStr, SensorInfo ] ),
 
 			% Ensures of uniqueness of key:
 			NewSensorTable = table:add_new_entry( RawSensorIdBinStr, SensorInfo,
@@ -789,9 +881,12 @@ get_interface( _InterfStr ) ->
 
 
 
-% @doc Parses specified JSON information regarding a given sensor.
+% @doc Parses specified JSON information regarding specified sensor, in order to
+% detect initially the various measurement points that it supports, and returns
+% the corresponding data table.
+%
 -spec parse_sensor_data( decoded_json(), sensor_category(), sensor_id(),
-						 wooper:state() ) ->  maybe( sensor_data() ).
+						 wooper:state() ) -> points_data_table().
 parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
@@ -812,14 +907,17 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 			?warning_fmt( "Following ~B CPU-socket measurement points "
 				"could not be categorised: ~ts.",
 				[ length( OtherJSONTriples ), text_utils:strings_to_string(
-					[ json_triple_to_string( JT ) || JT <- OtherJSONTriples ]
-												) ] )
+					[ json_triple_to_string( JT )
+								|| JT <- OtherJSONTriples ] ) ] )
 
 	end,
 
-	init_temperature_points( TempJSONTriples, SensorId, State );
+	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
+								 SensorId, State );
 
 
+
+% Mostly the same as cpu_socket:
 parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for cpu:~n ~p",
@@ -839,12 +937,13 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 			?warning_fmt( "Following ~B CPU measurements points "
 				"could not be categorised: ~ts.",
 				[ length( OtherJSONTriples ), text_utils:strings_to_string(
-					[ json_triple_to_string( JT ) || JT <- OtherJSONTriples ]
-												) ] )
+					[ json_triple_to_string( JT )
+								|| JT <- OtherJSONTriples ] ) ] )
 
 	end,
 
-	init_temperature_points( TempJSONTriples, SensorId, State );
+	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
+								 SensorId, State );
 
 
 parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
@@ -852,7 +951,7 @@ parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 	%?debug_fmt( "JSON to parse for ~ts for motherboard:~n ~p",
 	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
-	{ TempJSONTriples, _FanJSONTriples, _IntrusionJSONTriples,
+	{ TempJSONTriples, _FanJSONTriples, IntrusionJSONTriples,
 	  OtherJSONTriples } = filter_motherboard_json( SensorJSON ),
 
 	%?debug_fmt( "TempJSONTriples: ~p~nFanJSONTriples: ~p~n"
@@ -867,14 +966,18 @@ parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 
 		_ ->
 			?warning_fmt( "Following ~B motherboard measurements points "
-				"could not be categorized: ~ts.",
+				"could not be categorised: ~ts.",
 				[ length( OtherJSONTriples ), text_utils:strings_to_string(
-					[ json_triple_to_string( JT ) || JT <- OtherJSONTriples ]
-												) ] )
+					[ json_triple_to_string( JT )
+								|| JT <- OtherJSONTriples ] ) ] )
 
 	end,
 
-	init_temperature_points( TempJSONTriples, SensorId, State );
+	TempDataTable = register_temperature_points( TempJSONTriples,
+								_EmptyDataTable=table:new(), SensorId, State ),
+
+	register_intrusion_points( IntrusionJSONTriples, TempDataTable, SensorId,
+							   State );
 
 
 parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
@@ -884,8 +987,8 @@ parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 
 	{ TempJSONTriples, OtherJSONTriples } = filter_disk_json( SensorJSON ),
 
-	?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-				[ TempJSONTriples, OtherJSONTriples ] ),
+	%?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%            [ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -893,105 +996,112 @@ parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 			ok;
 
 		_ ->
-			?warning_fmt( "Following ~B motherboard measurements points "
-				"could not be categorized: ~ts.",
+			?warning_fmt( "Following ~B disk measurements points "
+				"could not be categorised: ~ts.",
 				[ length( OtherJSONTriples ), text_utils:strings_to_string(
-					[ json_triple_to_string( JT ) || JT <- OtherJSONTriples ]
-												) ] )
+					[ json_triple_to_string( JT )
+								|| JT <- OtherJSONTriples ] ) ] )
 
 	end,
 
-	init_temperature_points( TempJSONTriples, SensorId, State );
+	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
+								 SensorId, State );
+
 
 parse_sensor_data( SensorJSON, SensorCateg, SensorId, State ) ->
 
 	?error_fmt( "Ignoring JSON for ~ts of unsupported category ~ts:~n ~p",
-				  [ sensor_id_to_string( SensorId ), SensorCateg,
-					SensorJSON ] ),
+		[ sensor_id_to_string( SensorId ), SensorCateg, SensorJSON ] ),
 
 	undefined.
 
 
 
-% @doc Initialises a table of temperature points, for a given sensor, from
-% specified JSON content.
+% @doc Registers specified temperature points in specified data table, for the
+% initialisation of specified sensor, from specified JSON content.
 %
--spec init_temperature_points( [ json_triple() ], sensor_id(),
-							   wooper:state() ) -> temperature_point_table().
-init_temperature_points( PointTriples, SensorId, State ) ->
+% Only point triples that are already filtered for temperature are expected,
+% thus no need to accumulate unexpected points.
+%
+-spec register_temperature_points( [ json_triple() ], points_data_table(),
+			sensor_id(), wooper:state() ) -> points_data_table().
+register_temperature_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
+	DataTable;
 
-	init_temperature_points( PointTriples, _TempPointTable=table:new(),
-							 SensorId, State ).
-
-
-% (helper)
-init_temperature_points( _PointTriples=[], TempPointTable, _SensorId,
-						 _State ) ->
-	TempPointTable;
 
 % Ex: BinPointName = <<"temp1">>, BinDesc=<<"Some description">> and
 % PointValueMap = #{<<"temp1_crit">> => 105.0, <<"temp1_input">> => 27.8}.
 %
-init_temperature_points( _PointTriples=[
-							{ BinPointName, BinDesc, PointValueMap } | T ],
-						 TempPointTable, SensorId, State ) ->
+register_temperature_points(
+		_PointTriples=[ { BinPointName, BinDesc, PointValueMap } | T ],
+		DataTable, SensorId, State ) ->
 
-	?debug_fmt( "Initialising point '~ts' (~ts) with:~n ~p",
+	?debug_fmt( "Registering temperature point '~ts' (~ts) with:~n ~p",
 				[ BinPointName, BinDesc, PointValueMap ] ),
 
-	InitPointData = init_temperature_data( PointValueMap, BinPointName,
-										   BinDesc, SensorId, State ),
+	InitPointData = create_temperature_data( PointValueMap, BinPointName,
+											 BinDesc, SensorId, State ),
 
-	% Finally not done here, first update done globally directly from the
-	% constructor:
-	%
-	%DirectPointData = update_temperature_data( BinPointName, PointValueMap,
-	%									InitPointData, SensorId, State ),
+	% First update done globally directly from the constructor.
 
 	% Uniqueness checked:
-	NewTempPointTable =
-		table:add_new_entry( BinPointName, InitPointData, TempPointTable ),
+	NewDataTable =
+		table:add_new_entry( BinPointName, InitPointData, DataTable ),
 
-	init_temperature_points( T, NewTempPointTable, SensorId, State ).
+	register_temperature_points( T, NewDataTable, SensorId, State ).
 
 
 
-% @doc Returns a new temperature data initialised from specified JSON content,
-% ready to be updated with the future next current temperatures.
+% @doc Returns a new temperature data initialised from the specified JSON
+% content, ready to be updated with the future next current temperatures.
 %
--spec init_temperature_data( point_value_map(), measurement_point_name(),
+-spec create_temperature_data( point_attribute_map(), measurement_point_name(),
 		measurement_point_description(), sensor_id(), wooper:state() ) ->
 									temperature_data().
-init_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
-					   State ) ->
+create_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
+						 State ) ->
 
+	% We check all attributes in turn; no need to accumulate here.
 	% Here the current temperature has not been taken into account yet:
 	init_temp_point( _TempEntries=map_hashtable:enumerate( PointValueMap ),
-		BinPointName, #temperature_data{ description=BinDesc }, SensorId,
-		PointValueMap, State ).
+		BinPointName, #temperature_data{
+						description=BinDesc,
+						% Already the case: alert_state=nominal;
+						alert_timestamp=time_utils:get_timestamp() },
+		SensorId, State ).
 
 
 
 % (helper)
-% End of recursion:
+% End of recursion, here with no current temperature reading:
 init_temp_point( _TempEntries=[], BinPointName,
+		TempData=#temperature_data{ current=undefined }, SensorId, State ) ->
+
+	?error_fmt( "For temperature measurement point '~ts' of ~ts, no current "
+		"temperature was reported ; disabling this point.",
+		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+
+	TempData#temperature_data{ status=disabled };
+
+
+% End of recursion, here with an expected current temperature reading:
+init_temp_point( _TempEntries=[], _BinPointName,
 				 TempData=#temperature_data{ current=CurrentTemp,
 											 crit_low=MaybeCritLowTemp,
 											 alarm_low=MaybeMinTemp,
 											 crit_high=MaybeCritHighTemp,
 											 alarm_high=MaybeMaxTemp,
-											 min=MaybeReportedMin,
-											 max=MaybeReportedMax },
-				 SensorId, PointValueMap, State ) ->
+											 min_reached=MaybeReached,
+											 max_reached=MaybeReachedMax },
+				 _SensorId, _State ) ->
 
-	% Must have been found beforehand:
-	basic_utils:check_not_undefined( CurrentTemp ),
+	type_utils:check_float( CurrentTemp ),
 
 	% First, tackle low temperatures (not really of interest generally):
 	CritLowTemp = case MaybeCritLowTemp of
 
 		undefined ->
-			case MaybeReportedMin of
+			case MaybeReached of
 
 				undefined ->
 					?default_critical_low_temperature;
@@ -1013,19 +1123,18 @@ init_temp_point( _TempEntries=[], BinPointName,
 		undefined ->
 			% Let's establish it then from the critical temperature:
 			%max( CritLowTemp + 12.0, 0.9 * CritLowTemp );
-			CritLowTemp + 12.0;
+			min( CritLowTemp + 10.0, 8.0 );
 
 		AlLowTemp ->
 			AlLowTemp
 
 	end,
 
-
 	% Now the same for max:
 	CritHighTemp = case MaybeCritHighTemp of
 
 		undefined ->
-			case MaybeReportedMax of
+			case MaybeReachedMax of
 
 				undefined ->
 					?default_critical_high_temperature;
@@ -1051,28 +1160,28 @@ init_temp_point( _TempEntries=[], BinPointName,
 
 	end,
 
-
 	% All constant information then set:
 	ReadyTempData = TempData#temperature_data{ crit_low=CritLowTemp,
 											   alarm_low=AlarmLowTemp,
 											   crit_high=CritHighTemp,
 											   alarm_high=AlarmHighTemp,
-											   min=CurrentTemp,
-											   max=CurrentTemp },
+											   min_reached=CurrentTemp,
+											   max_reached=CurrentTemp },
 
-	%?debug_fmt( "Adding point '~ts' of ~ts.",
-	%			[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+	%?debug_fmt( "Adding temperature point '~ts' of ~ts.",
+	%            [ BinPointName, sensor_id_to_string( SensorId ) ] ),
 
-	% Now performs the first usual reading:
-	update_temperature_data( BinPointName, PointValueMap, ReadyTempData,
-							 SensorId, State );
+	% We used to perform the first usual reading here, now done in the final
+	% part of the constructor.
+
+	check_temperature_data( ReadyTempData );
 
 
 % Ex: AttrNameBin = <<"temp1_input">>, AttrValue = 44.85:
-init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
-				 TempData, SensorId, PointValueMap, State ) ->
+init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
+				 TempData, SensorId, State ) ->
 
-	type_utils:check_float( AttrValue ),
+	% Done in all cases afterwards: type_utils:check_float( AttrValue ),
 
 	AttrName = text_utils:binary_to_string( AttrNameBin ),
 
@@ -1088,13 +1197,13 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 	%         <<"temp2_crit_alarm">> => 0.0,...
 	%
 	% So we just drop (and not check the prefix):
-	%case text_utils:split_after_prefix( _Prefix=PointNameStr, AttrName ) of
+	%case text_utils:split_after_prefix( _Prefix=BinPointName, AttrName ) of
 	%
 	%	no_prefix ->
 	%		?error_fmt( "Attribute '~ts' not prefixed with the name of "
 	%			"the current measurement point '~ts', thus ignored.",
-	%			[ AttrName, PointNameStr ] ),
-	%		init_temp_point( T, PointNameStr, TempData, SensorId, PointValueMap,
+	%			[ AttrName, BinPointName ] ),
+	%		init_temp_point( T, BinPointName, TempData, SensorId, PointValueMap,
 	%						 State );
 
 	Separator = $_,
@@ -1102,11 +1211,13 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
 
 		[ _WithoutSepElem ] ->
-			?error_fmt( "For measurement point '~ts' of ~ts, attribute '~ts' "
-				"cannot be stripped of a relevant prefix, thus ignored.",
-				[ PointNameStr, sensor_id_to_string( SensorId ), AttrName ] ),
-			init_temp_point( T, PointNameStr, TempData, SensorId, PointValueMap,
-							 State );
+
+			?error_fmt( "For temperature measurement point '~ts' of ~ts, "
+				"attribute '~ts' cannot be stripped of a relevant prefix; "
+				"ignoring it.",
+				[ BinPointName, sensor_id_to_string( SensorId ), AttrName ] ),
+
+			init_temp_point( T, BinPointName, TempData, SensorId, State );
 
 		% Just remove the prefix:
 		[ _AnyPrefix | OtherElems ] ->
@@ -1128,91 +1239,92 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 							% To be taken into account once all other attributes
 							% (especially the static ones) have been processed:
 							%
-							init_temp_point( T, PointNameStr, SetTempData,
-											 SensorId, PointValueMap, State );
+							init_temp_point( T, BinPointName, SetTempData,
+											 SensorId, State );
 
 						false ->
-							?error_fmt( "No float value associated to attribute"
-								" '~ts' (got '~p'). Information skipped.",
+
+							?error_fmt( "Non-float value associated to "
+								"temperature attribute '~ts' (got '~p'); "
+								"skipping that information.",
 								[ AttrName, AttrValue ] ),
-							init_temp_point( T, PointNameStr, TempData,
-											 SensorId, PointValueMap, State )
+
+							init_temp_point( T, BinPointName, TempData,
+											 SensorId, State )
 
 					end;
 
 
 				Suffix="crit" ->
 					NewTempData = init_for_crit( AttrValue, TempData, Suffix,
-											PointNameStr, SensorId, State ),
-					init_temp_point( T, PointNameStr, NewTempData, SensorId,
-									 PointValueMap, State );
+											BinPointName, SensorId, State ),
+					init_temp_point( T, BinPointName, NewTempData, SensorId,
+									 State );
 
 
 				% Interpreted as a synonym of "crit":
 				Suffix="crit_alarm" ->
 					NewTempData = init_for_crit( AttrValue, TempData, Suffix,
-											PointNameStr, SensorId, State ),
-					init_temp_point( T, PointNameStr, NewTempData, SensorId,
-									 PointValueMap, State );
+											BinPointName, SensorId, State ),
+					init_temp_point( T, BinPointName, NewTempData, SensorId,
+									 State );
 
 
 				% Unsurprisingly, nothing like crit/crit_alarm for *low*
 				% temperatures.
 
-
-				% Just during this initialisation, we (ab)use the 'min' field in
-				% order to record the minimum allowed temperature as reported by
-				% the chip (not corresponding to the "real" min, which is the
-				% lowest temperature actually measured):
+				% Just during this initialisation, we (ab)use the 'min_reached'
+				% field in order to record the minimum allowed temperature as
+				% reported by the chip (not corresponding to the "real"
+				% min_reached, which is the lowest temperature *actually*
+				% measured):
 				%
 				Suffix="min" ->
-					case vet_temperature( AttrValue, Suffix, PointNameStr,
+					case vet_temperature( AttrValue, Suffix, BinPointName,
 										  SensorId, State ) of
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, PointNameStr, TempData,
-								SensorId, PointValueMap, State );
+							init_temp_point( T, BinPointName, TempData,
+											 SensorId, State );
 
 						true ->
-							NewTempData =
-								TempData#temperature_data{ min=AttrValue },
+							NewTempData = TempData#temperature_data{
+											min_reached=AttrValue },
 
-							init_temp_point( T, PointNameStr, NewTempData,
-											 SensorId, PointValueMap, State )
+							init_temp_point( T, BinPointName, NewTempData,
+											 SensorId, State )
 
 					end;
-
 
 				% Same as for "min" just above:
 				Suffix="max" ->
-					case vet_temperature( AttrValue, Suffix, PointNameStr,
+					case vet_temperature( AttrValue, Suffix, BinPointName,
 										  SensorId, State ) of
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, PointNameStr, TempData,
-								SensorId, PointValueMap, State );
+							init_temp_point( T, BinPointName, TempData,
+											 SensorId, State );
 
 						true ->
-							NewTempData =
-								TempData#temperature_data{ max=AttrValue },
+							NewTempData = TempData#temperature_data{
+											max_reached=AttrValue },
 
-							init_temp_point( T, PointNameStr, NewTempData,
-											 SensorId, PointValueMap, State )
+							init_temp_point( T, BinPointName, NewTempData,
+											 SensorId, State )
 
 					end;
 
-
 				Suffix="alarm" ->
 					% First ensure that this alarm has not a bogus value:
-					case vet_temperature( AttrValue, Suffix, PointNameStr,
+					case vet_temperature( AttrValue, Suffix, BinPointName,
 										  SensorId, State ) of
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, PointNameStr, TempData,
-								SensorId, PointValueMap, State );
+							init_temp_point( T, BinPointName, TempData,
+											 SensorId, State );
 
 						true ->
 							NewHigh =
@@ -1224,16 +1336,16 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 								AlarmHigh ->
 									Min = min( AlarmHigh, AttrValue ),
 									?warning_fmt( "Alarm high was already set "
-										"to ~ts for measurement point ~ts "
-										"of ~ts, whereas alarm found as ~ts; "
-										"set as ~ts.",
+										"to ~ts for temperature measurement "
+										"point ~ts of ~ts, whereas alarm found "
+										"as ~ts; set as ~ts.",
 									 [ unit_utils:temperature_to_string(
-										 AlarmHigh ), PointNameStr,
+											AlarmHigh ), BinPointName,
 									   sensor_id_to_string( SensorId ),
 									   unit_utils:temperature_to_string(
-										 AttrValue ),
+											AttrValue ),
 									   unit_utils:temperature_to_string(
-										 Min ) ] ),
+											Min ) ] ),
 									Min
 
 							end,
@@ -1241,8 +1353,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 							NewTempData =
 								TempData#temperature_data{ alarm_high=NewHigh },
 
-							init_temp_point( T, PointNameStr, NewTempData,
-											 SensorId, PointValueMap, State )
+							init_temp_point( T, BinPointName, NewTempData,
+											 SensorId, State )
 
 					end;
 
@@ -1253,16 +1365,19 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 					%?debug_fmt( "Attribute '~ts' belongs to the ignored ones.",
 					%			 [ Suffix ] ),
 
-					init_temp_point( T, PointNameStr, TempData, SensorId,
-									 PointValueMap, State );
+					init_temp_point( T, BinPointName, TempData, SensorId,
+									 State );
 
 				_OtherSuffix ->
+
 					?warning_fmt( "Unknown suffix for attribute '~ts' of "
-						"measurement point ~ts of ~ts, which is thus ignored.",
-						[ AttrName, PointNameStr,
+						"temperature measurement point ~ts of ~ts; "
+						"ignoring it.",
+						[ AttrName, BinPointName,
 						  sensor_id_to_string( SensorId ) ] ),
-					init_temp_point( T, PointNameStr, TempData, SensorId,
-									 PointValueMap, State )
+
+					init_temp_point( T, BinPointName, TempData, SensorId,
+									 State )
 
 			end
 
@@ -1273,9 +1388,9 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], PointNameStr,
 % @doc Initialises the specified measurement point with specified critical
 % temperature.
 %
-init_for_crit( AttrValue, TempData, Suffix, PointNameStr, SensorId, State ) ->
+init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 
-	case vet_temperature( AttrValue, Suffix, PointNameStr, SensorId, State ) of
+	case vet_temperature( AttrValue, Suffix, BinPointName, SensorId, State ) of
 
 		false ->
 			% Just ignored then:
@@ -1293,7 +1408,7 @@ init_for_crit( AttrValue, TempData, Suffix, PointNameStr, SensorId, State ) ->
 						"measurement point ~ts of ~ts, whereas ~ts found "
 						"as ~ts; set as ~ts.",
 						[ unit_utils:temperature_to_string( CritHigh ),
-						  PointNameStr, sensor_id_to_string( SensorId ),
+						  BinPointName, sensor_id_to_string( SensorId ),
 						  Suffix, unit_utils:temperature_to_string( AttrValue ),
 						  unit_utils:temperature_to_string( Min ) ] ),
 					Min
@@ -1301,6 +1416,213 @@ init_for_crit( AttrValue, TempData, Suffix, PointNameStr, SensorId, State ) ->
 			end,
 
 			TempData#temperature_data{ crit_high=NewCritHigh }
+
+	end.
+
+
+
+% @doc Registers specified intrusion points in specified data table, for the
+% initialisation of specified sensor, from specified JSON content.
+%
+% Only point triples that are already filtered for intrusion are expected,
+% thus no need to accumulate unexpected points.
+%
+-spec register_intrusion_points( [ json_triple() ], points_data_table(),
+			sensor_id(), wooper:state() ) -> points_data_table().
+register_intrusion_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
+	DataTable;
+
+
+% Ex: BinPointName = <<"intrusion0">>, BinDesc=<<"Some description">> and
+% PointValueMap = #{<<"intrusion0_alarm">> => 1.0,
+%                   <<"intrusion0_beep">> => 0.0}.
+%
+register_intrusion_points(
+		_PointTriples=[ { BinPointName, BinDesc, PointValueMap } | T ],
+		DataTable, SensorId, State ) ->
+
+	?debug_fmt( "Registering intrusion point '~ts' (~ts) with:~n ~p",
+				[ BinPointName, BinDesc, PointValueMap ] ),
+
+	InitPointData = create_intrusion_data( PointValueMap, BinPointName,
+										   BinDesc, SensorId, State ),
+
+	% Uniqueness checked:
+	NewDataTable =
+		table:add_new_entry( BinPointName, InitPointData, DataTable ),
+
+	register_intrusion_points( T, NewDataTable, SensorId, State ).
+
+
+
+% @doc Returns a new intrusion data initialised from the specified JSON content,
+% ready to be updated with the future next current intrusion notifications.
+%
+-spec create_intrusion_data( point_attribute_map(), measurement_point_name(),
+		measurement_point_description(), sensor_id(), wooper:state() ) ->
+									intrusion_data().
+create_intrusion_data( PointValueMap, BinPointName, BinDesc, SensorId,
+					   State ) ->
+
+	% We check all attributes in turn; no need to accumulate here.
+	% Here the current intrusion status has not been taken into account yet:
+	init_intrus_point( _IntrusEntries=map_hashtable:enumerate( PointValueMap ),
+		BinPointName, #intrusion_data{
+						description=BinDesc,
+						intrusion_timestamp=time_utils:get_timestamp() },
+		SensorId, State ).
+
+
+
+% (helper)
+% End of recursion, here with no intrusion reading:
+init_intrus_point( _IntrusEntries=[], BinPointName,
+		IntrusData=#intrusion_data{ intrusion_reported=undefined }, SensorId,
+		State ) ->
+
+	?error_fmt( "For intrusion measurement point '~ts' of ~ts, no intrusion "
+		"status was reported; disabling this point.",
+		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+
+	IntrusData=#intrusion_data{ input_attribute=BinPointName,
+								status=disabled };
+
+
+% End of recursion, here with an expected intrusion reading:
+init_intrus_point( _IntrusEntries=[], BinPointName, IntrusData, _SensorId,
+				   _State ) ->
+
+	% No specific final consistency update to be performed here.
+
+	%?debug_fmt( "Adding intrusion point '~ts' of ~ts.",
+	%            [ BinPointName, sensor_id_to_string( SensorId ) ] ),
+
+	% We used to perform the first usual reading here, now done in the final
+	% part of the constructor.
+
+	check_intrusion_data(
+		IntrusData#intrusion_data{ input_attribute=BinPointName } );
+
+
+% Ex: AttrNameBin = <<"intrusion0_alarm">>, AttrValue = 1.0:
+init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
+				   BinPointName, IntrusData, SensorId, State ) ->
+
+	AttrName = text_utils:binary_to_string( AttrNameBin ),
+	Separator = $_,
+
+	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
+
+		[ _WithoutSepElem ] ->
+
+			?error_fmt( "For intrusion measurement point '~ts' of ~ts, "
+				"attribute '~ts' cannot be stripped of a relevant prefix; "
+				"ignoring it.",
+				[ BinPointName, sensor_id_to_string( SensorId ), AttrName ] ),
+
+			init_intrus_point( T, BinPointName, IntrusData, SensorId, State );
+
+		% Just remove the prefix:
+		[ _AnyPrefix | OtherElems ] ->
+
+			type_utils:check_float( AttrValue ),
+
+			Now = time_utils:get_timestamp(),
+
+			case text_utils:join( Separator, OtherElems ) of
+
+				"alarm" ->
+
+					case AttrValue of
+
+						% Normal case, no intrusion initially:
+						0.0 ->
+							SetIntrusData = IntrusData#intrusion_data{
+								intrusion_reported=false,
+								intrusion_timestamp=Now },
+
+							init_intrus_point( T, BinPointName, SetIntrusData,
+											   SensorId, State );
+
+						1.0 ->
+
+							?warning_fmt( "For intrusion measurement point "
+								"'~ts' of ~ts, attribute '~ts' already "
+								"reports initially an intrusion; interpreting "
+								"it as a bogus value and disabling that point.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrName ] ),
+
+							DisIntrusData =
+								IntrusData#intrusion_data{
+									status=disabled,
+									intrusion_reported=true,
+									intrusion_timestamp=Now },
+
+							init_intrus_point( T, BinPointName, DisIntrusData,
+											   SensorId, State );
+
+						_Other ->
+							?error_fmt( "For intrusion measurement point '~ts' "
+								"of ~ts, attribute '~ts' reports an unexpected "
+								"value ('~p'); disabling that point.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrName, AttrValue ] ),
+
+							DisIntrusData =
+								IntrusData#intrusion_data{
+									status=disabled,
+									intrusion_reported=false,
+									intrusion_timestamp=Now },
+
+							init_intrus_point( T, BinPointName, DisIntrusData,
+											   SensorId, State )
+
+					end;
+
+
+				"beep" ->
+					case AttrValue of
+
+						0.0 ->
+							SetIntrusData = IntrusData#intrusion_data{
+												beep_on_intrusion=false },
+
+							init_intrus_point( T, BinPointName, SetIntrusData,
+											   SensorId, State );
+
+
+						1.0 ->
+							SetIntrusData = IntrusData#intrusion_data{
+												beep_on_intrusion=true },
+
+							init_intrus_point( T, BinPointName, SetIntrusData,
+											   SensorId, State );
+
+
+						_Other ->
+							?warning_fmt( "For intrusion measurement point "
+								"'~ts' of ~ts, ignoring unexpected value "
+								"('~p') reported by attribute '~ts'.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrValue, AttrName ] ),
+
+							init_intrus_point( T, BinPointName, IntrusData,
+											   SensorId, State )
+
+					end;
+
+				_OtherSuffix ->
+
+					?warning_fmt( "Unknown suffix for attribute '~ts' of "
+						"intrusion measurement point ~ts of ~ts; ignoring it.",
+						[ AttrName, BinPointName,
+						  sensor_id_to_string( SensorId ) ] ),
+
+					init_intrus_point( T, BinPointName, IntrusData, SensorId,
+									   State )
+
+			end
 
 	end.
 
@@ -1346,264 +1668,440 @@ update_sensor_data( State ) ->
 										wooper:state().
 update_from_sensor_output( SensorJsonStr, State ) ->
 
-	DecodedMap = decode_sensor_json( SensorJsonStr, State ),
+	JSONDecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
-	SensorInfos = table:values( ?getAttr(sensor_table) ),
+	?debug_fmt( "Updating sensors from '~p'.", [ JSONDecodedMap ] ),
 
-	update_active_sensors( SensorInfos, DecodedMap, _NewSensorTable=table:new(),
-						   State ).
+	update_active_sensors( map_hashtable:enumerate( JSONDecodedMap ),
+						   ?getAttr(sensor_table), State ).
 
 
 
 % @doc Updates all active sensors based on the specified JSON-decoded map.
--spec update_active_sensors( [ sensor_info() ], decoded_json(), sensor_table(),
+%
+% We iterate through the JSON content rather than through the known sensors
+% (more logical); we just update the sensor table.
+%
+-spec update_active_sensors( [ json_sensor_entry() ], sensor_table(),
 							 wooper:state() ) -> wooper:state().
-update_active_sensors( _SensorInfos=[], _DecodedMap, SensorTable, State ) ->
+update_active_sensors( _JSONDecodedEntries=[], SensorTable, State ) ->
 	setAttribute( State, sensor_table, SensorTable );
 
-update_active_sensors( _SensorInfos=[ SI=#sensor_info{
-											raw_id=RawSensorIdBinStr,
-											category=Categ,
-											data=_TempPointTable } | T ],
-					   DecodedMap, SensorTable, State )
-  when Categ == cpu orelse Categ == cpu_socket orelse Categ == motherboard
-	   orelse Categ == disk ->
+update_active_sensors(
+		_JSONDecodedEntries=[ { RawSensorId, JSONPointMap } | T ],
+		SensorTable, State ) ->
 
-	NewSensorInfo = case table:lookup_entry( RawSensorIdBinStr, DecodedMap ) of
+	% Update each sensor according to its category:
+	MaybeNewSInfo = case table:lookup_entry( RawSensorId, SensorTable ) of
 
-		{ value, SensorReading } ->
-			?debug_fmt( "Integrating reading for sensor '~ts':~n~p",
-						[ RawSensorIdBinStr, SensorReading ] ),
-			% TODO
+		% No data managed for this sensor:
+		{ value, SI=#sensor_info{ id=SensorId, data=undefined } } ->
+			?debug_fmt( "For ~ts, no data is to be stored, "
+				"so not taking into account its measurement points in ~p.",
+				[ sensor_id_to_string( SensorId ), JSONPointMap ] ),
 			SI;
 
+
+		% From here we have actual sensor data to update. Now we do not need to
+		% rely on the sensor category to select the right kind of data:
+		%
+		{ value, SI=#sensor_info{ id=SensorId,
+								  data=PointsDataTable } } ->
+
+			NewPointsDataTable = update_data_table( PointsDataTable,
+				map_hashtable:enumerate( JSONPointMap ), SensorId, State ),
+
+			SI#sensor_info{ data=NewPointsDataTable };
+
+
 		key_not_found ->
-			?error_fmt( "No data found for sensor '~ts' in following reading: "
-						"~n  ~p", [ RawSensorIdBinStr, DecodedMap ] ),
-			SI
+			?error_fmt( "Got data for unknown sensor whose raw identifier "
+				"is '~ts': ~p (ignoring these measurement points).",
+				[ RawSensorId, JSONPointMap ] ),
+			undefined
 
 	end,
 
-	NewSensorTable =
-		table:add_new_entry( RawSensorIdBinStr, NewSensorInfo, SensorTable ),
+	NewSensorTable = case MaybeNewSInfo of
 
-	update_active_sensors( T, DecodedMap, NewSensorTable, State );
+		undefined ->
+			SensorTable;
 
-update_active_sensors( _SensorInfos=[ Unexpected | _T ], _DecodedMap,
-					   _SensorTable, _State ) ->
-	throw( { unexpected_sensor_info, Unexpected } ).
+		NewSInfo ->
+			table:add_entry( RawSensorId, NewSInfo, SensorTable )
+
+	end,
+
+	update_active_sensors( T, NewSensorTable, State ).
 
 
 
-
-% @doc Updates the specified temperature data for specified point, based on the
-% current temperature read from specified JSON-originated map.
+% @doc Updates, for the specified sensor, its specified data table of points of
+% all sorts (temperature, intrusion, fan, etc.) from the specified JSON point
+% entries.
 %
-% We suppose that whether this point was already disabled has been checked
-% beforehand.
-%
--spec update_temperature_data( measurement_point_name(), point_value_map(),
-		temperature_data(), sensor_id(), wooper:state() ) -> temperature_data().
-update_temperature_data( PointName, PointValueMap, TempData, SensorId,
-						 State ) ->
+-spec update_data_table( points_data_table(), [ json_point_entry() ],
+						 sensor_id(), wooper:state() ) -> points_data_table().
+update_data_table( PointsDataTable, _PointEntries=[], _SensorId, _State ) ->
+	PointsDataTable;
 
-	% Was done when expecting (wrongly) attributes to be prefixed with their
-	% measurement point:
-	%
-	%CurrentTempKey = text_utils:bin_format( "~ts_input", [ PointName ] ),
-	%
-	%case map_hashtable:lookup_entry( CurrentTempKey, PointValueMap ) of
-	%
-	%	key_not_found ->
-	%		?warning_fmt( "No '~ts' key found for ~ts; ignoring the "
-	%			"corresponding measurement point.",
-	%			[ CurrentTempKey, sensor_id_to_string( SensorId ) ] ),
-	%		TempData;
+update_data_table( PointsDataTable,
+		_PointEntries=[ { PointNameBin, PointAttrMap } | T ],
+		SensorId, State ) ->
 
-	% Then the right attribute was detected at each reading:
-	%case select_input_temperatures( PointValueMap, State ) of
-	%
-	%	[] ->
-	%		?warning_fmt( "No input key found for measurement point '~ts' "
-	%			"in ~ts; ignoring this point.",
-	%			[ PointName, sensor_id_to_string( SensorId ) ] ),
-	%		TempData;
-	%
-	%	[ { _AttrName, CurrentTemp } ] ->
-	%
-	%   Pairs ->
-	%		?error_fmt( "Multiple input keys found for measurement point "
-	%					"'~ts'in ~ts: ~p; ignoring this point.",
-	%					[ PointName, sensor_id_to_string( SensorId ), Pairs ] ),
-	%		TempData
-	% [...]
+	% Cannot be factored more between clauses:
+	NewPointsDataTable =
+			case table:lookup_entry( PointNameBin, PointsDataTable ) of
 
-	% Now we just read the value associated to the right, cached attribute name:
+		{ value, #temperature_data{ status=disabled } } ->
 
-	AttrName = TempData#temperature_data.input_attribute,
+			?debug_fmt( "(temperature measurement point '~ts' is disabled)",
+						[ PointNameBin ] ),
 
-	% Not expected to be missing though:
-	case map_hashtable:lookup_entry( _K=AttrName, PointValueMap ) of
+			% No change then:
+			PointsDataTable;
 
-		% Already a float normally:
-		{ value, CurrentTemp } when is_float( CurrentTemp ) ->
 
-			case CurrentTemp > ?high_bogus_threshold of
+		{ value, TempData=#temperature_data{ input_attribute=InputAttrName,
+											 description=Desc,
+											 % Superfluous:
+											 status=enabled,
+											 min_reached=MinTemp,
+											 max_reached=MaxTemp,
+											 avg_sum=AvgSum,
+											 avg_count=AvgCount } } ->
 
-				true ->
-					?warning_fmt( "The reported temperature for measurement "
-						"point ~ts of ~ts, ~ts, exceeds high threshold (~ts); "
-						"disabling that point.",
-						[ PointName, sensor_id_to_string( SensorId ),
-						  unit_utils:temperature_to_string( CurrentTemp ),
-						  unit_utils:temperature_to_string(
-							?high_bogus_threshold ) ] ),
-					TempData#temperature_data{ status=disabled };
+			case map_hashtable:lookup_entry( InputAttrName, PointAttrMap ) of
 
-				false ->
-					case CurrentTemp < ?low_bogus_threshold of
+				{ value, CurrentTemp } ->
+
+					NewTempData = case vet_temperature( CurrentTemp, Desc,
+							PointNameBin, SensorId, State ) of
 
 						true ->
-							?warning_fmt( "The reported temperature for "
-								"measurement point ~ts of ~ts, ~ts, is inferior"
-								" to low threshold (~ts); disabling that "
-								"point.",
-								[ PointName, sensor_id_to_string( SensorId ),
-								  unit_utils:temperature_to_string(
-									CurrentTemp ),
-								  unit_utils:temperature_to_string(
-									?low_bogus_threshold ) ] ),
-							TempData#temperature_data{ status=disabled };
+							NewMinTemp = min( MinTemp, CurrentTemp ),
+							NewMaxTemp = max( MaxTemp, CurrentTemp ),
+							NewAvgSum = AvgSum + CurrentTemp,
+							NewAvgCount = AvgCount + 1,
 
+							SyncTempData = TempData#temperature_data{
+											current=CurrentTemp,
+											min_reached=NewMinTemp,
+											max_reached=NewMaxTemp,
+											avg_sum=NewAvgSum,
+											avg_count=NewAvgCount },
+
+							% Returns new temperature_data:
+							examine_temperature( PointNameBin, CurrentTemp,
+								SyncTempData, SensorId, State );
 
 						false ->
-							integrate_temperature( CurrentTemp, TempData,
-												   PointName, SensorId, State )
+							?warning_fmt( "Read for ~ts, measurement "
+								"point '~ts', a value considered invalid "
+								"for input temperature attribute '~ts': ~p "
+								"(ignoring it).",
+								[ sensor_id_to_string( SensorId ), PointNameBin,
+								  InputAttrName, CurrentTemp ] ),
 
-					end
+							TempData
+
+					end,
+
+					table:add_entry( PointNameBin, NewTempData,
+									 PointsDataTable );
+
+
+				% Attribute not anymore in JSON output (never expected to
+				% happen):
+				%
+				key_not_found ->
+
+					?error_fmt( "Could not read temperature attribute '~ts' "
+						"of measurement point '~ts' regarding ~ts; "
+						"skipping the update of this point.",
+						[ InputAttrName, PointNameBin,
+						  sensor_id_to_string( SensorId ) ] ),
+
+					PointsDataTable
 
 			end;
 
+
+		{ value, #intrusion_data{ status=disabled } } ->
+
+			?debug_fmt( "(intrusion measurement point '~ts' is disabled)",
+						[ PointNameBin ] ),
+
+			% No change then:
+			PointsDataTable;
+
+
+		{ value, IntrusData=#intrusion_data{ input_attribute=InputAttrName,
+											 % Superfluous:
+											 status=enabled } } ->
+
+			case map_hashtable:lookup_entry( InputAttrName, PointAttrMap ) of
+
+				{ value, CurrentIntrusStatus } ->
+
+					% Returns new intrusion_data:
+					NewIntrusData = examine_intrusion_status( PointNameBin,
+						CurrentIntrusStatus, IntrusData, SensorId, State ),
+
+					table:add_entry( PointNameBin, NewIntrusData,
+									 PointsDataTable );
+
+				% Attribute not anymore in JSON output (never expected to
+				% happen):
+				%
+				key_not_found ->
+
+					?error_fmt( "Could not read intrusion attribute '~ts' "
+						"of measurement point '~ts' regarding ~ts; "
+						"skipping the update of this point.",
+						[ InputAttrName, PointNameBin,
+						  sensor_id_to_string( SensorId ) ] ),
+
+					PointsDataTable
+
+			end;
+
+		% Perfectly normal, as many points (ex: "in7") have no interest:
 		key_not_found ->
-			?error_fmt( "No '~ts' key found in ~ts for point '~ts' (abnormal).",
-				[ AttrName, sensor_id_to_string( SensorId ), PointName ] ),
+
+			% Convenient to catch non-interpreted entries:
+			?error_fmt( "No entry in points table found for "
+				"measurement point '~ts' of ~ts; skipping this point.",
+				[ PointNameBin, sensor_id_to_string( SensorId ) ] ),
+
+			PointsDataTable
+
+	end,
+
+	update_data_table( NewPointsDataTable, T, SensorId, State ).
+
+
+
+% @doc Examines the specified reported, current temperature and takes any
+% appropriate action.
+%
+% (sensor expected to be enabled)
+%
+-spec examine_temperature( measurement_point_name(), celsius(),
+		temperature_data(), sensor_id(), wooper:state() ) -> temperature_data().
+examine_temperature( PointNameBin, CurrentTemp,
+		TempData=#temperature_data{ status=enabled,
+									alert_state=AlertState,
+									alarm_low=AlarmLow,
+									alarm_high=AlarmHigh },
+		SensorId, State )
+  when CurrentTemp >= AlarmLow andalso CurrentTemp =< AlarmHigh ->
+
+	% In nominal state now; clearing any past alert state:
+	case AlertState of
+
+		nominal ->
 			TempData;
 
-		Other ->
-			?error_fmt( "Non-float value '~p' associated to key '~ts' for "
-				"point '~ts' (abnormal).",
-				[ Other, AttrName, sensor_id_to_string( SensorId ),
-				  PointName ] ),
-			TempData
+		PrevAlertState ->
+
+			?notice_fmt( "Temperature of ~ts back to normal (~ts) "
+				"(from ~ts) at measurement point ~ts.",
+				[ sensor_id_to_string( SensorId ),
+				  unit_utils:temperature_to_string( CurrentTemp ),
+				  PrevAlertState, PointNameBin ] ),
+
+			Now = time_utils:get_timestamp(),
+
+			TempData#temperature_data{ alert_state=nominal,
+									   alert_timestamp=Now }
+
+	end;
+
+
+examine_temperature( PointNameBin, CurrentTemp,
+		TempData=#temperature_data{ alert_state=AlertState,
+									alarm_high=AlarmHigh,
+									crit_high=CritHigh },
+		SensorId, State ) when CurrentTemp > AlarmHigh ->
+
+	% Too hot:
+	case CurrentTemp > CritHigh of
+
+		% Total panic, as we are critical_high here:
+		true ->
+			case AlertState of
+
+				critical_high ->
+					% Nothing new, must have already been notified...
+					TempData;
+
+				_ ->
+					?emergency_fmt( "Temperature of ~ts exceeds the "
+						"critical high threshold (~ts) at measurement "
+						"point ~ts, which reported ~ts. Check urgently "
+						"fans and room temperature.",
+						[ sensor_id_to_string( SensorId ),
+						  unit_utils:temperature_to_string( CritHigh ),
+						  PointNameBin,
+						  unit_utils:temperature_to_string( CurrentTemp ) ] ),
+
+					Now = time_utils:get_timestamp(),
+
+					TempData#temperature_data{ alert_state=critical_high,
+											   alert_timestamp=Now }
+
+			end;
+
+		% Still a very serious worry, as we are alarm_high here:
+		false ->
+
+			% We react to all state changes, aggravations like "improvements":
+			case AlertState of
+
+				alarm_high ->
+					% Nothing new, must have already been notified...
+					TempData;
+
+				_ ->
+					?alert_fmt( "Temperature of ~ts exceeds the "
+						"alarm high threshold (~ts) at measurement "
+						"point ~ts, which reported ~ts (critical high "
+						"threshold of ~ts not reached yet). "
+						"Check fans and room temperature.",
+						[ sensor_id_to_string( SensorId ),
+						  unit_utils:temperature_to_string( AlarmHigh ),
+						  PointNameBin,
+						  unit_utils:temperature_to_string( CurrentTemp ),
+						  unit_utils:temperature_to_string( CritHigh ) ] ),
+
+					Now = time_utils:get_timestamp(),
+
+					TempData#temperature_data{ alert_state=alarm_high,
+											   alert_timestamp=Now }
+
+			end
+
+	end;
+
+
+examine_temperature( PointNameBin, CurrentTemp,
+		TempData=#temperature_data{ alert_state=AlertState,
+									alarm_low=AlarmLow,
+									crit_low=CritLow },
+		% Implicit, but better safe than sorry:
+		SensorId, State ) when CurrentTemp < AlarmLow ->
+
+	% Too cold (!):
+	case CurrentTemp < CritLow of
+
+		% Total unlikely panic, as we are critical_low here:
+		true ->
+			case AlertState of
+
+				critical_low ->
+					% Nothing new, must have already been notified...
+					TempData;
+
+				_ ->
+					?emergency_fmt( "Temperature of ~ts went "
+						"below the critical low threshold (~ts) "
+						"at measurement point ~ts, which reported ~ts. "
+						"Check urgently room temperature.",
+						[ sensor_id_to_string( SensorId ),
+						  unit_utils:temperature_to_string( CritLow ),
+						  PointNameBin,
+						  unit_utils:temperature_to_string( CurrentTemp ) ] ),
+
+					Now = time_utils:get_timestamp(),
+
+					TempData#temperature_data{ alert_state=critical_low,
+											   alert_timestamp=Now }
+
+			end;
+
+		% Still a very serious worry apparently, as we are alarm_low here:
+		false ->
+			case AlertState of
+
+				alarm_low ->
+					% Nothing new, must have already been notified...
+					TempData;
+
+				_ ->
+					?alert_fmt( "Temperature of ~ts went below "
+						"the alarm low threshold (~ts) at measurement "
+						"point ~ts, which reported ~ts (critical low threshold "
+						"of ~ts not reached yet). Check room temperature.",
+						[ sensor_id_to_string( SensorId ),
+						  unit_utils:temperature_to_string( AlarmLow ),
+						  PointNameBin,
+						  unit_utils:temperature_to_string( CurrentTemp ),
+						  unit_utils:temperature_to_string( CritLow ) ] ),
+
+					Now = time_utils:get_timestamp(),
+
+					TempData#temperature_data{ alert_state=alarm_low,
+											   alert_timestamp=Now }
+
+			end
 
 	end.
 
 
 
-% @doc Integrates specified vetted temperature in recorded data.
--spec integrate_temperature( celsius(), temperature_data(),
-			measurement_point_name(), sensor_id(), wooper:state() ) ->
-									temperature_data().
-integrate_temperature( CurrentTemp, TempData, PointName, SensorId, State ) ->
+% @doc Examines the specified reported, current intrusion status and takes any
+% appropriate action.
+%
+% (sensor expected to be enabled)
+%
+-spec examine_intrusion_status( measurement_point_name(),
+		intrusion_detected_status(), intrusion_data(), sensor_id(),
+		wooper:state() ) -> intrusion_data().
+% No intrusion ever:
+examine_intrusion_status( _PointNameBin, _CurrentIntrusStatus=false,
+		IntrusData=#intrusion_data{ status=enabled,
+									intrusion_reported=false },
+		_SensorId, _State ) ->
+	IntrusData;
 
-	MaybeMin = TempData#temperature_data.min,
+% Intrusion still "ongoing":
+examine_intrusion_status( _PointNameBin, _CurrentIntrusStatus=true,
+		IntrusData=#intrusion_data{ status=enabled,
+									intrusion_reported=true },
+		_SensorId, _State ) ->
+	% As already reported by design:
+	IntrusData;
 
-	NewMin = case MaybeMin of
+% New intrusion detected:
+examine_intrusion_status( PointNameBin, _CurrentIntrusStatus=true,
+		IntrusData=#intrusion_data{ status=enabled,
+									intrusion_reported=false },
+		SensorId, State ) ->
 
-		undefined ->
-			CurrentTemp;
+	?emergency_fmt( "Intrusion just detected by ~ts at measurement point ~ts.",
+		[ sensor_id_to_string( SensorId ), PointNameBin ] ),
 
-		_ ->
-			min( CurrentTemp, MaybeMin )
+	IntrusData#intrusion_data{ intrusion_reported=true,
+							   intrusion_timestamp=time_utils:get_timestamp() };
 
-	end,
 
-	MaybeMax = TempData#temperature_data.max,
+% Intrusion disappeared (not expected to happen):
+examine_intrusion_status( PointNameBin, _CurrentIntrusStatus=false,
+		IntrusData=#intrusion_data{ status=enabled,
+									intrusion_reported=true },
+		SensorId, State ) ->
 
-	NewMax = case MaybeMax of
+	?warning_fmt( "Intrusion  detected by ~ts at measurement point ~ts just "
+		"disappeared.", [ sensor_id_to_string( SensorId ), PointNameBin ] ),
 
-		undefined ->
-			CurrentTemp;
+	% Not changing our view:
+	IntrusData.
 
-		_ ->
-			max( CurrentTemp, MaybeMax )
 
-	end,
 
-	NewAvgSum = TempData#temperature_data.avg_sum + CurrentTemp,
-	NewAvgCount = TempData#temperature_data.avg_count + 1,
-
-	CritLow = TempData#temperature_data.crit_low,
-
-	case CritLow =/= undefined andalso CurrentTemp < CritLow of
-
-		true ->
-			?emergency_fmt( "For measurement point ~ts of ~ts, current "
-				"temperature, ~ts, is inferior to the critical low one (~ts).",
-				[ PointName, sensor_id_to_string( SensorId ),
-				  unit_utils:temperature_to_string( CurrentTemp ),
-				  unit_utils:temperature_to_string( CritLow ) ] );
-
-		% As we expect AlarmLow > CritLow:
-		false ->
-
-			AlarmLow = TempData#temperature_data.alarm_low,
-
-			case AlarmLow =/= undefined andalso CurrentTemp < AlarmLow of
-
-				true ->
-					?alert_fmt( "For measurement point ~ts of ~ts, current "
-						"temperature, ~ts, is inferior to the alarm low "
-						"one (~ts).",
-						[ PointName, sensor_id_to_string( SensorId ),
-						  unit_utils:temperature_to_string( CurrentTemp ),
-						  unit_utils:temperature_to_string( AlarmLow ) ] );
-
-				false ->
-					ok
-
-			end
-
-	end,
-
-	CritHigh = TempData#temperature_data.crit_high,
-
-	case CritHigh =/= undefined andalso CurrentTemp > CritHigh of
-
-		true ->
-			?emergency_fmt( "For measurement point ~ts of ~ts, current "
-				"temperature, ~ts, exceeds the critical high one (~ts).",
-				[ PointName, sensor_id_to_string( SensorId ),
-				  unit_utils:temperature_to_string( CurrentTemp ),
-				  unit_utils:temperature_to_string( CritHigh ) ] );
-
-		% As we expect AlarmHigh < CritHigh:
-		false ->
-
-			AlarmHigh = TempData#temperature_data.alarm_high,
-
-			case AlarmHigh =/= undefined andalso CurrentTemp > AlarmHigh of
-
-				true ->
-					?alert_fmt( "For measurement point ~ts of ~ts, current "
-						"temperature, ~ts, exceeds the alarm high one (~ts).",
-						[ PointName, sensor_id_to_string( SensorId ),
-						  unit_utils:temperature_to_string( CurrentTemp ),
-						  unit_utils:temperature_to_string( AlarmHigh ) ] );
-
-				false ->
-					ok
-
-			end
-
-	end,
-
-	TempData#temperature_data{ current=CurrentTemp,
-							   min=NewMin,
-							   max=NewMax,
-							   avg_sum=NewAvgSum,
-							   avg_count=NewAvgCount }.
-
+% Section for the filtering of the attributes of a measurement point, according
+% to the category to which the corresponding sensor belongs.
 
 
 % @doc Filters the specified JSON content corresponding to a CPU socket.
@@ -1644,8 +2142,8 @@ filter_cpu_socket_json(
 filter_cpu_socket_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 						TempAcc, OtherAcc ) ->
 
-	Desc = text_utils:format( "uncategorised CPU socket sensor '~ts'",
-							  [ Name ] ),
+	Desc = text_utils:bin_format( "uncategorised CPU socket sensor '~ts'",
+								  [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -1703,8 +2201,8 @@ filter_cpu_json(
 filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 						TempAcc, OtherAcc ) ->
 
-	Desc = text_utils:format( "uncategorised CPU socket sensor '~ts'",
-							  [ Name ] ),
+	Desc = text_utils:bin_format( "uncategorised CPU socket sensor '~ts'",
+								  [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -1766,7 +2264,7 @@ filter_motherboard_json( _BasicTriples=[
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
 
 	Desc = integrate_any_number(
-			 "platform control hub chipset max temperature sensor", Num ),
+			"platform control hub chipset max temperature sensor", Num ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -1825,8 +2323,22 @@ filter_motherboard_json( _BasicTriples=[
 	filter_motherboard_json( T, TempAcc, [ JSONTriple | FanAcc ], IntrusionAcc,
 							 OtherAcc );
 
+
+% Chassis intrusion sensors:
+filter_motherboard_json( _BasicTriples=[
+		{ _Name="intrusion" ++ Num, BinPointName, V } | T ],
+						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
+
+	Desc = integrate_any_number( "motherboard intrusion detector", Num ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_motherboard_json( T, TempAcc, FanAcc, [ JSONTriple | IntrusionAcc ],
+							 OtherAcc );
+
+
 % Explicitly ignored entries are typically:
-%  - "in*" (ex: "in1") [voltage? unassigned input port?]
+%  - "in*" (ex: "in1" - but not "intrusion1") [voltage? unassigned input port?]
 %  - Vcore, Vbat, AVCC, 3VSB, +3.3V
 %  - beep_enable
 %  - PCH_* (Platform Control Hub) such as PCH_CPU_TEMP
@@ -1852,12 +2364,13 @@ filter_motherboard_json( _BasicTriples=[
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
 	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
 
+
 % Ignored entries are typically:
 filter_motherboard_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
 
-	Desc = text_utils:format( "uncategorised motherboard sensor '~ts'",
-							  [ Name ] ),
+	Desc = text_utils:bin_format( "uncategorised motherboard sensor '~ts'",
+								  [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -1885,7 +2398,7 @@ filter_disk_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
 filter_disk_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 						TempAcc, OtherAcc ) ->
 
-	Desc = text_utils:format( "uncategorised disk sensor '~ts'", [ Name ] ),
+	Desc = text_utils:bin_format( "uncategorised disk sensor '~ts'", [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -1893,7 +2406,9 @@ filter_disk_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Integrates to the specified base name a corresponding number (if any).
+% @doc Integrates to the specified base name of a measurement point a
+% corresponding number (if any).
+%
 -spec integrate_any_number( ustring(), ustring() ) -> bin_string().
 integrate_any_number( BaseStr, _Num="" ) ->
 	text_utils:string_to_binary( BaseStr );
@@ -1942,9 +2457,10 @@ init_polling( SensorPollPeriodicity, State ) ->
 % @doc Vets specified temperature regarding bogus range.
 -spec vet_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
-vet_temperature( Temp, TempDesc, PointName, SensorId, State ) ->
-	vet_temperature( Temp, TempDesc, _Min=?low_bogus_threshold,
-		_Max=?high_bogus_threshold, "bogus", PointName, SensorId, State ).
+vet_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
+	vet_temperature( Temp, TempDesc, _Min=?low_bogus_temperature_threshold,
+		_Max=?high_bogus_temperature_threshold, "bogus", BinPointName,
+		SensorId, State ).
 
 
 
@@ -1952,35 +2468,96 @@ vet_temperature( Temp, TempDesc, PointName, SensorId, State ) ->
 -spec vet_temperature( celsius(), temperature_description(), celsius(),
 		celsius(), range_description(), measurement_point_name(), sensor_id(),
 		wooper:state() ) -> boolean().
-vet_temperature( Temp, TempDesc, Min, _Max, RangeDesc, PointName, SensorId,
+vet_temperature( Temp, TempDesc, _Min, _Max, _RangeDesc, BinPointName, SensorId,
+				 State ) when not is_float( Temp ) ->
+	?error_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
+		"reported as '~p', which is not a float; "
+		"so this value is to be ignored.",
+		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc, Temp ] ),
+	false;
+
+% From here Temp is a float:
+vet_temperature( Temp, TempDesc, Min, _Max, RangeDesc, BinPointName, SensorId,
 				 State ) when Temp < Min ->
 	?warning_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
 		"reported as ~ts, i.e. below the low ~ts threshold (~ts), "
 		"so this value is to be ignored.",
-		[ PointName, sensor_id_to_string( SensorId ), TempDesc,
+		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc,
 		  unit_utils:temperature_to_string( Temp ), RangeDesc,
 		  unit_utils:temperature_to_string( Min ) ] ),
 	false;
 
-vet_temperature( Temp, TempDesc, _Min, Max, RangeDesc, PointName, SensorId,
+vet_temperature( Temp, TempDesc, _Min, Max, RangeDesc, BinPointName, SensorId,
 				 State ) when Temp > Max ->
 	?warning_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
 		"reported as ~ts, i.e. above the high ~ts threshold (~ts), "
 		"so this value is to be ignored.",
-		[ PointName, sensor_id_to_string( SensorId ), TempDesc,
+		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc,
 		  unit_utils:temperature_to_string( Temp ), RangeDesc,
 		  unit_utils:temperature_to_string( Max ) ] ),
 	false;
 
-vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _PointName,
+vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _BinPointName,
 				 _SensorId, _State ) ->
 	true.
 
 
 
+% @doc Checks that the static information of specified temperature data is
+% legit, and returns it.
+%
+-spec check_temperature_data( temperature_data() ) -> temperature_data().
+check_temperature_data( TempData=#temperature_data{ status=disabled } ) ->
+	TempData;
+
+check_temperature_data( TempData=#temperature_data{
+									input_attribute=InputAttr,
+									description=Desc,
+									status=enabled,
+									alert_state=AlertState,
+									alert_timestamp=AlertTimestamp,
+									crit_low=CritLowTemp,
+									alarm_low=AlarmLowTemp,
+									crit_high=CritHighTemp,
+									alarm_high=AlarmHighTemp } ) ->
+
+	type_utils:check_binaries( [ InputAttr, Desc ] ),
+
+	basic_utils:check_all_defined( [ AlertState, AlertState, AlertTimestamp ] ),
+
+	OrderedTemps = [ CritLowTemp, AlarmLowTemp, AlarmHighTemp, CritHighTemp ],
+	type_utils:check_floats( OrderedTemps ),
+	list_utils:check_strictly_ascending( OrderedTemps ),
+
+	TempData.
+
+
+
+% @doc Checks that the static information of specified intrusion data is legit,
+% and returns it.
+%
+-spec check_intrusion_data( intrusion_data() ) -> intrusion_data().
+check_intrusion_data( IntrusData=#intrusion_data{ status=disabled } ) ->
+	IntrusData;
+
+check_intrusion_data( IntrusData=#intrusion_data{
+									input_attribute=InputAttr,
+									description=Desc,
+									status=enabled,
+									intrusion_reported=IntrusStatus,
+									intrusion_timestamp=IntrusTimestamp,
+									beep_on_intrusion=DoBeep } ) ->
+
+	type_utils:check_binaries( [ InputAttr, Desc ] ),
+
+	basic_utils:check_all_defined( [ IntrusStatus, IntrusTimestamp, DoBeep ] ),
+
+	IntrusData.
+
+
+
 % @doc Parses the sensor JSON output stored in the specified file, returns a
 % state with a corresponding initial sensor table.
-%
 %
 -spec parse_sensor_output_from_file( file_path(), wooper:state() ) ->
 											wooper:state().
@@ -2006,68 +2583,146 @@ parse_sensor_output_from_file( OutputFilePath, State ) ->
 
 
 
-% @doc Returns a textual description of the specified temperature data.
--spec temperature_data_to_string( temperature_data() ) -> ustring().
-temperature_data_to_string( #temperature_data{ avg_count=0 } ) ->
+% @doc Returns a textual description of the specified temperature alert state.
+-spec temp_alert_state_to_string( temp_alert_state() ) -> ustring().
+temp_alert_state_to_string( _AlertState=critical_high ) ->
+	"critical high temperature";
+
+temp_alert_state_to_string( _AlertState=alarm_high ) ->
+	"alarm high temperature";
+
+temp_alert_state_to_string( _AlertState=nominal ) ->
+	"nominal temperature";
+
+temp_alert_state_to_string( _AlertState=alarm_low ) ->
+	"alarm low temperature";
+
+temp_alert_state_to_string( _AlertState=critical_low ) ->
+	"critical low temperature".
+
+
+
+% @doc Returns a textual description of the specified measurement data.
+-spec point_data_to_string( point_data() ) -> ustring().
+point_data_to_string( #temperature_data{ input_attribute=InputAttr,
+										 description=Desc,
+										 status=disabled } ) ->
+	text_utils:format( "which is currently disabled (whereas read "
+		"temperature attribute would be '~ts' for ~ts)", [ InputAttr, Desc ] );
+
+point_data_to_string( #temperature_data{ avg_count=0 } ) ->
 	"with no (plausible) temperature reported yet";
 
-temperature_data_to_string( #temperature_data{
-								current=Current,
-								min=Min,
-								max=Max,
-								avg_sum=AvgSum,
-								avg_count=AvgCount,
-								crit_low=MaybeCritLow,
-								alarm_low=MaybeAlarmLow,
-								crit_high=MaybeCritHigh,
-								alarm_high=MaybeAlarmHigh } ) ->
+point_data_to_string( #temperature_data{ input_attribute=InputAttr,
+										 description=Desc,
+										 % Implicit: status=enabled,
+										 alert_state=AlertState,
+										 alert_timestamp=AlertTimestamp,
+										 current=Current,
+										 min_reached=Min,
+										 max_reached=Max,
+										 avg_sum=AvgSum,
+										 avg_count=AvgCount,
+										 alarm_low=MaybeAlarmLow,
+										 alarm_high=MaybeAlarmHigh,
+										 crit_low=MaybeCritLow,
+										 crit_high=MaybeCritHigh } ) ->
 
+	Now = time_utils:get_timestamp(),
+
+	AlertStr = text_utils:format( "this point has been in ~ts state for ~ts",
+		[ temp_alert_state_to_string( AlertState ),
+		  time_utils:get_textual_duration( AlertTimestamp, Now ) ] ),
 
 	% Count is non-null by design:
 	Avg = AvgSum / AvgCount,
 
-	TempStrs = [ unit_utils:maybe_temperature_to_string( T )
-		|| T <- [ Current, Min, Max, Avg, MaybeAlarmLow, MaybeCritLow,
-				  MaybeAlarmHigh, MaybeCritHigh ] ],
+	[ CurrentTempStr | OtherTempStrs ] =
+		[ unit_utils:maybe_temperature_to_string( T )
+			|| T <- [ Current, Min, Max, Avg, MaybeAlarmLow, MaybeCritLow,
+					  MaybeAlarmHigh, MaybeCritHigh ] ],
 
-	text_utils:format( "whose current temperature is ~ts "
-		"(min: ~ts, max: ~ts, average: ~ts; "
-		"thresholds: alarm low: ~ts, critical low: ~ts, "
-		"alarm high: ~ts, critical high: ~ts)",
-		TempStrs ).
-
-
-
-% @doc Returns a textual description of the specified temperature point table.
--spec temperature_points_to_string( temperature_point_table() ) -> ustring().
-temperature_points_to_string( TempPointTable ) ->
-	temperature_points_to_string( TempPointTable, _IndentationLevel=0 ).
+	text_utils:format( "whose current temperature (read from the '~ts' "
+		"attribute, for ~ts) is ~ts; ~ts "
+		"(regarding measurements: min=~ts, max=~ts, average=~ts; "
+		"regarding thresholds: alarm low=~ts, critical low=~ts, "
+		"alarm high=~ts, critical high=~ts)",
+		[ InputAttr, Desc, CurrentTempStr, AlertStr ] ++ OtherTempStrs );
 
 
-% @doc Returns a textual description of the specified temperature point table.
--spec temperature_points_to_string( temperature_point_table(),
+point_data_to_string( #intrusion_data{ input_attribute=InputAttr,
+									   description=Desc,
+									   status=disabled } ) ->
+	text_utils:format( "which is currently disabled (whereas read "
+		"intrusion attribute would be '~ts' for ~ts)", [ InputAttr, Desc ] );
+
+
+point_data_to_string( #intrusion_data{
+								input_attribute=InputAttr,
+								description=Desc,
+								% Implicit: status=enabled,
+								intrusion_reported=false } ) ->
+	text_utils:format( "which does not report any intrusion (as read from "
+		"the '~ts' attribute, for ~ts)", [ InputAttr, Desc ] );
+
+
+point_data_to_string( #intrusion_data{
+								input_attribute=InputAttr,
+								description=Desc,
+								% Implicit: status=enabled,
+								intrusion_reported=true,
+								intrusion_timestamp=IntrusTimestamp,
+								beep_on_intrusion=DoBeep } ) ->
+
+	Now = time_utils:get_timestamp(),
+
+	text_utils:format( "which reports an intrusion that happened ~ts ago "
+		"(as read from the '~ts' attribute, for ~ts; beep on intrusion: ~ts)",
+		[ time_utils:get_textual_duration( IntrusTimestamp, Now ), InputAttr,
+		  Desc, DoBeep ] ).
+
+
+
+% @doc Returns a textual description of the specified measurement point table.
+-spec measurement_points_to_string( points_data_table() ) -> ustring().
+measurement_points_to_string( PointsDataTable ) ->
+	measurement_points_to_string( PointsDataTable, _IndentationLevel=0 ).
+
+
+% @doc Returns a textual description of the specified measurement point table.
+-spec measurement_points_to_string( points_data_table(),
 									indentation_level() ) -> ustring().
-temperature_points_to_string( TempPointTable, IndentationLevel ) ->
+measurement_points_to_string( PointsDataTable, IndentationLevel ) ->
 
-	case table:enumerate( TempPointTable ) of
+	case table:enumerate( PointsDataTable ) of
 
 		[] ->
 			"no measurement point registered";
 
-		[ { PointName, TempData } ] ->
+		[ { PointName, PointData } ] ->
 			text_utils:format(
 				"a single measurement point registered: ~ts, ~ts",
-				[ PointName, temperature_data_to_string( TempData ) ] );
+				[ PointName, point_data_to_string( PointData ) ] );
 
 		MesurePairs ->
 			text_utils:format( "~B measurement points registered: ~ts",
 				[ length( MesurePairs ),
 				  text_utils:strings_to_enumerated_string(
 					[ text_utils:format( "point '~ts', ~ts",
-							[ PN, temperature_data_to_string( TD ) ] )
-						|| { PN, TD } <- MesurePairs ], IndentationLevel ) ] )
+						[ PN, point_data_to_string( TD ) ] )
+						  || { PN, TD } <- MesurePairs ], IndentationLevel ) ] )
 
 	end.
+
+
+
+% @doc Returns a textual description of the specified intrusion status.
+-spec intrusion_status_to_string( temp_alert_state() ) -> ustring().
+intrusion_status_to_string( _IntrusStatus=true ) ->
+	"intrusion detected";
+
+intrusion_status_to_string( _IntrusStatus=false ) ->
+	"no intrusion detected".
 
 
 
@@ -2085,29 +2740,15 @@ sensor_id_to_string( { AtomSensorType, SensorInterface, SensorNumber } ) ->
 sensor_info_to_string( #sensor_info{ raw_id=RawIdBinStr,
 									 id={ _RawType, Interface, _NumBinStr },
 									 category=Categ,
-									 data=MaybeData } ) ->
+									 data=MaybePointsDataTable } ) ->
 
-	DataStr = case MaybeData of
+	DataStr = case MaybePointsDataTable of
 
 		undefined ->
 			"with no data";
 
-		Data ->
-			"with " ++ case Categ of
-
-				cpu_socket ->
-					temperature_points_to_string( Data, _IndentationLevel=1 );
-
-				cpu ->
-					temperature_points_to_string( Data, _IndentationLevel=1 );
-
-				motherboard ->
-					temperature_points_to_string( Data, _IndentationLevel=1 );
-
-				_ ->
-					"sensor-specific data"
-
-			end
+		PointsDataTable ->
+			"with " ++ measurement_points_to_string( PointsDataTable )
 
 	end,
 
