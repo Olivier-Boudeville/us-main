@@ -72,6 +72,9 @@ fans), and of reporting any abnormal situation" ).
 % Types defined from here correspond to elements read from the JSON output of
 % the 'sensors' tool.
 
+% Canonical sensor order enforced here: temperature, fan, then chassis
+% intrusion.
+
 
 -type json_read_value() :: float().
 % To designate values read from JSON keys.
@@ -115,10 +118,14 @@ fans), and of reporting any abnormal situation" ).
 -type sensor_category() :: 'cpu' % Also includes APU (ex: Atom+Radeon)
 						 | 'cpu_socket' % Often less reliable than 'cpu'.
 						 | 'motherboard'
+						 | 'chipset' % Like pch_skylake-virtual-*.
 						 | 'ram'
 						 | 'disk'
 						 | 'battery'
 						 | 'gpu'
+						 | 'network' % Network interface, like the iwlwifi
+									 % wireless adapter.
+						 | 'bus' % Typically USB
 						 | 'unknown'.
 % A higher-level (potentially less precise), clearer (US-assigned) category for
 % a sensor, deriving from a raw sensor type.
@@ -319,6 +326,107 @@ fans), and of reporting any abnormal situation" ).
 
 
 
+% Section regarding fan sensors.
+
+
+-type fan_type() :: 'fixed_speed' % Fans rotated at a fixed speed, regardless of
+								  % temperature
+				  | 'pwm' % Pulse-Width modulation (controlled fan speed)
+				  | 'unknown'.
+% The detected type of a given fan.
+
+
+-type fan_pulse() :: maybe( float() ).
+% The (floating-point) number of pulses generated per revolution of the fan
+% (typically 2).
+
+
+-type fan_state() :: 'nominal'
+				   | 'inactive' % If a fan is reported as non-o
+				   | 'dysfunctional' % If a fan is reported as out of order
+				   | 'insufficient_speed' % If a fan spins too slowly
+				   | 'excessive_speed' % If a fan spins too fast
+				   | 'unknown'.
+% The state condition of a given fan.
+
+
+
+-record( fan_data, {
+
+	% The name of the attribute to read from the JSON table in order to
+	% determine the current fan speed of the associated point:
+	%
+	% (ex: <<"fan2_input">>)
+	%
+	input_attribute :: point_attribute(),
+
+	% The most user-friendly description of the associated measurement point:
+	description :: bin_string(),
+
+	% The enable status of the associated measurement point:
+	status = 'enabled' :: point_status(),
+
+	% The determined fan type:
+	type = 'unknown' :: fan_type(),
+
+	% Tells how many of pulses are generated per revolution of the fan:
+	pulses = 'undefined' :: maybe( fan_pulse() ),
+
+	% Tells whether this fan was ever detected as moving:
+	% (useless; see min_reached field)
+	%
+	%ever_spinned = 'false' :: boolean(),
+
+	% The determined state of this fan:
+	state = 'unknown' :: fan_state(),
+
+	% The timestamp of the last time this fan was detected as spinning:
+	last_spin_timestamp = undefined :: maybe( timestamp() ),
+
+	% The current fan speed (if any):
+	current :: maybe( rpm() ),
+
+	% The lowest fan speed (if any) measured since start:
+	min_reached :: maybe( rpm() ),
+
+	% The highest fan speed (if any) measured since start:
+	max_reached :: maybe( rpm() ),
+
+
+	% To compute the average fan speed:
+
+	% The sum of all (vetted) fan speeds measured since start:
+	avg_sum = 0.0 :: maybe( rpm() ),
+
+	% The number of all (vetted) fan measurements since start:
+	avg_count = 0 :: maybe( count() ),
+
+
+	% Tells, if defined, what is the speed threshold below which an alarm shall
+	% be raised regarding that fan (ex: a fixed-speed fan that would halt for
+	% any reason).
+	%
+	alarm_low = undefined :: maybe( rpm() ),
+
+
+	% Tells, if defined, what is the speed threshold above which an alarm shall
+	% be raised regarding that fan (ex: a PWM fan having to speed because of
+	% excessive heat).
+	%
+	alarm_high = undefined :: maybe( rpm() ),
+
+
+	% Tells whether the motherboard is to beep in case of (presumably) alarm:
+	beep_on_alarm = false :: boolean() } ).
+
+
+-type fan_data() :: #fan_data{}.
+% Stores information about the fan measured by a given measurement point
+% of a sensor.
+
+
+
+
 % Section regarding intrusion sensors.
 
 
@@ -441,6 +549,7 @@ fans), and of reporting any abnormal situation" ).
 -type parser_state() :: json_utils:parser_state().
 
 -type celsius() :: unit_utils:celsius().
+-type rpm() :: unit_utils:rpm().
 
 -type timestamp() :: time_utils:timestamp().
 
@@ -571,15 +680,18 @@ construct( State, SensorOutputFilePath ) ->
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
 
-	?send_notice( ReadState, "After initial read: " ++ to_string( ReadState ) ),
+	?send_notice_fmt( ReadState, "After the initial reading of file '~ts': ~ts",
+					  [ SensorOutputFilePath, to_string( ReadState ) ] ),
 
 	% Not wanted, as we would read updated data not from file but from local
-	% host instead:
+	% host instead and thus detect unexpected sensors:
 	%
-	UpdatedSensorState = update_sensor_data( ReadState ),
+	%UpdatedSensorState = update_sensor_data( ReadState ),
+	UpdatedSensorState = ReadState,
 
-	?send_notice( UpdatedSensorState,
-				  "Constructed: " ++ to_string( UpdatedSensorState ) ),
+	% Similar trace already sent:
+	%?send_notice( UpdatedSensorState,
+	%			  "Constructed: " ++ to_string( UpdatedSensorState ) ),
 
 	UpdatedSensorState.
 
@@ -683,7 +795,7 @@ initialise_json_support( State ) ->
 
 		false ->
 			?error( "No JSON parser found available. "
-					 ++ system_utils:get_json_unavailability_hint() ),
+						++ system_utils:get_json_unavailability_hint() ),
 			throw( no_json_backend )
 
 	end,
@@ -819,8 +931,8 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 			SensorId = { AtomSensorType, Interf,
 						 text_utils:string_to_binary( NumStr ) },
 
-			MaybeSensorData = parse_sensor_data( SensorJSON, SensorCategory,
-												 SensorId, State ),
+			MaybeSensorData = parse_initial_sensor_data( SensorJSON,
+											SensorCategory, SensorId, State ),
 
 			SensorInfo = #sensor_info{ raw_id=RawSensorIdBinStr,
 									   id=SensorId,
@@ -854,7 +966,12 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 %
 -spec categorise_sensor( raw_sensor_type() ) ->
 								{ atom_sensor_type(), sensor_category() }.
+% Internal temperature sensor of Intel Family:
 categorise_sensor( _RawSensorType="coretemp" ) ->
+	{ coretemp, cpu };
+
+% Internal temperature sensor of AMD Family 10h/11h/12h/14h/15h/16h processors:
+categorise_sensor( _RawSensorType="k10temp" ) ->
 	{ coretemp, cpu };
 
 categorise_sensor( _RawSensorType="acpitz" ) ->
@@ -866,19 +983,29 @@ categorise_sensor( _RawSensorType="nvme" ) ->
 categorise_sensor( RawSensorType="nct" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), motherboard };
 
+% Ex: "thinkpad-isa-0000"
+categorise_sensor( RawSensorType="thinkpad" ++ _ ) ->
+	{ text_utils:string_to_atom( RawSensorType ), motherboard };
+
+% Ex: "pch_skylake-virtual-0"
+categorise_sensor( RawSensorType="pch_" ++ _ ) ->
+	{ text_utils:string_to_atom( RawSensorType ), chipset };
+
 categorise_sensor( RawSensorType="BAT" ++ _Number ) ->
 	{ text_utils:string_to_atom( RawSensorType ), battery };
 
-% Internal temperature sensor of AMD Family 10h/11h/12h/14h/15h/16h processors:
-categorise_sensor( _RawSensorType="k10temp" ) ->
-	{ coretemp, cpu };
-
 % Probably a APU:
 categorise_sensor( _RawSensorType="radeon" ) ->
+	% No real gpu-specific information found in JSON yet:
 	{ radeon, cpu };
 
+% Ex: "iwlwifi_1-virtual-0"
+categorise_sensor( RawSensorType="iwlwifi" ++ _ ) ->
+	{ text_utils:string_to_atom( RawSensorType ), network };
+
+% Ex: "ucsi_source_psy_USBC000:001-isa-0000" (for USB-C)
 categorise_sensor( RawSensorType ) ->
-	{ text_utils:string_to_atom( RawSensorType ), unknown }.
+	{ text_utils:string_to_atom( RawSensorType ), bus }.
 
 
 
@@ -905,9 +1032,10 @@ get_interface( _InterfStr ) ->
 % detect initially the various measurement points that it supports, and returns
 % the corresponding data table.
 %
--spec parse_sensor_data( decoded_json(), sensor_category(), sensor_id(),
-						 wooper:state() ) -> points_data_table().
-parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
+-spec parse_initial_sensor_data( decoded_json(), sensor_category(), sensor_id(),
+								 wooper:state() ) -> points_data_table().
+parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId,
+						   State ) ->
 
 	?debug_fmt( "JSON to parse for ~ts for cpu_socket :~n ~p",
 				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
@@ -915,8 +1043,8 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 	{ TempJSONTriples, OtherJSONTriples } =
 		filter_cpu_socket_json( SensorJSON ),
 
-	?debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-				[ TempJSONTriples, OtherJSONTriples ] ),
+	%debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%			[ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -938,7 +1066,7 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId, State ) ->
 
 
 % Mostly the same as cpu_socket:
-parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
+parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for cpu:~n ~p",
 	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
@@ -967,12 +1095,13 @@ parse_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 								 SensorId, State );
 
 
-parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
+parse_initial_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId,
+						   State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for motherboard:~n ~p",
 	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
-	{ TempJSONTriples, _FanJSONTriples, IntrusionJSONTriples,
+	{ TempJSONTriples, FanJSONTriples, IntrusionJSONTriples,
 	  OtherJSONTriples } = filter_motherboard_json( SensorJSON ),
 
 	%?debug_fmt( "TempJSONTriples: ~p~nFanJSONTriples: ~p~n"
@@ -998,14 +1127,17 @@ parse_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId, State ) ->
 	TempDataTable = register_temperature_points( TempJSONTriples,
 								_EmptyDataTable=table:new(), SensorId, State ),
 
-	register_intrusion_points( IntrusionJSONTriples, TempDataTable, SensorId,
+	FanDataTable =
+		register_fan_points( FanJSONTriples, TempDataTable, SensorId, State ),
+
+	register_intrusion_points( IntrusionJSONTriples, FanDataTable, SensorId,
 							   State );
 
 
-parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
+parse_initial_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 
-	?debug_fmt( "JSON to parse for ~ts for disk:~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%?debug_fmt( "JSON to parse for ~ts for disk:~n ~p",
+	%			[ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	{ TempJSONTriples, OtherJSONTriples } = filter_disk_json( SensorJSON ),
 
@@ -1030,25 +1162,95 @@ parse_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
 
+parse_initial_sensor_data( SensorJSON, _SensorCateg=chipset, SensorId,
+						   State ) ->
 
-parse_sensor_data( SensorJSON, _SensorCateg=battery, SensorId, State ) ->
+	% Autonomous chipset.
+	% Ex: "pch_skylake-virtual-0":{
+	%  "temp1":{ "temp1_input": 30.000
+	%  }
+	%},
+
+	%?debug_fmt( "JSON to parse for ~ts for chipset:~n ~p",
+	%            [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+
+	{ TempJSONTriples, OtherJSONTriples } = filter_chipset_json( SensorJSON ),
+
+	%?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
+	%            [ TempJSONTriples, OtherJSONTriples ] ),
+
+	case OtherJSONTriples of
+
+		[] ->
+			ok;
+
+		_ ->
+			?warning_fmt( "Following ~B chipset measurements points "
+				"could not be categorised for '~ts': ~ts.",
+				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+				  text_utils:strings_to_string(
+					[ json_triple_to_string( JT )
+								|| JT <- OtherJSONTriples ] ) ] )
+
+	end,
+
+	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
+								 SensorId, State );
+
+
+parse_initial_sensor_data( _SensorJSON, _SensorCateg=battery, _SensorId,
+						   _State ) ->
 
 	% Batteries are boring.
 	% Ex: <<"BAT0-acpi-0">>: #{<<"curr1">> => #{<<"curr1_input">> => 3.476},
 	%                          <<"in0">> => #{<<"in0_input">> => 12.417}}
 
-	?debug_fmt( "No relevant JSON expected to parse for ~ts for battery:~n ~p",
-				[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%?debug_fmt( "No relevant JSON expected to parse for ~ts for battery:~n ~p",
+	%            [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	undefined;
 
-parse_sensor_data( SensorJSON, SensorCateg, SensorId, State ) ->
+parse_initial_sensor_data( _SensorJSON, _SensorCateg=network, _SensorId,
+						   _State ) ->
+
+	% Network interfaces are boring.
+	% Ex: <<"iwlwifi_1-virtual-0">>: #{<<"temp1">> => #{}}
+
+	%?debug_fmt( "No relevant JSON expected to parse for ~ts for network "
+	%	 "interface:~n ~p", [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+
+	undefined;
+
+parse_initial_sensor_data( _SensorJSON, _SensorCateg=bus, _SensorId, _State ) ->
+
+	% Buses are boring.
+	% Ex: "ucsi_source_psy_USBC000:001-isa-0000":{
+	%  "in0":{
+	%     "in0_input": 0.000,
+	%     "in0_min": 0.000,
+	%     "in0_max": 0.000
+	%  },
+	%  "curr1":{
+	%     "curr1_input": 0.000,
+	%     "curr1_max": 0.000
+	%  }
+	%}
+
+	%?debug_fmt( "No relevant JSON expected to parse for ~ts for bus :~n ~p",
+	%            [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+
+	undefined;
+
+parse_initial_sensor_data( SensorJSON, SensorCateg, SensorId, State ) ->
 
 	?error_fmt( "Ignoring JSON for ~ts of unsupported category ~ts:~n ~p",
 		[ sensor_id_to_string( SensorId ), SensorCateg, SensorJSON ] ),
 
 	undefined.
 
+
+
+% Temperature section.
 
 
 % @doc Registers specified temperature points in specified data table, for the
@@ -1096,6 +1298,7 @@ create_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
 						 State ) ->
 
 	% We check all attributes in turn; no need to accumulate here.
+
 	% Here the current temperature has not been taken into account yet:
 	init_temp_point( _TempEntries=map_hashtable:enumerate( PointValueMap ),
 		BinPointName, #temperature_data{
@@ -1111,8 +1314,8 @@ create_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
 init_temp_point( _TempEntries=[], BinPointName,
 		TempData=#temperature_data{ current=undefined }, SensorId, State ) ->
 
-	?error_fmt( "For temperature measurement point '~ts' of ~ts, no current "
-		"temperature was reported; disabling this point.",
+	?error_fmt( "For temperature measurement point '~ts' of ~ts, no valid "
+		"current temperature was reported; disabling this point.",
 		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
 
 	TempData#temperature_data{ status=disabled };
@@ -1208,8 +1411,8 @@ init_temp_point( _TempEntries=[], _BinPointName,
 						avg_count=1 },
 
 	%?debug_fmt( "Adding initial temperature point '~ts' of ~ts:~n  ~ts",
-	%			[ BinPointName, sensor_id_to_string( SensorId ),
-	%			  point_data_to_string( ReadyTempData ) ] ),
+	%            [ BinPointName, sensor_id_to_string( SensorId ),
+	%              point_data_to_string( ReadyTempData ) ] ),
 
 	% We used to perform the first usual reading here, now done in the final
 	% part of the constructor.
@@ -1261,7 +1464,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 		% Just remove the prefix:
 		[ _AnyPrefix | OtherElems ] ->
-			case text_utils:join( Separator, OtherElems ) of
+			NewTempData = case text_utils:join( Separator, OtherElems ) of
 
 				"input" ->
 
@@ -1273,15 +1476,12 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 										  SensorId, State ) of
 
 						true ->
-							SetTempData = TempData#temperature_data{
-											input_attribute=AttrNameBin,
-											current=AttrValue },
-
 							% To be taken into account once all other attributes
 							% (especially the static ones) have been processed:
 							%
-							init_temp_point( T, BinPointName, SetTempData,
-											 SensorId, State );
+							TempData#temperature_data{
+								input_attribute=AttrNameBin,
+								current=AttrValue };
 
 						false ->
 
@@ -1291,28 +1491,21 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 							%   "skipping that information.",
 							%   [ AttrName, AttrValue ] ),
 
-							SetTempData = TempData#temperature_data{
-											input_attribute=AttrNameBin },
-
-							init_temp_point( T, BinPointName, SetTempData,
-											 SensorId, State )
+							TempData#temperature_data{
+								input_attribute=AttrNameBin }
 
 					end;
 
 
 				Suffix="crit" ->
-					NewTempData = init_for_crit( AttrValue, TempData, Suffix,
-											BinPointName, SensorId, State ),
-					init_temp_point( T, BinPointName, NewTempData, SensorId,
-									 State );
+					init_for_crit( AttrValue, TempData, Suffix, BinPointName,
+								   SensorId, State );
 
 
 				% Interpreted as a synonym of "crit":
 				Suffix="crit_alarm" ->
-					NewTempData = init_for_crit( AttrValue, TempData, Suffix,
-											BinPointName, SensorId, State ),
-					init_temp_point( T, BinPointName, NewTempData, SensorId,
-									 State );
+					init_for_crit( AttrValue, TempData, Suffix, BinPointName,
+								   SensorId, State );
 
 
 				% Unsurprisingly, nothing like crit/crit_alarm for *low*
@@ -1330,15 +1523,10 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, BinPointName, TempData,
-											 SensorId, State );
+							TempData;
 
 						true ->
-							NewTempData = TempData#temperature_data{
-											min_reached=AttrValue },
-
-							init_temp_point( T, BinPointName, NewTempData,
-											 SensorId, State )
+							TempData#temperature_data{ min_reached=AttrValue }
 
 					end;
 
@@ -1349,15 +1537,10 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, BinPointName, TempData,
-											 SensorId, State );
+							TempData;
 
 						true ->
-							NewTempData = TempData#temperature_data{
-											max_reached=AttrValue },
-
-							init_temp_point( T, BinPointName, NewTempData,
-											 SensorId, State )
+							TempData#temperature_data{ max_reached=AttrValue }
 
 					end;
 
@@ -1368,8 +1551,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 							% Just ignored then:
-							init_temp_point( T, BinPointName, TempData,
-											 SensorId, State );
+							TempData;
 
 						true ->
 							NewHigh =
@@ -1395,11 +1577,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 							end,
 
-							NewTempData =
-								TempData#temperature_data{ alarm_high=NewHigh },
-
-							init_temp_point( T, BinPointName, NewTempData,
-											 SensorId, State )
+							TempData#temperature_data{ alarm_high=NewHigh }
 
 					end;
 
@@ -1407,12 +1585,9 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				Suffix when Suffix == "beep" orelse Suffix == "type"
 						orelse Suffix == "offset" orelse Suffix == "max_hyst"
 						orelse Suffix == "crit_hyst" ->
-
 					%?debug_fmt( "Attribute '~ts' belongs to the ignored ones.",
-					%			 [ Suffix ] ),
-
-					init_temp_point( T, BinPointName, TempData, SensorId,
-									 State );
+					%            [ Suffix ] ),
+					TempData;
 
 
 				_OtherSuffix ->
@@ -1423,10 +1598,11 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 						[ AttrName, BinPointName,
 						  sensor_id_to_string( SensorId ) ] ),
 
-					init_temp_point( T, BinPointName, TempData, SensorId,
-									 State )
+					TempData
 
-			end
+			end,
+
+			init_temp_point( T, BinPointName, NewTempData, SensorId, State )
 
 	end.
 
@@ -1463,6 +1639,248 @@ init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 			end,
 
 			TempData#temperature_data{ crit_high=NewCritHigh }
+
+	end.
+
+
+
+
+% Fan section.
+
+
+% @doc Registers specified fan points in specified data table, for the
+% initialisation of specified sensor, from specified JSON content.
+%
+% Only point triples that are already filtered for fans are expected, thus no
+% need to accumulate unexpected points.
+%
+-spec register_fan_points( [ json_triple() ], points_data_table(),
+						   sensor_id(), wooper:state() ) -> points_data_table().
+register_fan_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
+	DataTable;
+
+
+% Ex: "fan2":{ "fan2_input": 1048.000, "fan2_min": 0.000, "fan2_alarm": 0.000,
+%			   "fan2_beep": 0.000, "fan2_pulses": 2.000 },
+register_fan_points(
+		_PointTriples=[ { BinPointName, BinDesc, PointValueMap } | T ],
+		DataTable, SensorId, State ) ->
+
+	?debug_fmt( "Registering fan point '~ts' (~ts) with:~n ~p",
+				[ BinPointName, BinDesc, PointValueMap ] ),
+
+	InitPointData = create_fan_data( PointValueMap, BinPointName, BinDesc,
+									 SensorId, State ),
+
+	% Uniqueness checked:
+	NewDataTable =
+		table:add_new_entry( BinPointName, InitPointData, DataTable ),
+
+	register_fan_points( T, NewDataTable, SensorId, State ).
+
+
+
+% @doc Returns a new fan data initialised from the specified JSON content,
+% ready to be updated with the future next current fan notifications.
+%
+-spec create_fan_data( point_attribute_map(), measurement_point_name(),
+		measurement_point_description(), sensor_id(), wooper:state() ) ->
+									fan_data().
+create_fan_data( PointValueMap, BinPointName, BinDesc, SensorId, State ) ->
+
+	% We check all attributes in turn; no need to accumulate here.
+
+	init_fan_point( _FanEntries=map_hashtable:enumerate( PointValueMap ),
+		BinPointName, #fan_data{ description=BinDesc }, SensorId, State ).
+
+
+
+% (helper)
+% End of recursion, here with no fan reading:
+init_fan_point( _FanEntries=[], BinPointName,
+		FanData=#fan_data{ current=undefined }, SensorId,
+		State ) ->
+
+	?error_fmt( "For fan measurement point '~ts' of ~ts, no fan "
+		"speed was reported; disabling this point.",
+		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+
+	FanData#fan_data{ status=disabled };
+
+
+% End of recursion, here with no specified min speed setting:
+init_fan_point( _FanEntries=[], _BinPointName,
+				FanData=#fan_data{ alarm_low=undefined }, _SensorId, _State ) ->
+
+	% No specific final consistency update to be performed here.
+
+	%?debug_fmt( "Adding fan point '~ts' of ~ts.",
+	%            [ BinPointName, sensor_id_to_string( SensorId ) ] ),
+
+	check_fan_data( FanData );
+
+
+% End of recursion, here with a specified min speed setting:
+init_fan_point( _FanEntries=[], BinPointName,
+				FanData=#fan_data{ current=CurrentSpeed,
+								   alarm_low=AlarmLowSpeed },
+				% Eliminates the case of null AlarmLowSpeed:
+				SensorId, State ) when CurrentSpeed < AlarmLowSpeed ->
+
+	?error_fmt( "For fan measurement point '~ts' of ~ts, the initial fan "
+		"speed, ~ts, is lower than the alarm low one (~ts).",
+		[ BinPointName, sensor_id_to_string( SensorId ),
+		  unit_utils:rpm_to_string( CurrentSpeed ),
+		  unit_utils:rpm_to_string( AlarmLowSpeed ) ] ),
+
+	check_fan_data( FanData );
+
+
+init_fan_point( _FanEntries=[], _BinPointName, FanData, _SensorId, _State  ) ->
+	check_fan_data( FanData );
+
+
+% Example of AttrNameBin/AttrValue entries for a "fan2" point:
+%		"fan2_input": 1048.000,
+%		"fan2_min": 0.000,
+%		"fan2_alarm": 0.000,
+%		"fan2_beep": 0.000,
+%		"fan2_pulses": 2.000
+%
+init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
+				FanData, SensorId, State ) ->
+
+	AttrName = text_utils:binary_to_string( AttrNameBin ),
+	Separator = $_,
+
+	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
+
+		[ _WithoutSepElem ] ->
+
+			?error_fmt( "For fan measurement point '~ts' of ~ts, "
+				"attribute '~ts' cannot be stripped of a relevant prefix; "
+				"ignoring it.",
+				[ BinPointName, sensor_id_to_string( SensorId ), AttrName ] ),
+
+			init_fan_point( T, BinPointName, FanData, SensorId, State );
+
+		% Just remove the prefix:
+		[ _AnyPrefix | OtherElems ] ->
+
+			type_utils:check_float( AttrValue ),
+
+			Now = time_utils:get_timestamp(),
+
+			NewFanData = case text_utils:join( Separator, OtherElems ) of
+
+				% Current speed:
+				"input" ->
+
+					BinInputAttr = text_utils:string_to_binary( AttrName ),
+
+					case AttrValue of
+
+						ZeroSpeed=0.0 ->
+							FanData#fan_data{ input_attribute=BinInputAttr,
+											  current=ZeroSpeed,
+											  state=unknown,
+											  min_reached=ZeroSpeed,
+											  max_reached=ZeroSpeed,
+											  avg_sum=ZeroSpeed,
+											  avg_count=1 };
+
+						Speed ->
+							Now = time_utils:get_timestamp(),
+							FanData#fan_data{ input_attribute=BinInputAttr,
+											  current=Speed,
+											  state=nominal,
+											  last_spin_timestamp=Now,
+											  min_reached=Speed,
+											  max_reached=Speed,
+											  avg_sum=Speed,
+											  avg_count=1 }
+
+					end;
+
+
+				% Supposing this attribute tells us the minimum speed allowed:
+				"min" ->
+					% Checks against current speed later:
+					FanData#fan_data{ alarm_low=AttrValue };
+
+
+				% Not knowing what to do with such an attribute, supposedly
+				% telling an alarm was raised:
+				%
+				"alarm" ->
+
+					case AttrValue of
+
+						% Normal case, no alarm initially:
+						0.0 ->
+							% Nothing special done:
+							FanData;
+
+						1.0 ->
+							?warning_fmt( "For fan measurement point "
+								"'~ts' of ~ts, attribute '~ts' already "
+								"reports initially an alarm.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrName ] ),
+
+							% Nothing special done either:
+							FanData;
+
+						_Other ->
+							?error_fmt( "For fan measurement point '~ts' "
+								"of ~ts, attribute '~ts' reports an unexpected "
+								"alarm value ('~p'); disabling that point.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrName, AttrValue ] ),
+
+							FanData#fan_data{ status=disabled }
+
+					end;
+
+
+				"beep" ->
+					case AttrValue of
+
+						0.0 ->
+							FanData#fan_data{ beep_on_alarm=false };
+
+						1.0 ->
+							FanData#fan_data{ beep_on_alarm=true };
+
+						_Other ->
+							?warning_fmt( "For fan measurement point "
+								"'~ts' of ~ts, ignoring unexpected beep value "
+								"('~p') reported by attribute '~ts'.",
+								[ BinPointName, sensor_id_to_string( SensorId ),
+								  AttrValue, AttrName ] ),
+
+							% Nothing special done either:
+							FanData
+
+					end;
+
+
+				"pulses" ->
+					FanData#fan_data{ pulses=AttrValue };
+
+
+				_OtherSuffix ->
+
+					?warning_fmt( "Unknown suffix for attribute '~ts' of "
+						"fan measurement point ~ts of ~ts; ignoring it.",
+						[ AttrName, BinPointName,
+						  sensor_id_to_string( SensorId ) ] ),
+
+					FanData
+
+			end,
+
+			init_fan_point( T, BinPointName, NewFanData, SensorId, State )
 
 	end.
 
@@ -1717,6 +2135,7 @@ update_from_sensor_output( SensorJsonStr, State ) ->
 
 	JSONDecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
+	% Quite convenient:
 	?debug_fmt( "Updating sensors from '~p'.", [ JSONDecodedMap ] ),
 
 	update_active_sensors( map_hashtable:enumerate( JSONDecodedMap ),
@@ -1763,7 +2182,7 @@ update_active_sensors(
 
 		key_not_found ->
 			?error_fmt( "Got data for unknown sensor whose raw identifier "
-				"is '~ts': ~p (ignoring these measurement points).",
+				"is '~ts':~n  ~p (ignoring these measurement points).",
 				[ RawSensorId, JSONPointMap ] ),
 			undefined
 
@@ -2237,7 +2656,7 @@ filter_cpu_json(
 	filter_cpu_json( T, [ JSONTriple | TempAcc ], OtherAcc );
 
 
-% Ex:  <<"k10temp-pci-00c3">>: #{<<"temp1">> =>...
+% Ex: <<"k10temp-pci-00c3">>: #{<<"temp1">> =>...
 filter_cpu_json(
 		_BasicTriples=[ { _Name="temp" ++ Num, BinPointName, V } | T ],
 		TempAcc, OtherAcc ) ->
@@ -2369,6 +2788,17 @@ filter_motherboard_json( _BasicTriples=[
 	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
 							 OtherAcc );
 
+% Any (unclassified) temperature sensor:
+filter_motherboard_json( _BasicTriples=[
+		{ _Name="temp" ++ Num, BinPointName, V } | T ], TempAcc,
+						 FanAcc, IntrusionAcc, OtherAcc ) ->
+
+	Desc = integrate_any_number( "temperature sensor", Num ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
+							 OtherAcc );
 
 % Fans known of the motherboard:
 filter_motherboard_json( _BasicTriples=[
@@ -2418,10 +2848,20 @@ filter_motherboard_json( _BasicTriples=[
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
 	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
 
+
+% Ex: PCH_CHIP_CPU_MAX_TEMP, PCH_CHIP_TEMP, PCH_CPU_TEMP (temperatures; yet
+% often returned as being 0°C):
+%
 filter_motherboard_json( _BasicTriples=[
-		{ _Name="PCH_CPU_TEMP" ++ _, _BinPointName, _V } | T ],
+		{ Name="PCH_" ++ _, BinPointName, V } | T ],
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
-	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
+
+	Desc = "chipset temperature sensor " ++ Name,
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
+							 OtherAcc );
 
 
 % Ignored entries are typically:
@@ -2455,13 +2895,41 @@ filter_disk_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
 	{ lists:reverse( TempAcc ), OtherAcc };
 
 filter_disk_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
-						TempAcc, OtherAcc ) ->
+				  TempAcc, OtherAcc ) ->
 
 	Desc = text_utils:bin_format( "uncategorised disk sensor '~ts'", [ Name ] ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
 	filter_disk_json( T, [ JSONTriple | TempAcc ], OtherAcc ).
+
+
+
+% @doc Filters the specified JSON content corresponding to a chipset.
+-spec filter_chipset_json( decoded_json() ) ->
+									{ [ json_triple() ], [ json_triple() ] }.
+filter_chipset_json( SensorJSON ) ->
+
+	BasicTriples = [ { text_utils:binary_to_string( BinStr ), BinStr, V }
+				|| { BinStr, V } <- map_hashtable:enumerate( SensorJSON ) ],
+
+	filter_chipset_json( BasicTriples, _TempAcc=[], _OtherAccc=[] ).
+
+
+% (helper)
+filter_chipset_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
+	% Original order may be clearer:
+	{ lists:reverse( TempAcc ), OtherAcc };
+
+filter_chipset_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
+					 TempAcc, OtherAcc ) ->
+
+	Desc = text_utils:bin_format( "uncategorised chipset sensor '~ts'",
+								  [ Name ] ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_chipset_json( T, [ JSONTriple | TempAcc ], OtherAcc ).
 
 
 
@@ -2529,31 +2997,38 @@ vet_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 		wooper:state() ) -> boolean().
 vet_temperature( Temp, TempDesc, _Min, _Max, _RangeDesc, BinPointName, SensorId,
 				 State ) when not is_float( Temp ) ->
-	?error_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
-		"reported as '~p', which is not a float; "
+
+	?error_fmt( "For temperature measurement point ~ts of ~ts, "
+		"the ~ts temperature is reported as '~p', which is not a float; "
 		"so this value is to be ignored.",
 		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc, Temp ] ),
+
 	false;
+
 
 % From here Temp is a float:
 vet_temperature( Temp, TempDesc, Min, _Max, RangeDesc, BinPointName, SensorId,
 				 State ) when Temp < Min ->
-	?warning_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
-		"reported as ~ts, i.e. below the low ~ts threshold (~ts), "
-		"so this value is to be ignored.",
+
+	?warning_fmt( "For temperature measurement point ~ts of ~ts, "
+		"the ~ts temperature is reported as ~ts, i.e. below the "
+		"low ~ts threshold (~ts), so this value is to be ignored.",
 		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc,
 		  unit_utils:temperature_to_string( Temp ), RangeDesc,
 		  unit_utils:temperature_to_string( Min ) ] ),
+
 	false;
 
 vet_temperature( Temp, TempDesc, _Min, Max, RangeDesc, BinPointName, SensorId,
 				 State ) when Temp > Max ->
-	?warning_fmt( "For measurement point ~ts of ~ts, the ~ts temperature is "
-		"reported as ~ts, i.e. above the high ~ts threshold (~ts), "
-		"so this value is to be ignored.",
+
+	?warning_fmt( "For temperature measurement point ~ts of ~ts, "
+		"the ~ts temperature is reported as ~ts, i.e. above the "
+		"high ~ts threshold (~ts), so this value is to be ignored.",
 		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc,
 		  unit_utils:temperature_to_string( Temp ), RangeDesc,
 		  unit_utils:temperature_to_string( Max ) ] ),
+
 	false;
 
 vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _BinPointName,
@@ -2572,7 +3047,7 @@ check_temperature_data( TempData=#temperature_data{ status=disabled } ) ->
 check_temperature_data( TempData=#temperature_data{
 									input_attribute=InputAttr,
 									description=Desc,
-									status=enabled,
+									status=enabled, % Check
 									alert_state=AlertState,
 									alert_timestamp=AlertTimestamp,
 									crit_low=CritLowTemp,
@@ -2592,6 +3067,39 @@ check_temperature_data( TempData=#temperature_data{
 
 
 
+% @doc Checks that the static information of specified fan data is legit, and
+% returns it.
+%
+-spec check_fan_data( fan_data() ) -> fan_data().
+check_fan_data( FanData=#fan_data{ status=disabled } ) ->
+	FanData;
+
+check_fan_data( FanData=#fan_data{ input_attribute=InputAttr,
+								   description=Desc,
+								   status=enabled, % Check
+								   %type=Type,
+								   pulses=MaybePulses,
+								   %state=FanState,
+								   %last_spin_timestamp=LastSpinTimestamp,
+								   current=CurrentSpeed,
+								   min_reached=MinReachedSpeed,
+								   max_reached=MaxReachedSpeed,
+								   alarm_low=MaybeAlarmLow,
+								   alarm_high=MaybeAlarmHigh } ) ->
+
+	type_utils:check_binaries( [ InputAttr, Desc ] ),
+
+	type_utils:check_maybe_float( MaybePulses ),
+
+	type_utils:check_floats(
+		[ CurrentSpeed, MinReachedSpeed, MaxReachedSpeed ] ),
+
+	type_utils:check_maybe_floats( [ MaybeAlarmLow, MaybeAlarmHigh ] ),
+
+	FanData.
+
+
+
 % @doc Checks that the static information of specified intrusion data is legit,
 % and returns it.
 %
@@ -2602,7 +3110,7 @@ check_intrusion_data( IntrusData=#intrusion_data{ status=disabled } ) ->
 check_intrusion_data( IntrusData=#intrusion_data{
 									input_attribute=InputAttr,
 									description=Desc,
-									status=enabled,
+									status=enabled, % Check
 									intrusion_reported=IntrusStatus,
 									intrusion_timestamp=IntrusTimestamp,
 									beep_on_intrusion=DoBeep } ) ->
@@ -2661,16 +3169,53 @@ temp_alert_state_to_string( _AlertState=critical_low ) ->
 
 
 
+% @doc Returns a textual description of the specified fan state.
+-spec fan_state_to_string( fan_state() ) -> ustring().
+fan_state_to_string( _State=nominal ) ->
+	"nominal";
+
+fan_state_to_string( _State=inactive ) ->
+	"inactive";
+
+fan_state_to_string( _State=dysfunctional ) ->
+	"dysfunctional";
+
+fan_state_to_string( _State=insufficient_speed ) ->
+	"insufficient-speed";
+
+
+fan_state_to_string( _State=excessive_speed ) ->
+	"excessive-speed";
+
+fan_state_to_string( _State=unknown ) ->
+	"unknown".
+
+
+
+% @doc Returns a textual description of the specified fan type.
+-spec fan_type_to_string( fan_type() ) -> ustring().
+fan_type_to_string( _Type=fixed_speed ) ->
+	"fixed-speed";
+
+fan_type_to_string( _Type=pwm ) ->
+	"PWM speed";
+
+fan_type_to_string( _Type=unknown ) ->
+	"unknown".
+
+
+
 % @doc Returns a textual description of the specified measurement data.
 -spec point_data_to_string( point_data() ) -> ustring().
+% First, temperature-related clauses:
 point_data_to_string( #temperature_data{ input_attribute=InputAttr,
 										 description=Desc,
 										 status=disabled } ) ->
-	text_utils:format( "which is currently disabled (whereas read "
-		"temperature attribute would be '~ts' for ~ts)", [ InputAttr, Desc ] );
+	text_utils:format( "a currently disabled temperature point (whereas read "
+		"attribute would be '~ts' for ~ts)", [ InputAttr, Desc ] );
 
 point_data_to_string( #temperature_data{ avg_count=0 } ) ->
-	"with no (plausible) temperature reported yet";
+	"a temperature point with no (plausible) measurement reported yet";
 
 point_data_to_string( #temperature_data{ input_attribute=InputAttr,
 										 description=Desc,
@@ -2701,19 +3246,96 @@ point_data_to_string( #temperature_data{ input_attribute=InputAttr,
 			|| T <- [ Current, Min, Max, Avg, MaybeAlarmLow, MaybeCritLow,
 					  MaybeAlarmHigh, MaybeCritHigh ] ],
 
-	text_utils:format( "whose current temperature (read from the '~ts' "
-		"attribute, for ~ts) is ~ts; ~ts "
+	text_utils:format( "a temperature point currently reporting ~ts "
+		"(as read from the '~ts' attribute, for ~ts); ~ts "
 		"(regarding measurements: min=~ts, max=~ts, average=~ts; "
 		"regarding thresholds: alarm low=~ts, critical low=~ts, "
 		"alarm high=~ts, critical high=~ts)",
-		[ InputAttr, Desc, CurrentTempStr, AlertStr ] ++ OtherTempStrs );
+		[ CurrentTempStr, InputAttr, Desc, AlertStr ] ++ OtherTempStrs );
 
 
+% Then fan-related clauses:
+point_data_to_string( #fan_data{ input_attribute=InputAttr,
+								 description=Desc,
+								 status=disabled } ) ->
+	text_utils:format( "a currently disabled fan monitoring point "
+		"(whereas read attribute would be '~ts' for ~ts)",
+		[ InputAttr, Desc ] );
+
+
+point_data_to_string( #fan_data{ input_attribute=InputAttr,
+								 description=Desc,
+								 % Implicit: status=enabled,
+								 type=FanType,
+								 pulses=MaybePulses,
+								 state=FanState,
+								 last_spin_timestamp=MaybeLastSpinTimestamp,
+								 current=CurrentSpeed,
+								 min_reached=MinSpeed,
+								 max_reached=MaxSpeed,
+								 avg_sum=AvgSum,
+								 avg_count=AvgCount,
+								 alarm_low=MaybeAlarmLow,
+								 alarm_high=MaybeAlarmHigh,
+								 beep_on_alarm=BeepOnAlarm } ) ->
+
+	SpeedStr = "whose fan " ++ case MaybeLastSpinTimestamp of
+
+		undefined ->
+			"was never detected spinning";
+
+		LastSpinTimestamp ->
+			case CurrentSpeed of
+
+				0.0 ->
+					Now = time_utils:get_timestamp(),
+					% Implied: not currently spinning.
+					"last spinned " ++ time_utils:get_textual_duration(
+										LastSpinTimestamp, Now ) ++ " ago";
+
+				_ ->
+					text_utils:format( "is currently spinning at ~ts",
+						[ unit_utils:rpm_to_string( CurrentSpeed ) ] )
+
+			end
+
+	end ++ text_utils:format( " (as read, from the '~ts' attribute)",
+							  [ InputAttr ] ) ,
+
+	PulseStr = case MaybePulses of
+
+		undefined ->
+			"an unknown number of";
+
+		Pulses ->
+			text_utils:float_to_string( Pulses, [ { decimals, 1 }, compact ] )
+
+	end ++ " generated pulses per revolution",
+
+	DescStr = text_utils:format( "this fan, ~ts, is of type ~ts and "
+		"is in ~ts state (with ~ts; beep on alarm: ~ts)",
+		[ Desc, fan_type_to_string( FanType ), fan_state_to_string( FanState ),
+		  PulseStr, BeepOnAlarm ] ),
+
+	% Count is non-null by design:
+	Avg = AvgSum / AvgCount,
+
+	SpeedStrs = [ unit_utils:maybe_rpm_to_string( S )
+		|| S <- [ MinSpeed, MaxSpeed, Avg, MaybeAlarmLow, MaybeAlarmHigh ] ],
+
+	text_utils:format( "a fan monitoring point ~ts; ~ts; "
+		"regarding measurements: min=~ts, max=~ts, average=~ts; "
+		"regarding thresholds: alarm low=~ts, alarm high=~ts",
+		[ SpeedStr, DescStr ] ++ SpeedStrs );
+
+
+% Then intrusion clauses:
 point_data_to_string( #intrusion_data{ input_attribute=InputAttr,
 									   description=Desc,
 									   status=disabled } ) ->
-	text_utils:format( "which is currently disabled (whereas read "
-		"intrusion attribute would be '~ts' for ~ts)", [ InputAttr, Desc ] );
+	text_utils:format( "a currently disabled intrusion detection point "
+		"(whereas read attribute would be '~ts' for ~ts)",
+		[ InputAttr, Desc ] );
 
 
 point_data_to_string( #intrusion_data{
@@ -2721,8 +3343,10 @@ point_data_to_string( #intrusion_data{
 								description=Desc,
 								% Implicit: status=enabled,
 								intrusion_reported=false } ) ->
-	text_utils:format( "which does not report any intrusion (as read from "
-		"the '~ts' attribute, for ~ts)", [ InputAttr, Desc ] );
+	text_utils:format( "an intrusion detection point that currently "
+		"does not report any intrusion "
+		"(as read from the '~ts' attribute, for ~ts)",
+		[ InputAttr, Desc ] );
 
 
 point_data_to_string( #intrusion_data{
@@ -2735,8 +3359,9 @@ point_data_to_string( #intrusion_data{
 
 	Now = time_utils:get_timestamp(),
 
-	text_utils:format( "which reports an intrusion that happened ~ts ago "
-		"(as read from the '~ts' attribute, for ~ts; beep on intrusion: ~ts)",
+	text_utils:format( "an intrusion detection point reporting that "
+		"an intrusion happened ~ts ago (as read from the '~ts' attribute, "
+		"for ~ts; beep on intrusion: ~ts)",
 		[ time_utils:get_textual_duration( IntrusTimestamp, Now ), InputAttr,
 		  Desc, DoBeep ] ).
 
@@ -2767,9 +3392,10 @@ measurement_points_to_string( PointsDataTable, IndentationLevel ) ->
 			text_utils:format( "~B measurement points registered: ~ts",
 				[ length( MesurePairs ),
 				  text_utils:strings_to_enumerated_string(
-					[ text_utils:format( "point '~ts', ~ts",
+					[ text_utils:format( "'~ts', ~ts",
 						[ PN, point_data_to_string( TD ) ] )
-						  || { PN, TD } <- MesurePairs ], IndentationLevel ) ] )
+							|| { PN, TD } <- MesurePairs ],
+					IndentationLevel ) ] )
 
 	end.
 
@@ -2839,7 +3465,7 @@ sensor_table_to_string( SensorTable ) ->
 
 		SensorInfos ->
 			text_utils:format( "~B sensors: ~ts",
-				[ length( SensorInfos ), text_utils:strings_to_string(
+				[ length( SensorInfos ), text_utils:strings_to_spaced_string(
 					[ sensor_info_to_string( SI ) || SI <- SensorInfos ] ) ] )
 
 	end.
