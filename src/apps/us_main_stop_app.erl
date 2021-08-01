@@ -57,9 +57,10 @@ exec() ->
 
 	init_from_command_line(),
 
-	% Hardcoded node name:
-	TargetNodeName = text_utils:atom_format( "us_main@~ts",
-											 [ net_utils:localhost() ] ),
+	% Hardcoded atom node name, yet adapting to the current node naming
+	% convention:
+	%
+	TargetNodeName = net_utils:get_complete_node_name( "us_main" ),
 
 	app_facilities:display( "Connecting to node '~ts'.", [ TargetNodeName ] ),
 
@@ -120,7 +121,7 @@ init_from_command_line() ->
 	ArgTable = shell_utils:get_argument_table(),
 
 	%trace_utils:debug_fmt( "Argument table: ~ts",
-	%					   [ list_table:to_string( ArgTable ) ] ),
+	%                       [ list_table:to_string( ArgTable ) ] ),
 
 	% Argument expected to be set by the caller script:
 	{ RemoteCookie, CookieShrunkTable } =
