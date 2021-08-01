@@ -4,6 +4,9 @@ US_MAIN_TOP = ..
 .PHONY: all debug
 
 
+# Default do-nothing target:
+all:
+
 debug:
 	@kill-trace-supervision-tool.sh 1>/dev/null
 	@$(MAKE) -s class_USSensor_run #$(BATCH_OPT)
