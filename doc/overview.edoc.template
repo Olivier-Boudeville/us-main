@@ -4,7 +4,7 @@
 
 @version API PROJECT_VERSION
 
-@title Welcome to the documentation of the Universal Server API
+@title Welcome to the documentation of the Universal Server US-Main API
 
 @doc <h3>Overview</h3>
 
@@ -49,5 +49,5 @@ Optionally US-Main may use the <em>Universal Webserver</em>, i.e. <a href="http:
   <li>the <a href="http://myriad.esperide.org" target="_blank">Myriad official website</a> or <a href="https://olivier-boudeville.github.io/Ceylan-Myriad/index.html" target="_blank">its mirror</a>, notably its <a href="https://myriad.esperide.org/api-doc/index.html" target="_blank">API documentation</a></li>
 
   <li>to the <a href="http://erlang.org" target="_blank">Erlang official website</a>, notably its <a href="https://erlang.org/doc/man_index.html">API documentation</a></li>
-  
+
 </ul>
