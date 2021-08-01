@@ -1,3 +1,5 @@
+[![Erlang CI](https://github.com/Olivier-Boudeville/us-main/actions/workflows/erlang-ci.yml/badge.svg)](https://github.com/Olivier-Boudeville/us-main/actions/workflows/erlang-ci.yml)
+
 # us-main
 
 ![](/doc/us-main-title.png)
