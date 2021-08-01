@@ -621,13 +621,13 @@ fans), and of reporting any abnormal situation" ).
 -include_lib("traces/include/class_TraceEmitter.hrl").
 
 
-% In unit_utils:ms_duration():
-%
-% (hence 5 minutes here) :
-%-define( default_sensor_poll_periodicity, 1000 * 60 * 5 ).
+% User periodicity, hence in seconds:
 
-% (hence 10 seconds here) :
--define( default_sensor_poll_periodicity, 1000 * 10 ).
+% Nominal one:
+%-define( default_sensor_poll_periodicity, 30 ).
+
+% For testing:
+-define( default_sensor_poll_periodicity, 5 ).
 
 
 
@@ -721,8 +721,8 @@ construct( State ) ->
 
 	end,
 
-	?send_info( InitSensorState,
-				"Constructed: " ++ to_string( InitSensorState ) ),
+	?send_notice( InitSensorState,
+				  "Constructed: " ++ to_string( InitSensorState ) ),
 
 	InitSensorState.
 
@@ -771,7 +771,7 @@ construct( State, SensorOutputFilePath ) ->
 
 	% Similar trace already sent:
 	%?send_notice( UpdatedSensorState,
-	%			  "Constructed: " ++ to_string( UpdatedSensorState ) ),
+	%              "Constructed: " ++ to_string( UpdatedSensorState ) ),
 
 	UpdatedSensorState.
 
@@ -2320,9 +2320,9 @@ update_data_table( PointsDataTable,
 			case table:lookup_entry( PointNameBin, PointsDataTable ) of
 
 		{ value, #temperature_data{ status=disabled } } ->
-
-			?debug_fmt( "(temperature measurement point '~ts' is disabled)",
-						[ PointNameBin ] ),
+			cond_utils:if_defined( us_main_debug_sensors,
+				?debug_fmt( "(temperature measurement point '~ts' is disabled)",
+							[ PointNameBin ] ) ),
 
 			% No change then:
 			PointsDataTable;
@@ -2395,9 +2395,9 @@ update_data_table( PointsDataTable,
 
 
 		{ value, #fan_data{ status=disabled } } ->
-
-			?debug_fmt( "(fan measurement point '~ts' is disabled)",
-						[ PointNameBin ] ),
+			cond_utils:if_defined( us_main_debug_sensors,
+				?debug_fmt( "(fan measurement point '~ts' is disabled)",
+							[ PointNameBin ] ) ),
 
 			% No change then:
 			PointsDataTable;
@@ -2408,7 +2408,6 @@ update_data_table( PointsDataTable,
 									% Superfluous:
 									status=enabled,
 									last_spin_timestamp=MaybeLastSpinTimestamp,
-									current=CurrentSpeed,
 									min_reached=MinReachedSpeed,
 									max_reached=MaxReachedSpeed,
 									avg_sum=AvgSum,
@@ -2483,9 +2482,9 @@ update_data_table( PointsDataTable,
 
 
 		{ value, #intrusion_data{ status=disabled } } ->
-
-			?debug_fmt( "(intrusion measurement point '~ts' is disabled)",
-						[ PointNameBin ] ),
+			cond_utils:if_defined( us_main_debug_sensors,
+				?debug_fmt( "(intrusion measurement point '~ts' is disabled)",
+							[ PointNameBin ] ) ),
 
 			% No change then:
 			PointsDataTable;
@@ -2524,10 +2523,13 @@ update_data_table( PointsDataTable,
 		% Perfectly normal, as many points (ex: "in7") have no interest:
 		key_not_found ->
 
-			% Convenient to catch non-interpreted entries:
-			?warning_fmt( "(no entry in points table found for "
-				"measurement point '~ts' of ~ts; skipping this point)",
-				[ PointNameBin, sensor_id_to_string( SensorId ) ] ),
+			% Convenient to catch non-interpreted entries (otherwise fully
+			% normal):
+			%
+			cond_utils:if_defined( us_main_debug_sensors,
+				?warning_fmt( "(no entry in points table found for "
+					"measurement point '~ts' of ~ts; skipping this point)",
+					[ PointNameBin, sensor_id_to_string( SensorId ) ] ) ),
 
 			PointsDataTable
 
@@ -2559,9 +2561,8 @@ examine_temperature( PointNameBin, CurrentTemp,
 			TempData;
 
 		PrevAlertState ->
-
-			?notice_fmt( "Temperature of ~ts back to normal (~ts) "
-				"(from ~ts) at measurement point ~ts.",
+			?notice_fmt( "Temperature of ~ts back to normal (~ts; "
+				"from ~ts) at measurement point ~ts.",
 				[ sensor_id_to_string( SensorId ),
 				  unit_utils:temperature_to_string( CurrentTemp ),
 				  PrevAlertState, PointNameBin ] ),
@@ -3283,12 +3284,12 @@ integrate_any_number( BaseStr, NumStr ) ->
 
 
 % @doc Inits the polling of the sensors.
--spec init_polling( unit_utils:ms_duration(), wooper:state() ) ->
+-spec init_polling( class_USScheduler:user_periodicity(), wooper:state() ) ->
 							wooper:state().
 init_polling( SensorPollPeriodicity, State ) ->
 
 	?debug_fmt( "Planning a sensor measurement each ~ts.",
-				[ text_utils:duration_to_string( SensorPollPeriodicity ) ] ),
+				[ time_utils:duration_to_string( SensorPollPeriodicity ) ] ),
 
 	SchedulerPid = case class_USScheduler:get_main_scheduler() of
 
