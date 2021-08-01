@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.17: http://docutils.sourceforge.net/" />
+<meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <title>Welcome to the Universal Server documentation</title>
 <meta content="Universal Server" name="keywords" />
 <link rel="stylesheet" href="pygments-default.css" type="text/css" />
@@ -12,15 +12,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-<div class="document">
-
+<div class="document" id="technical-manual-of-the-universal-server">
+<h1 class="title">Technical Manual of the <tt class="docutils literal">Universal Server</tt></h1>
 
 <span class="target" id="top"></span><p><span class="raw-html"><a name="universal-server_top"></a></span></p>
 <p><span class="raw-html"><div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#us-main_toc">go to toc</a> <a href="#universal-server_bottom">go to bottom</a> <a href="api-doc/index.html">browse API</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div></span></p>
-<p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-medium"></img></center></span>
+<p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-medium"></img></span>
 </p>
-<div class="section" id="technical-manual-of-the-universal-server">
-<h1><a class="toc-backref" href="#id12">Technical Manual of the <tt class="docutils literal">Universal Server</tt></a></h1>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -34,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Wednesday, June 16, 2021</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Sunday, August 1, 2021</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.3</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.4</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -52,44 +50,49 @@
 </tr>
 </tbody>
 </table>
+<p><span class="raw-html"></center></span></p>
 <p></p>
 <p><span class="raw-html"><a name="us-main_toc"></a></span></p>
 <div class="contents topic" id="id1">
 <span id="table-of-contents"></span><p class="topic-title"><strong>Table of Contents</strong></p>
 <ul class="simple">
-<li><a class="reference internal" href="#technical-manual-of-the-universal-server" id="id12">Technical Manual of the <tt class="docutils literal">Universal Server</tt></a><ul>
-<li><a class="reference internal" href="#overview" id="id13">Overview</a></li>
-<li><a class="reference internal" href="#layer-stack" id="id14">Layer Stack</a></li>
-<li><a class="reference internal" href="#facilities-provided-by-this-layer" id="id15">Facilities Provided by this Layer</a></li>
-<li><a class="reference internal" href="#licence" id="id16">Licence</a></li>
-<li><a class="reference internal" href="#current-stable-version-download" id="id17">Current Stable Version &amp; Download</a><ul>
-<li><a class="reference internal" href="#using-cutting-edge-git" id="id18">Using Cutting-Edge GIT</a></li>
-<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="id19">Using OTP-Related Build/Runtime Conventions</a></li>
+<li><a class="reference internal" href="#overview" id="id12">Overview</a></li>
+<li><a class="reference internal" href="#layer-stack" id="id13">Layer Stack</a></li>
+<li><a class="reference internal" href="#facilities-provided-by-this-layer" id="id14">Facilities Provided by this Layer</a><ul>
+<li><a class="reference internal" href="#sensor-tracking" id="id15">Sensor Tracking</a><ul>
+<li><a class="reference internal" href="#preparing-the-setup" id="id16">Preparing the Setup</a></li>
+<li><a class="reference internal" href="#mode-of-operation-of-the-sensor-manager" id="id17">Mode of Operation of the Sensor Manager</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#support" id="id20">Support</a></li>
-<li><a class="reference internal" href="#please-react" id="id21">Please React!</a></li>
-<li><a class="reference internal" href="#ending-word" id="id22">Ending Word</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#lm-sensors-tips-and-trickslicence" id="id18">lm-sensors Tips and TricksLicence</a></li>
+<li><a class="reference internal" href="#current-stable-version-download" id="id19">Current Stable Version &amp; Download</a><ul>
+<li><a class="reference internal" href="#using-cutting-edge-git" id="id20">Using Cutting-Edge GIT</a></li>
+<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="id21">Using OTP-Related Build/Runtime Conventions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#support" id="id22">Support</a></li>
+<li><a class="reference internal" href="#please-react" id="id23">Please React!</a></li>
+<li><a class="reference internal" href="#ending-word" id="id24">Ending Word</a></li>
 </ul>
 </div>
 <p></p>
 <div class="section" id="overview">
-<h2><a class="toc-backref" href="#id13">Overview</a></h2>
-<p>We present here a short overview of these services, to introduce them to newcomers. These services, provided by the Universal Server, are implemented by <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">US-Main</a>, which relies notably on <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common">US-Common</a>.</p>
-<p>The next level of information is to read the corresponding <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/src">source files</a>, which are intensely commented and generally straightforward.</p>
+<h1><a class="toc-backref" href="#id12">Overview</a></h1>
+<p>We present here a short overview of the general automated services offered by our so-called &quot;Universal Server&quot;, to introduce them to newcomers. These services are implemented by <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">US-Main</a>, which relies notably on <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common">US-Common</a>.</p>
+<p>The next level of information is to read the corresponding <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/src">source files</a>, which are intensely commented and generally straightforward.</p>
 <p>The project repository is located <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">here</a>.</p>
 </div>
 <div class="section" id="layer-stack">
-<h2><a class="toc-backref" href="#id14">Layer Stack</a></h2>
+<h1><a class="toc-backref" href="#id13">Layer Stack</a></h1>
 <p>From the highest level to the lowest, as summarised <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">here</a>, a software stack involving the Universal Server usually is like:</p>
 <ul class="simple">
 <li>the <em>Universal Server</em> services themselves (i.e. this <a class="reference external" href="http://us.esperide.org/">us-main</a> layer)</li>
 <li>[optional] the <em>Universal Webserver</em>, i.e. <a class="reference external" href="http://us-web.esperide.org/">US-Web</a> (for web interaction)</li>
 <li><a class="reference external" href="http://us-common.esperide.org/">US-Common</a> (for US base facilities)</li>
-<li>[optional] <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a> (for 3G connectivity, notably SMS sending)</li>
-<li>[optional] <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a> (prerequisite of Ceylan-Mobile for a bridge to the C language)</li>
+<li>[optional] <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a> (for 3G connectivity, notably SMS sending, relying on the Gammu library)</li>
+<li>[optional] <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a> (prerequisite of Ceylan-Mobile for a bridge from Erlang to the C language)</li>
 <li><a class="reference external" href="http://traces.esperide.org">Ceylan-Traces</a> (for advanced runtime traces)</li>
 <li><a class="reference external" href="http://wooper.esperide.org">Ceylan-WOOPER</a> (for OOP)</li>
 <li><a class="reference external" href="http://myriad.esperide.org">Ceylan-Myriad</a> (as an Erlang toolbox)</li>
@@ -100,25 +103,107 @@
 <p></p>
 </div>
 <div class="section" id="facilities-provided-by-this-layer">
-<h2><a class="toc-backref" href="#id15">Facilities Provided by this Layer</a></h2>
+<h1><a class="toc-backref" href="#id14">Facilities Provided by this Layer</a></h1>
 <p>These are mainly per-host administration services centralised here.</p>
-<p><a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl">USSensorManager</a> manages many <strong>hardware sensors</strong>: at start-up it detect the main available ones, notably regarding temperatures at various locations (the CPU socket, the CPU and cores themselves, ACPI, some disks; adding GPU and RAM modules is considered) and the speed of the fans known of the motherboard (as opposed to any case fan that would be directly connected to the power supply).</p>
-<p>Then temperatures are periodically tracked (current, min, max and average) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself. Abnormal temperatures are then automatically reported to the user by the US logic.</p>
+<p>The <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl">US Sensor Manager</a> tracks automatically many <strong>hardware sensors</strong>; at start-up it detects the main available ones, regarding:</p>
+<ul class="simple">
+<li><strong>temperatures</strong> at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); adding in the future GPU and RAM modules is considered</li>
+<li>the <strong>speed of the fans</strong> known of the motherboard (as opposed to any case fan that would be directly connected to the power supply)</li>
+<li><strong>chassis intrusion</strong>, should such sensors be available</li>
+</ul>
+<p>(other sensors like batteries, network or USB interfaces, etc. are ignored as their measurements are mostly voltage levels)</p>
+<p>From then, the sensor manager periodically monitors these various measurement points: it filters bogus values, detects abnormal changes and reports to the user any related issue.</p>
+<div class="section" id="sensor-tracking">
+<h2><a class="toc-backref" href="#id15">Sensor Tracking</a></h2>
+<div class="section" id="preparing-the-setup">
+<h3><a class="toc-backref" href="#id16">Preparing the Setup</a></h3>
+<p>The monitoring done by this server relies on the <tt class="docutils literal">sensors</tt> executable
+(typically <tt class="docutils literal">/usr/bin/sensors</tt>, obtained generally from a package of the same
+name and relying on <a class="reference external" href="https://github.com/lm-sensors/lm-sensors">lm-sensors</a>). One may install the <tt class="docutils literal"><span class="pre">i2c-tools</span></tt>
+package as well for DIMM information (see R2 below).</p>
+<p>The <tt class="docutils literal"><span class="pre">sensors-detect</span></tt> script must have been run once by root beforehand (select then only the default, safer options, by hitting Enter repeatedly or simply use its <tt class="docutils literal"><span class="pre">--auto</span></tt> option), in order to configure sensors.</p>
+<p>Configuration is typically stored in <tt class="docutils literal">/etc/sensors3.conf</tt>, and must exist prior to running the US server.</p>
 </div>
-<div class="section" id="licence">
-<span id="free-software"></span><h2><a class="toc-backref" href="#id16">Licence</a></h2>
+<div class="section" id="mode-of-operation-of-the-sensor-manager">
+<h3><a class="toc-backref" href="#id17">Mode of Operation of the Sensor Manager</a></h3>
+<p>Once the sensor manager is started, <strong>temperatures</strong> are periodically tracked (current, minimum reported one, maximum, and average since start) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself).</p>
+<p>Abnormal temperatures (that is, going above - or even below - relevant thresholds) are then automatically timestamped and reported to the user by the US logic (i.e. notified in traces with appropriate severity, and possibly sent to the user thanks to emails and/or SMS).</p>
+<p>Similarly, any <strong>fan</strong> that would stop whereas not being PWM is reported, and the same applies should an <strong>intrusion</strong> happen.</p>
+<p>Many sensors report bogus values; the US Sensor Manager does its best to filter them out appropriately.</p>
+<p>This includes temperatures outside of any realistic ranges and an intrusion being reported from boot whereas it did not happen.</p>
+<div class="section" id="temperature-monitoring">
+<h4>Temperature monitoring</h4>
+<p>Temperatures are monitored based on all the sensors that are supported by <tt class="docutils literal"><span class="pre">lm-sensors</span></tt> (notably the motherboard and CPU ones).</p>
+<p>In the future extra information sources could be used:</p>
+<ul class="simple">
+<li>Hard Disk Drives, thanks to hddtemp, libatasmart, udisks2 or smartmontools</li>
+<li>DIMM Temperature sensors (see R2)</li>
+<li>GPU, thanks to XNVCtrl for NVidia ones, or ADL SDK for ATI ones</li>
+</ul>
+<p>Refer to R5 for further details.</p>
+<p><a class="reference external" href="https://en.wikipedia.org/wiki/Platform_Controller_Hub">Platform Controller Hub</a> (ex: <tt class="docutils literal"><span class="pre">pch_cannonlake-virtual-*</span></tt>, <tt class="docutils literal"><span class="pre">pch_skylake-virtual-*</span></tt>, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.</p>
+<p>They may be reported as autonomous first-level entries, or as measurement points of the motherboard.</p>
+</div>
+<div class="section" id="fan-control">
+<h4>Fan Control</h4>
+<p>The rotation speed of the fans can be measured thanks to <tt class="docutils literal"><span class="pre">lm-sensors</span></tt> as well.</p>
+<p>Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (ex: stop/low/high) will remain invisible to all programs.</p>
+<p>Currently the sensor manager is not able to discriminate between fixed-width fans and PWM ones.</p>
+<p>The <tt class="docutils literal">pulses</tt> attribute (ex: <tt class="docutils literal">fan2_pulses</tt>) tells how many of such pulses are generated per revolution of the fan.</p>
+</div>
+<div class="section" id="chassis-intrusion">
+<h4>Chassis Intrusion</h4>
+<p>In this last case, prior to launching the US server, one may try to reset them; for example, as root:</p>
+<pre class="literal-block">
+$ ls -l /sys/class/hwmon/hwmon*/intrusion*
+-rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion0_alarm
+-rw-r--r-- 1 root root 4096 Jul  8 21:46 /sys/class/hwmon/hwmon3/intrusion0_beep
+-rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion1_alarm
+-rw-r--r-- 1 root root 4096 Jul  8 21:46 /sys/class/hwmon/hwmon3/intrusion1_beep
+$ echo 0 &gt;| /sys/class/hwmon/hwmon3/intrusion1_alarm
+$ cat  /sys/class/hwmon/hwmon3/intrusion1_alarm
+1
+</pre>
+<p>As shown, this may not succeed.</p>
+</div>
+<div class="section" id="other-related-technical-information">
+<h4>Other Related Technical Information</h4>
+<p>To access information regarding a given sensor, <tt class="docutils literal">psensor</tt> may be used: open the preferences of the sensor (click on its name in the main window), and select the menu item <em>Preferences</em>, and look at the <em>Chip</em> field. See <a class="reference external" href="https://wpitchoune.net/psensor/faq.html">this link</a> for more information.</p>
+<p>The <tt class="docutils literal">sensors</tt> tool is reporting values found in the Linux virtual file system directory, in <tt class="docutils literal"><span class="pre">/sys/class/thermal/thermal_zone*/{temp,type}</span></tt> for temperatures.</p>
+<p>Examples:</p>
+<ul class="simple">
+<li><tt class="docutils literal">Package id 0</tt> is your (first) CPU</li>
+<li><tt class="docutils literal"><span class="pre">dell_smm-virtual-0</span></tt> is your CPU fan, managed by your system firmware</li>
+<li><tt class="docutils literal"><span class="pre">acpitz-virtual-0</span></tt> (<em>ACPI Thermal Zone</em>) is the temperature sensor near/on your CPU socket; this sensor can be unreliable</li>
+<li><tt class="docutils literal"><span class="pre">coretemp-isa-0000</span></tt> measures the temperature of the specific cores</li>
+</ul>
+<p>See the many comments in <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl">class_USSensorManager.erl</a> for more details.</p>
+<p>See also the following resources:</p>
+<ul class="simple">
+<li><a class="reference external" href="https://askubuntu.com/questions/843231/what-is-the-meaning-of-the-output-of-the-command-sensors">R1</a>: interpreting the output of <tt class="docutils literal">sensors</tt></li>
+<li><a class="reference external" href="https://wiki.archlinux.org/title/lm_sensors">R2</a>: the <tt class="docutils literal">lm_sensors</tt> documentation of Arch Linux</li>
+<li><a class="reference external" href="https://www.linux.com/topic/desktop/advanced-lm-sensors-tips-and-tricks-linux-0/">R3</a> and <a class="reference external" href="https://www.linux.com/training-tutorials/jazz-lm-sensors-graphics-and-notifications-0/">R4</a>: <tt class="docutils literal"><span class="pre">lm-sensors</span></tt> tips and tricks</li>
+<li><a class="reference external" href="https://wpitchoune.net/psensor/">R5</a>: information about <tt class="docutils literal">psensor</tt></li>
+<li><a class="reference external" href="https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html">R6</a>: an example of preparation/tuning of one's sensors</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="section" id="lm-sensors-tips-and-trickslicence">
+<span id="free-software"></span><h1><a class="toc-backref" href="#id18">lm-sensors Tips and TricksLicence</a></h1>
 <p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
 <p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
 <p>We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.</p>
 </div>
 <div class="section" id="current-stable-version-download">
-<h2><a class="toc-backref" href="#id17">Current Stable Version &amp; Download</a></h2>
+<h1><a class="toc-backref" href="#id19">Current Stable Version &amp; Download</a></h1>
 <p>As mentioned, the single mandatory prerequisite of the <a class="reference external" href="https://github.com/Olivier-Boudeville/UniversalServer">Universal Server</a> is <a class="reference external" href="http://us-common.esperide.org/">US-Common</a>, which relies on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Traces">Ceylan-Traces</a>, which implies in turn <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-WOOPER">Ceylan-WOOPER</a>, then <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad">Ceylan-Myriad</a> and <a class="reference external" href="http://erlang.org">Erlang</a>.</p>
 <p>We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding <a class="reference external" href="http://myriad.esperide.org#prerequisites">Myriad prerequisite section</a>  for more precise guidelines), and building the Universal Server from sources, thanks to GNU <tt class="docutils literal">make</tt>.</p>
 <p>We recommend, for all Erlang-related software, to rely on rebar3.</p>
 <p>One wanting to be able to operate on the source code of these dependencies may define appropriate symbolic links in a <tt class="docutils literal">_checkouts</tt> directory created at the root of <tt class="docutils literal"><span class="pre">us-main</span></tt>, these links pointing to relevant GIT clones.</p>
 <div class="section" id="using-cutting-edge-git">
-<h3><a class="toc-backref" href="#id18">Using Cutting-Edge GIT</a></h3>
+<h2><a class="toc-backref" href="#id20">Using Cutting-Edge GIT</a></h2>
 <p>This is the installation method that we use and recommend; the Universal Server <tt class="docutils literal">master</tt> branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.</p>
 <p>Once Erlang, Cowboy and possibly Awstats are available, it should be just a matter of executing:</p>
 <pre class="code bash literal-block">
@@ -148,7 +233,7 @@ $ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all
 <p><span class="raw-html"><a name="otp"></a></span></p>
 </div>
 <div class="section" id="using-otp-related-build-runtime-conventions">
-<span id="otp-build"></span><h3><a class="toc-backref" href="#id19">Using OTP-Related Build/Runtime Conventions</a></h3>
+<span id="otp-build"></span><h2><a class="toc-backref" href="#id21">Using OTP-Related Build/Runtime Conventions</a></h2>
 <p>As discussed in these sections of <a class="reference external" href="http://myriad.esperide.org/myriad.html#otp">Myriad</a>, <a class="reference external" href="http://wooper.esperide.org/index.html#otp">WOOPER</a>, <a class="reference external" href="http://traces.esperide.org/index.html#otp">Traces</a> and <a class="reference external" href="http://us-common.esperide.org/index.html#otp">US-Common</a>, we added the (optional) possibility of generating a Universal Server <em>OTP application</em> out of the build tree, ready to result directly in an <em>(OTP) release</em>. For that we rely on <a class="reference external" href="https://www.rebar3.org/">rebar3</a>, <a class="reference external" href="https://github.com/erlware/relx">relx</a> and <a class="reference external" href="https://hex.pm/">hex</a>.</p>
 <p>Then we benefit from a standalone, complete Universal Server.</p>
 <p>As for Myriad, WOOPER, Traces and US-Common, most versions of the Universal Server are also published as <a class="reference external" href="https://hex.pm/packages/us_main">Hex packages</a>.</p>
@@ -160,20 +245,19 @@ $ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all
 </div>
 </div>
 <div class="section" id="support">
-<h2><a class="toc-backref" href="#id20">Support</a></h2>
+<h1><a class="toc-backref" href="#id22">Support</a></h1>
 <p>Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">project interface</a> (typically <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/issues">issues</a>) or directly at the email address mentioned at the beginning of this document.</p>
 </div>
 <div class="section" id="please-react">
-<h2><a class="toc-backref" href="#id21">Please React!</a></h2>
+<h1><a class="toc-backref" href="#id23">Please React!</a></h1>
 <p>If you have information more detailed or more recent than those presented in this document, if you noticed errors, neglects or points insufficiently discussed, drop us a line! (for that, follow the <a class="reference internal" href="#support">Support</a> guidelines).</p>
 </div>
 <div class="section" id="ending-word">
-<h2><a class="toc-backref" href="#id22">Ending Word</a></h2>
+<h1><a class="toc-backref" href="#id24">Ending Word</a></h1>
 <p>Have fun with the Universal Server!</p>
 <p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-small"></img></center></span>
 </p>
 <p><span class="raw-html"><a name="universal-server_bottom"></a></span></p>
-</div>
 </div>
 </div>
 </body>

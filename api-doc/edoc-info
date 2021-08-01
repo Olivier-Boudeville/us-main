@@ -1,3 +1,4 @@
 %% encoding: UTF-8
 {application,'US-Main'}.
-{modules,[class_USSensorManager,us_main_monitor_app]}.
+{modules,[class_USSensorManager,us_main_app,us_main_monitor_app,
+          us_main_stop_app,us_main_sup]}.

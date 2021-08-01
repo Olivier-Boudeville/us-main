@@ -11,13 +11,14 @@
 
 <h1>Module class_USSensorManager</h1>
 <ul class="index"><li><a href="#description">Description</a></li><li><a href="#types">Data Types</a></li><li><a href="#index">Function Index</a></li><li><a href="#functions">Function Details</a></li></ul>US server in charge of the <b>monitoring of the sensors available on a
- local host</b> (notably the temperatures and the operation of fans), and of
- reporting any abnormal situation.
+ local host</b> (notably the temperatures, chassis intrusion status and the
+ operation of fans), and of reporting any abnormal situation.
 
+<p><b>Behaviours:</b> <a href="supervisor_bridge.html"><tt>supervisor_bridge</tt></a>.</p>
 
 <h2><a name="description">Description</a></h2>US server in charge of the <b>monitoring of the sensors available on a
- local host</b> (notably the temperatures and the operation of fans), and of
- reporting any abnormal situation.
+ local host</b> (notably the temperatures, chassis intrusion status and the
+ operation of fans), and of reporting any abnormal situation.
 
 <h2><a name="types">Data Types</a></h2>
 
@@ -41,30 +42,13 @@
 <p><tt>bin_string() = <a href="text_utils.html#type-bin_string">text_utils:bin_string()</a></tt></p>
 
 
-<h3 class="typedecl"><a name="type-celsius">celsius()</a></h3>
-<p><tt>celsius() = <a href="unit_utils.html#type-celsius">unit_utils:celsius()</a></tt></p>
-
-
 <h3 class="typedecl"><a name="type-classname">classname()</a></h3>
 <p><tt>classname() = <a href="wooper.html#type-classname">wooper:classname()</a></tt></p>
-
-
-<h3 class="typedecl"><a name="type-count">count()</a></h3>
-<p><tt>count() = <a href="basic_utils.html#type-count">basic_utils:count()</a></tt></p>
-
-
-<h3 class="typedecl"><a name="type-indentation_level">indentation_level()</a></h3>
-<p><tt>indentation_level() = <a href="#type-indentation_level">indentation_level()</a></tt></p>
 
 
 <h3 class="typedecl"><a name="type-instance_pid">instance_pid()</a></h3>
 <p><tt>instance_pid() = pid()</tt></p>
 
-
-<h3 class="typedecl"><a name="type-measurement_point_name">measurement_point_name()</a></h3>
-<p><tt>measurement_point_name() = <a href="#type-bin_string">bin_string()</a></tt></p>
-<p> The name of a measurement point (ex: <code>&lt;&lt;"temp1"&gt;&gt;</code>) of a sensor (which may
- provide multiple points).</p>
 
 <h3 class="typedecl"><a name="type-method_argument">method_argument()</a></h3>
 <p><tt>method_argument() = <a href="wooper.html#type-method_argument">wooper:method_argument()</a></tt></p>
@@ -92,13 +76,16 @@
 
 <h3 class="typedecl"><a name="type-raw_sensor_id">raw_sensor_id()</a></h3>
 <p><tt>raw_sensor_id() = <a href="#type-bin_string">bin_string()</a></tt></p>
-<p> Full identifier of a sensor, directly as read; ex: <code>&lt;&lt;"coretemp-isa-0000"&gt;&gt;</code>,
- <code>&lt;&lt;"nct6792-isa-0a20"&gt;&gt;</code>, <code>&lt;&lt;"nvme-pci-0200"&gt;&gt;</code>, etc.</p>
+<p> Full identifier of a sensor, directly as read from JSON; ex:
+ <code>&lt;&lt;"coretemp-isa-0000"&gt;&gt;</code>, <code>&lt;&lt;"nct6792-isa-0a20"&gt;&gt;</code>, <code>&lt;&lt;"nvme-pci-0200"&gt;&gt;</code>,
+ <code>&lt;&lt;"radeon-pci-0008"&gt;&gt;</code>, etc.; structure is
+ <code>&lt;&lt;"RawSensorType-SensorInterface-SensorNumber"&gt;&gt;</code>.</p>
 
 <h3 class="typedecl"><a name="type-raw_sensor_type">raw_sensor_type()</a></h3>
 <p><tt>raw_sensor_type() = <a href="#type-ustring">ustring()</a></tt></p>
-<p> The reported type for a sensor, like "coretemp", "acpitz", "nvme", etc.; many
- exist as they correspond to different chips (ex: "nct6792") on motherboards.</p>
+<p> The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
+ "radeon", etc.; many exist as they correspond to different chips (ex:
+ "nct6792") on motherboards.</p>
 
 <h3 class="typedecl"><a name="type-request_name">request_name()</a></h3>
 <p><tt>request_name() = <a href="wooper.html#type-request_name">wooper:request_name()</a></tt></p>
@@ -121,13 +108,13 @@
 
 
 <h3 class="typedecl"><a name="type-sensor_category">sensor_category()</a></h3>
-<p><tt>sensor_category() = cpu | cpu_socket | motherboard | ram | disk | gpu | unknown</tt></p>
-<p> A higher-level (potentially less precise), clearer (US-assigned) category for
- a sensor, deriving from a raw sensor type.</p>
+<p><tt>sensor_category() = cpu | cpu_socket | motherboard | chipset | ram | disk | battery | gpu | network | bus | unknown</tt></p>
+
 
 <h3 class="typedecl"><a name="type-sensor_id">sensor_id()</a></h3>
 <p><tt>sensor_id() = {<a href="#type-atom_sensor_type">atom_sensor_type()</a>, <a href="#type-sensor_interface">sensor_interface()</a>, <a href="#type-sensor_number">sensor_number()</a>}</tt></p>
-<p> Full identifier of a sensor, directly deriving from a raw one.</p>
+<p> Full identifier of a sensor, directly deriving from a raw one.
+ Ex: <code>{coretemp, isa, &lt;&lt;"0a20"&gt;&gt;}</code>.</p>
 
 <h3 class="typedecl"><a name="type-sensor_interface">sensor_interface()</a></h3>
 <p><tt>sensor_interface() = isa | acpi | pci | virtual | unknown | atom()</tt></p>
@@ -138,14 +125,10 @@
 <p> Kept as a (binary) string (even if is an hexadecimal value), for clarity.
  Ex: <code>&lt;&lt;"0a20"&gt;&gt;</code>.</p>
 
-<h3 class="typedecl"><a name="type-temperature_data">temperature_data()</a></h3>
-<p><tt>temperature_data() = #temperature_data{current = <a href="#type-celsius">celsius()</a>, min = <a href="#type-celsius">celsius()</a>, max = <a href="#type-celsius">celsius()</a>, avg_sum = <a href="#type-celsius">celsius()</a>, avg_count = <a href="#type-count">count()</a>, crit_high = <a href="#type-maybe">maybe</a>(<a href="#type-celsius">celsius()</a>), alarm_high = <a href="#type-maybe">maybe</a>(<a href="#type-celsius">celsius()</a>)}</tt></p>
-<p> Stores information about the temperature measured by a given measurement point
- of a sensor.</p>
-
-<h3 class="typedecl"><a name="type-temperature_points">temperature_points()</a></h3>
-<p><tt>temperature_points() = <a href="#type-table">table</a>(<a href="#type-measurement_point_name">measurement_point_name()</a>, <a href="#type-temperature_data">temperature_data()</a>)</tt></p>
-<p> A table associating, to a temperature measurement point, its data.</p>
+<h3 class="typedecl"><a name="type-temp_alert_state">temp_alert_state()</a></h3>
+<p><tt>temp_alert_state() = critical_high | alarm_high | nominal | alarm_low | critical_low</tt></p>
+<p> The temperature-related alert state of a measurement point. Allows to report
+ issues once, rather than repeatedly.</p>
 
 <h3 class="typedecl"><a name="type-ustring">ustring()</a></h3>
 <p><tt>ustring() = <a href="text_utils.html#type-ustring">text_utils:ustring()</a></tt></p>
@@ -178,6 +161,9 @@
 <tr><td valign="top"><a href="#getAttributes-2">getAttributes/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#hasAttribute-2">hasAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#incrementAttribute-2">incrementAttribute/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#init-1">init/1</a></td><td>Callback to initialise this supervisor bridge, typically in answer to
+ start_link/0 being executed.</td></tr>
+<tr><td valign="top"><a href="#intrusion_status_to_string-1">intrusion_status_to_string/1</a></td><td>Returns a textual description of the specified intrusion status.</td></tr>
 <tr><td valign="top"><a href="#is_wooper_debug-0">is_wooper_debug/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#popFromAttribute-2">popFromAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#post_deserialise_hook-1">post_deserialise_hook/1</a></td><td></td></tr>
@@ -187,11 +173,10 @@
 <tr><td valign="top"><a href="#removeAttribute-2">removeAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#setAttribute-3">setAttribute/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#setAttributes-2">setAttributes/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Starts and links a supervision bridge for the sensor management.</td></tr>
 <tr><td valign="top"><a href="#subtractFromAttribute-3">subtractFromAttribute/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#swapInAttribute-3">swapInAttribute/3</a></td><td></td></tr>
-<tr><td valign="top"><a href="#temperature_data_to_string-1">temperature_data_to_string/1</a></td><td>Returns a textual description of the specified temperature data.</td></tr>
-<tr><td valign="top"><a href="#temperature_points_to_string-1">temperature_points_to_string/1</a></td><td>Returns a textual description of the specified temperature point table.</td></tr>
-<tr><td valign="top"><a href="#temperature_points_to_string-2">temperature_points_to_string/2</a></td><td>Returns a textual description of the specified temperature point table.</td></tr>
+<tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td>Callback to terminate this supervisor bridge.</td></tr>
 <tr><td valign="top"><a href="#toggleAttribute-2">toggleAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wooper_destruct-1">wooper_destruct/1</a></td><td></td></tr>
 <tr><td valign="top"><a href="#wooper_effective_method_execution-4">wooper_effective_method_execution/4</a></td><td></td></tr>
@@ -363,6 +348,20 @@
 <p> </p>
 </div>
 
+<h3 class="function"><a name="init-1">init/1</a></h3>
+<div class="spec">
+<p><tt>init(Args::list()) -&gt; {ok, pid(), State::term()} | ignore | {error, Error::term()}</tt><br></p>
+<p> </p>
+</div><p>Callback to initialise this supervisor bridge, typically in answer to
+ start_link/0 being executed.
+</p>
+
+<h3 class="function"><a name="intrusion_status_to_string-1">intrusion_status_to_string/1</a></h3>
+<div class="spec">
+<p><tt>intrusion_status_to_string(IntrusStatus::<a href="#type-temp_alert_state">temp_alert_state()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
+<p> </p>
+</div><p>Returns a textual description of the specified intrusion status.</p>
+
 <h3 class="function"><a name="is_wooper_debug-0">is_wooper_debug/0</a></h3>
 <div class="spec">
 <p><tt>is_wooper_debug() -&gt; boolean()</tt><br></p>
@@ -417,6 +416,17 @@
 <p> </p>
 </div>
 
+<h3 class="function"><a name="start_link-0">start_link/0</a></h3>
+<div class="spec">
+<p><tt>start_link() -&gt; term()</tt><br></p>
+<p> </p>
+</div><p><p>Starts and links a supervision bridge for the sensor management.</p>
+
+ Note: typically spawned as a supervised child of the US-Main root supervisor
+ (see us_main_sup:init/1), hence generally triggered by the application
+ initialisation.
+</p>
+
 <h3 class="function"><a name="subtractFromAttribute-3">subtractFromAttribute/3</a></h3>
 <div class="spec">
 <p><tt>subtractFromAttribute(State::<a href="wooper.html#type-state">wooper:state()</a>, AttributeName::<a href="#type-attribute_name">attribute_name()</a>, Value::<a href="#type-attribute_value">attribute_value()</a>) -&gt; <a href="wooper.html#type-state">wooper:state()</a></tt><br></p>
@@ -429,23 +439,11 @@
 <p> </p>
 </div>
 
-<h3 class="function"><a name="temperature_data_to_string-1">temperature_data_to_string/1</a></h3>
+<h3 class="function"><a name="terminate-2">terminate/2</a></h3>
 <div class="spec">
-<p><tt>temperature_data_to_string(Temperature_data::<a href="#type-temperature_data">temperature_data()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
+<p><tt>terminate(Reason::shutdown | term(), State::term()) -&gt; <a href="#type-void">void()</a></tt><br></p>
 <p> </p>
-</div><p>Returns a textual description of the specified temperature data.</p>
-
-<h3 class="function"><a name="temperature_points_to_string-1">temperature_points_to_string/1</a></h3>
-<div class="spec">
-<p><tt>temperature_points_to_string(TempPointTable::<a href="#type-temperature_points">temperature_points()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
-<p> </p>
-</div><p>Returns a textual description of the specified temperature point table.</p>
-
-<h3 class="function"><a name="temperature_points_to_string-2">temperature_points_to_string/2</a></h3>
-<div class="spec">
-<p><tt>temperature_points_to_string(TempPointTable::<a href="#type-temperature_points">temperature_points()</a>, IndentationLevel::<a href="#type-indentation_level">indentation_level()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
-<p> </p>
-</div><p>Returns a textual description of the specified temperature point table.</p>
+</div><p>Callback to terminate this supervisor bridge.</p>
 
 <h3 class="function"><a name="toggleAttribute-2">toggleAttribute/2</a></h3>
 <div class="spec">
