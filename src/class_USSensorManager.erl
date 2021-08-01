@@ -63,6 +63,24 @@ fans), and of reporting any abnormal situation" ).
 % Regarding sensors, refer to the Technical Manual of the Universal Server
 % (http://us-main.esperide.org).
 
+% This sensor manager is designed to be able to integrate to an OTP supervision
+% tree thanks to a supervisor bridge, whose behaviour is directly defined in
+% this module. See https://wooper.esperide.org/#otp-guidelines for further
+% information.
+%
+-behaviour(supervisor_bridge).
+
+% User API of the bridge:
+-export([ start_link/0 ]).
+
+
+% Callbacks of the supervisor_bridge behaviour:
+-export([ init/1, terminate/2 ]).
+
+-define( bridge_name, ?MODULE ).
+
+
+
 % Note that map_hashtable instances are explicitly mentioned instead of tables
 % as this is the actual type returned by the json_utils.
 
@@ -75,6 +93,8 @@ fans), and of reporting any abnormal situation" ).
 % Canonical sensor order enforced here: temperature, fan, then chassis
 % intrusion.
 
+
+-type sensor_manager_pid() :: class_USServer:server_pid().
 
 -type json_read_value() :: float().
 % To designate values read from JSON keys.
@@ -145,7 +165,7 @@ fans), and of reporting any abnormal situation" ).
 % Full identifier of a sensor, directly as read from JSON; ex:
 % `<<"coretemp-isa-0000">>', `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>',
 % `<<"radeon-pci-0008">>', etc.; structure is
-% <<"RawSensorType-SensorInterface-SensorNumber">>.
+% `<<"RawSensorType-SensorInterface-SensorNumber">>'.
 
 
 -type sensor_id() ::
@@ -342,7 +362,8 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type fan_state() :: 'nominal'
-				   | 'inactive' % If a fan is reported as non-o
+				   | 'inactive' % If a fan is reported as non-operational
+								% (possibly not even existing)
 				   | 'dysfunctional' % If a fan is reported as out of order
 				   | 'insufficient_speed' % If a fan spins too slowly
 				   | 'excessive_speed' % If a fan spins too fast
@@ -610,6 +631,64 @@ fans), and of reporting any abnormal situation" ).
 
 
 
+
+% Implementation of the supervisor_bridge behaviour, for the intermediate
+% process allowing to interface this sensor manager with an OTP supervision
+% tree.
+
+
+% @doc Starts and links a supervision bridge for the sensor management.
+%
+% Note: typically spawned as a supervised child of the US-Main root supervisor
+% (see us_main_sup:init/1), hence generally triggered by the application
+% initialisation.
+%
+-spec start_link() -> term().
+start_link() ->
+
+	% Apparently not displayed in a release context, yet executed:
+	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+						"the sensor management." ),
+
+	supervisor_bridge:start_link( { local, ?bridge_name },
+		_Module=?MODULE, _InitArgs=[] ).
+
+
+
+% @doc Callback to initialise this supervisor bridge, typically in answer to
+% start_link/0 being executed.
+%
+-spec init( list() ) -> { 'ok', pid(), State :: term() }
+							| 'ignore' | { 'error', Error :: term() }.
+init( _Args=[] ) ->
+
+	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
+						   "the sensor management.", [ self() ] ),
+
+	% Not specifically synchronous:
+	SensorManagerPid = ?MODULE:new_link(),
+
+	{ ok, SensorManagerPid, _InitialBridgeState=SensorManagerPid }.
+
+
+
+% @doc Callback to terminate this supervisor bridge.
+-spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
+terminate( Reason, _BridgeState=SensorManagerPid )
+  when is_pid( SensorManagerPid ) ->
+
+	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+		"the sensor management (reason: ~w, sensor manager: ~w).",
+		[ Reason, SensorManagerPid ] ),
+
+	% No synchronicity especially needed:
+	SensorManagerPid ! delete.
+
+
+
+% Actual implementation of the sensor manager.
+
+
 % @doc Constructs a sensor manager, for the local host.
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
@@ -725,6 +804,24 @@ readSensors( State ) ->
 
 	wooper:return_state( ReadState ).
 
+
+
+% Static subsection.
+
+
+
+% @doc Returns the PID of the supposedly already-launched sensor manager; waits
+% for it if needed.
+%
+-spec get_sensor_manager() -> static_return( sensor_manager_pid() ).
+get_sensor_manager() ->
+
+	ManagerPid = naming_utils:wait_for_registration_of(
+		?us_main_sensor_server_registration_name,
+		naming_utils:registration_to_look_up_scope(
+			?us_main_sensor_server_registration_scope ) ),
+
+	wooper:return_static( ManagerPid ).
 
 
 
@@ -1783,7 +1880,9 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 						ZeroSpeed=0.0 ->
 							FanData#fan_data{ input_attribute=BinInputAttr,
 											  current=ZeroSpeed,
-											  state=unknown,
+											  % Supposingly normal:
+											  %state=unknown,
+											  state=nominal,
 											  min_reached=ZeroSpeed,
 											  max_reached=ZeroSpeed,
 											  avg_sum=ZeroSpeed,
@@ -2245,6 +2344,7 @@ update_data_table( PointsDataTable,
 							PointNameBin, SensorId, State ) of
 
 						true ->
+							% Status 'enabled' implies these fields are set:
 							NewMinTemp = min( MinTemp, CurrentTemp ),
 							NewMaxTemp = max( MaxTemp, CurrentTemp ),
 							NewAvgSum = AvgSum + CurrentTemp,
@@ -2262,10 +2362,10 @@ update_data_table( PointsDataTable,
 								SyncTempData, SensorId, State );
 
 						false ->
-							?warning_fmt( "Read for ~ts, measurement "
-								"point '~ts', a value considered invalid "
-								"for input temperature attribute '~ts': ~p "
-								"(ignoring it).",
+							?warning_fmt( "Read for ~ts, temperature "
+								"measurement point '~ts', a value considered "
+								"invalid for input temperature attribute "
+								"'~ts': ~p (ignoring it).",
 								[ sensor_id_to_string( SensorId ), PointNameBin,
 								  InputAttrName, CurrentTemp ] ),
 
@@ -2283,6 +2383,94 @@ update_data_table( PointsDataTable,
 				key_not_found ->
 
 					?error_fmt( "Could not read temperature attribute '~ts' "
+						"of measurement point '~ts' regarding ~ts; "
+						"skipping the update of this point.",
+						[ InputAttrName, PointNameBin,
+						  sensor_id_to_string( SensorId ) ] ),
+
+					PointsDataTable
+
+			end;
+
+
+		{ value, #fan_data{ status=disabled } } ->
+
+			?debug_fmt( "(fan measurement point '~ts' is disabled)",
+						[ PointNameBin ] ),
+
+			% No change then:
+			PointsDataTable;
+
+
+		{ value, FanData=#fan_data{ input_attribute=InputAttrName,
+									description=Desc,
+									% Superfluous:
+									status=enabled,
+									last_spin_timestamp=MaybeLastSpinTimestamp,
+									current=CurrentSpeed,
+									min_reached=MinReachedSpeed,
+									max_reached=MaxReachedSpeed,
+									avg_sum=AvgSum,
+									avg_count=AvgCount } } ->
+
+			case map_hashtable:lookup_entry( InputAttrName, PointAttrMap ) of
+
+				{ value, CurrentSpeed } ->
+
+					NewFanData = case vet_fan_speed( CurrentSpeed, Desc,
+									PointNameBin, SensorId, State ) of
+
+						true ->
+							% Status 'enabled' implies these fields are set:
+							NewMinSpeed = min( MinReachedSpeed, CurrentSpeed ),
+							NewMaxSpeed = max( MaxReachedSpeed, CurrentSpeed ),
+							NewAvgSum = AvgSum + CurrentSpeed,
+							NewAvgCount = AvgCount + 1,
+
+							NewLastSpinTimestamp = case CurrentSpeed of
+
+								0.0 ->
+									MaybeLastSpinTimestamp;
+
+								_ ->
+									time_utils:get_timestamp()
+
+							end,
+
+							SyncFanData = FanData#fan_data{
+								last_spin_timestamp=NewLastSpinTimestamp,
+								current=CurrentSpeed,
+								min_reached=NewMinSpeed,
+								max_reached=NewMaxSpeed,
+								avg_sum=NewAvgSum,
+								avg_count=NewAvgCount },
+
+							% Returns new fan_data:
+							examine_fan_speed( PointNameBin, CurrentSpeed,
+											   SyncFanData, SensorId, State );
+
+						false ->
+							?warning_fmt( "Read for ~ts, fan measurement "
+								"point '~ts', a value considered invalid "
+								"for input fan attribute '~ts': ~p "
+								"(ignoring it).",
+								[ sensor_id_to_string( SensorId ), PointNameBin,
+								  InputAttrName, CurrentSpeed ] ),
+
+							FanData
+
+					end,
+
+					table:add_entry( PointNameBin, NewFanData,
+									 PointsDataTable );
+
+
+				% Attribute not anymore in JSON output (never expected to
+				% happen):
+				%
+				key_not_found ->
+
+					?error_fmt( "Could not read fan attribute '~ts' "
 						"of measurement point '~ts' regarding ~ts; "
 						"skipping the update of this point.",
 						[ InputAttrName, PointNameBin,
@@ -2356,7 +2544,7 @@ update_data_table( PointsDataTable,
 -spec examine_temperature( measurement_point_name(), celsius(),
 		temperature_data(), sensor_id(), wooper:state() ) -> temperature_data().
 examine_temperature( PointNameBin, CurrentTemp,
-		TempData=#temperature_data{ status=enabled,
+		TempData=#temperature_data{ %status=enabled,
 									alert_state=AlertState,
 									alarm_low=AlarmLow,
 									alarm_high=AlarmHigh },
@@ -2513,6 +2701,148 @@ examine_temperature( PointNameBin, CurrentTemp,
 			end
 
 	end.
+
+
+
+% @doc Examines the specified reported, current fan speed and takes any
+% appropriate action.
+%
+% (sensor expected to be enabled)
+%
+-spec examine_fan_speed( measurement_point_name(), rpm(), fan_data(),
+						 sensor_id(), wooper:state() ) -> fan_data().
+examine_fan_speed( PointNameBin, CurrentSpeed,
+		FanData=#fan_data{ %status=enabled,
+						   type=FanType,
+						   state=FanState,
+						   alarm_low=MaybeAlarmLowSpeed,
+						   alarm_high=MaybeAlarmHighSpeed },
+		SensorId, State ) ->
+
+	case get_fan_state( CurrentSpeed, FanType, MaybeAlarmLowSpeed,
+						MaybeAlarmHighSpeed ) of
+
+		% Nothing changed:
+		FanState ->
+			FanData;
+
+		% Thus always different; is among a subset of fan_state():
+		NewFanState ->
+			case { FanState, NewFanState } of
+
+				{ nominal, insufficient_speed } ->
+					?emergency_fmt( "Fan speed monitored by ~ts at measurement "
+						"point ~ts is now ~ts, and just went below the alarm "
+						"low threshold (~ts), "
+						"whereas this fan is not known being a PWM one.",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ),
+						  PointNameBin ] );
+
+				{ nominal, excessive_speed } ->
+					?alert_fmt( "Fan speed monitored by ~ts at measurement "
+						"point ~ts is now ~ts, and just exceeded the alarm "
+						"high threshold (~ts); check that the cause is not "
+						"a skyrocketing temperature.",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ) ] );
+
+				{ insufficient_speed, nominal } ->
+					?warning_fmt( "Fan speed monitored by ~ts at measurement "
+						"point ~ts is now ~ts, and just went back above "
+						"the alarm low threshold (~ts); this fan thus returned "
+						"to nominal state.",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ) ] );
+
+				{ excessive_speed, nominal } ->
+					?warning_fmt( "Fan speed monitored by ~ts at measurement "
+						"point ~ts is now ~ts, and just went back below "
+						"the alarm high threshold (~ts); this fan thus "
+						"returned to nominal state.",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmHighSpeed ) ] );
+
+
+				% Unlikely cases:
+				{ insufficient_speed, excessive_speed } ->
+					?emergency_fmt( "Fan speed monitored by ~ts at "
+						"measurement point ~ts is now ~ts, and just went "
+						"from below the alarm low threshold (~ts) "
+						"to above the alarm high threshold (~ts).",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmHighSpeed ) ] );
+
+				{ excessive_speed, insufficient_speed } ->
+					?emergency_fmt( "Fan speed monitored by ~ts at "
+						"measurement point ~ts is now ~ts, and just went "
+						"from above the alarm high threshold (~ts) "
+						"to below the alarm low threshold (~ts).",
+						[ sensor_id_to_string( SensorId ), PointNameBin,
+						  unit_utils:rpm_to_string( CurrentSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmHighSpeed ),
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ) ] )
+
+			end,
+
+			FanData#fan_data{ state=NewFanState }
+
+	end.
+
+
+
+% Returns the (new) fan state corresponding to specified parameters.
+-spec get_fan_state( rpm(), fan_type(), maybe( rpm() ), maybe( rpm() ) ) ->
+							fan_state().
+% Later, if fan types are detected, more fan states may be returned:
+get_fan_state( CurrentSpeed, _FanType=fixed_speed, AlarmLowSpeed,
+			   _MaybeAlarmHighSpeed ) when is_float( AlarmLowSpeed )
+										andalso CurrentSpeed < AlarmLowSpeed ->
+	insufficient_speed;
+
+get_fan_state( CurrentSpeed, _FanType=fixed_speed, _AlarmLowSpeed,
+			   AlarmHighSpeed ) when is_float( AlarmHighSpeed )
+										andalso CurrentSpeed > AlarmHighSpeed ->
+	excessive_speed;
+
+get_fan_state( _CurrentSpeed, _FanType=fixed_speed, _AlarmLowSpeed,
+			   _AlarmHighSpeed ) ->
+	% Includes undefined speed:
+	nominal;
+
+
+% No abnormal low speed if being PWM (ex: just stopping after a temperature
+% drop):
+%
+get_fan_state( CurrentSpeed, _FanType=pwm, _AlarmLowSpeed, AlarmHighSpeed )
+		when is_float( AlarmHighSpeed ) andalso CurrentSpeed > AlarmHighSpeed ->
+	excessive_speed;
+
+get_fan_state( _CurrentSpeed, _FanType=pwm, _AlarmLowSpeed, _AlarmHighSpeed ) ->
+	nominal;
+
+
+% Currently like fixed_speed:
+get_fan_state( CurrentSpeed, _FanType=unknown, AlarmLowSpeed,
+			   _MaybeAlarmHighSpeed ) when is_float( AlarmLowSpeed )
+										andalso CurrentSpeed < AlarmLowSpeed ->
+	insufficient_speed;
+
+get_fan_state( CurrentSpeed, _FanType=unknown, _AlarmLowSpeed,
+			   AlarmHighSpeed ) when is_float( AlarmHighSpeed )
+										andalso CurrentSpeed > AlarmHighSpeed ->
+	excessive_speed;
+
+get_fan_state( _CurrentSpeed, _FanType=unknown, _AlarmLowSpeed,
+			   _AlarmHighSpeed ) ->
+	% Includes undefined speed:
+	nominal.
 
 
 
@@ -2952,9 +3282,12 @@ integrate_any_number( BaseStr, NumStr ) ->
 
 
 % @doc Inits the polling of the sensors.
--spec init_polling( class_USScheduler:periodicity(), wooper:state() ) ->
+-spec init_polling( unit_utils:ms_duration(), wooper:state() ) ->
 							wooper:state().
 init_polling( SensorPollPeriodicity, State ) ->
+
+	?debug_fmt( "Planning a sensor measurement each ~ts.",
+				[ text_utils:duration_to_string( SensorPollPeriodicity ) ] ),
 
 	SchedulerPid = case class_USScheduler:get_main_scheduler() of
 
@@ -2974,6 +3307,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 	receive
 
 		{ wooper_result, { task_registered, TaskId } } ->
+			?debug_fmt( "Polling task registered, as ~B.", [ TaskId ] ),
 			setAttributes( State, [ { us_scheduler_pid, SchedulerPid },
 									{ task_id, TaskId } ] )
 
@@ -3034,6 +3368,19 @@ vet_temperature( Temp, TempDesc, _Min, Max, RangeDesc, BinPointName, SensorId,
 vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _BinPointName,
 				 _SensorId, _State ) ->
 	true.
+
+
+
+% @doc Vets specified temperature regarding specified range.
+-spec vet_fan_speed( rpm(), bin_string(), measurement_point_name(), sensor_id(),
+					 wooper:state() ) -> boolean().
+vet_fan_speed( Speed, _Desc, _PointNameBin, _SensorId, _State )
+		when is_float( Speed ) ->
+		% Useless: andalso Speed >= 0.0 ->
+	true;
+
+vet_fan_speed( _Speed, _Desc, _PointNameBin, _SensorId, _State )  ->
+	false.
 
 
 
