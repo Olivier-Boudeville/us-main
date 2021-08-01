@@ -45,10 +45,12 @@ endif
 
 # Topics covered by flags:
 #  - execution: VM-level information, notably related to the code path
+#  - sensors: help the debugging of sensor management
 #
 # Defining debug flags (at least the most verbose are by default commented-out):
 ifeq ($(ENABLE_DEBUG),true)
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
 endif
 
 # Defining check flags:
