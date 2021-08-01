@@ -19,6 +19,8 @@
 #  - deploy-us-main-native-build.sh
 #  - stop-us-main-native-build.sh
 #  - start-universal-server.sh
+#  - kill-us-main.sh: to ensure, for a proper testing, that no previous instance
+#    lingers
 
 
 # Either this script is called during development, directly from within a
