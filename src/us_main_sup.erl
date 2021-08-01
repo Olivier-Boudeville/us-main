@@ -44,6 +44,8 @@
 
 % Implementation notes:
 %
+% Spawns automatically the US-Main Sensor Manager (which relies on the US-Common
+% infrastructure, notably its scheduler.
 
 
 
@@ -95,22 +97,31 @@ init( _Args=[ AppRunContext ] ) ->
 	% The logic below shall better be in a (single) supervised child, for a
 	% better logic separation.
 
-	% See
-	% https://ninenines.eu/docs/en/cowboy/2.8/guide/listeners/#_secure_tls_listener
-	% for https.
-
 	SupSettings = otp_utils:get_supervisor_settings(
-					_RestartStrategy=one_for_one,
-					class_USConfigServer:get_execution_target() ),
+		% If a child process terminates, only that process is restarted:
+		_RestartStrategy=one_for_one,
+		class_USConfigServer:get_execution_target() ),
 
-	SensorManagerSpec = #{ id => us_sensor_manager,
-						   start => { class_USSensorManager, new_link, [] },
-						   restart => permanent,
-						   shutdown => 2000,
-						   type => worker,
-						   modules => [ class_USSensorManager ] },
+	% One child, the (local) sensor manager:
+	SensorManagerSpec = #{
+
+		id => us_sensor_manager,
+
+		start => { _SensorMod=class_USSensorManager, _SensorFun=start_link,
+				   _SensorArgs=[] },
+
+		restart => permanent,
+
+		shutdown => 2000,
+
+		type => worker,
+
+		modules => [ class_USSensorManager ] },
 
 	ChildSpecs = [ SensorManagerSpec ],
-	%ChildSpecs = [],
+
+	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
+	%   "returning supervisor settings ~p and sensor manager specs ~p.",
+	%   [ SupSettings, SensorManagerSpec ] ),
 
 	{ ok, { SupSettings, ChildSpecs } }.
