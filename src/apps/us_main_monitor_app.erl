@@ -63,9 +63,9 @@ exec() ->
 	Cfg = file_utils:read_terms( CfgFilePath ),
 
 	%trace_utils:debug_fmt( "Read configuration from '~ts': ~p",
-	%						[ CfgFilePath, Cfg ] ),
+	%                       [ CfgFilePath, Cfg ] ),
 
-	{ MainTargetNodeName, UserTargetNodeName } = get_target_node_names( Cfg ),
+	[ MainTargetNodeName, UserTargetNodeName ] = get_target_node_names( Cfg ),
 
 	app_facilities:display( "Trying to connect to US-Main node '~ts'.",
 							[ MainTargetNodeName ] ),
@@ -106,12 +106,12 @@ exec() ->
 	global:sync(),
 
 	%app_facilities:display( "Globally registered names: ~w.",
-	%						 [ global:registered_names() ] ),
+	%                        [ global:registered_names() ] ),
 
 	AggregatorName = ?trace_aggregator_name,
 
 	%app_facilities:display( "Looking up aggregator by name: ~ts.",
-	%						 [ AggregatorName ] ),
+	%                        [ AggregatorName ] ),
 
 	AggregatorPid =
 		naming_utils:get_registered_pid_for( AggregatorName, global ),
@@ -246,20 +246,21 @@ get_target_node_names( Cfg ) ->
 
 	end,
 
-	% Note that a two hardcoded node names are used here, the main one (when run
+	% Supposing here uniform client/server conventions in terms of short or long
+	% names:
+	%
+	NodeNamingMode = net_utils:get_node_naming_mode(),
+
+	% Note that two hardcoded node names are used here, the main one (when run
 	% as a service) and one embedding the name of the current user (when run as
 	% an app, typically for testing):
 
-	Prefixes = [ "us_main", text_utils:format( "us_main_exec-~ts",
+	BaseNodeNames = [ "us_main", text_utils:format( "us_main_exec-~ts",
 										[ system_utils:get_user_name() ] ) ],
 
-	% Long names:
-	Candidates = [ P ++ [ $@ | RemoteHostname ] || P <- Prefixes ],
-
-	% Short names:
-	%Candidates = Prefixes,
-
-	list_to_tuple( [ text_utils:string_to_atom( S ) || S <- Candidates ] ).
+	% Returns relevant, ordered candidates
+	[ net_utils:get_complete_node_name( N, RemoteHostname, NodeNamingMode )
+		|| N <- BaseNodeNames ].
 
 
 
