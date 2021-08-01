@@ -1,1 +1,32 @@
-[].
+{"1.2.0",
+[{<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},0},
+ {<<"mobile">>,
+  {git,"git://github.com/Olivier-Boudeville/Ceylan-Mobile",
+       {ref,"bb8496a631cb7b7cd627a53a7ca1c09efa1f159d"}},
+  0},
+ {<<"myriad">>,
+  {git,"git://github.com/Olivier-Boudeville/Ceylan-Myriad",
+       {ref,"52d116966099e428392d50ef30f62f5687649e6a"}},
+  0},
+ {<<"seaplus">>,
+  {git,"git://github.com/Olivier-Boudeville/Ceylan-Seaplus",
+       {ref,"360c237ea1ae5fc0decbd309e0b32984d41dec3e"}},
+  0},
+ {<<"traces">>,
+  {git,"git://github.com/Olivier-Boudeville/Ceylan-Traces",
+       {ref,"5abff9fdeac4b8bc05a51b5f6bbaed857325a638"}},
+  0},
+ {<<"us_common">>,
+  {git,"git://github.com/Olivier-Boudeville/us-common",
+       {ref,"4ca9e673c2b2a89055c09db3a64e0e2f3e1fad60"}},
+  0},
+ {<<"wooper">>,
+  {git,"git://github.com/Olivier-Boudeville/Ceylan-WOOPER",
+       {ref,"fc5bf1306dcc95f685b03d075488cc3abeeaf729"}},
+  0}]}.
+[
+{pkg_hash,[
+ {<<"jsx">>, <<"20A170ABD4335FC6DB24D5FAD1E5D677C55DADF83D1B20A8A33B5FE159892A39">>}]},
+{pkg_hash_ext,[
+ {<<"jsx">>, <<"37BECA0435F5CA8A2F45F76A46211E76418FBEF80C36F0361C249FC75059DC6D">>}]}
+].
