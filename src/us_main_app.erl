@@ -92,21 +92,7 @@ exec() ->
 	OrderedAppNames =
 		otp_utils:prepare_for_execution( _ThisApp=us_main, BuildRootDir ),
 
-	% Retain all applications but US-Main itself, so that we can run US-Main as
-	% we want:
-	%
-	{ us_main, PrereqAppNames } =
-		list_utils:extract_last_element( OrderedAppNames ),
-
-	trace_bridge:info_fmt( "Resulting prerequisite applications to start, "
-						   "in order: ~w.", [ OrderedAppNames ] ),
-
-	otp_utils:start_applications( PrereqAppNames, _RestartType=temporary ),
-
-	% So here the us_main application is not regarded as specifically started
-	% (start/2 below never called):
-	%
-	us_main_sup:start_link( as_native ),
+	otp_utils:start_applications( OrderedAppNames, _RestartType=temporary ),
 
 	trace_bridge:debug( "US-Main started (as native)." ).
 
