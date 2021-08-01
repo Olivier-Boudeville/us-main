@@ -68,9 +68,9 @@ Technical Manual of the ``Universal Server``
 Overview
 --------
 
-We present here a short overview of these services, to introduce them to newcomers. These services, provided by the Universal Server, are implemented by `US-Main <https://github.com/Olivier-Boudeville/us-main>`_, which relies notably on `US-Common <https://github.com/Olivier-Boudeville/us-common>`_.
+We present here a short overview of the general automated services offered by our so-called "Universal Server", to introduce them to newcomers. These services are implemented by `US-Main <https://github.com/Olivier-Boudeville/us-main>`_, which relies notably on `US-Common <https://github.com/Olivier-Boudeville/us-common>`_.
 
-The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main/src>`_, which are intensely commented and generally straightforward.
+The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main/tree/master/src>`_, which are intensely commented and generally straightforward.
 
 The project repository is located `here <https://github.com/Olivier-Boudeville/us-main>`_.
 
@@ -84,8 +84,8 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 - the *Universal Server* services themselves (i.e. this `us-main <http://us.esperide.org/>`_ layer)
 - [optional] the *Universal Webserver*, i.e. `US-Web <http://us-web.esperide.org/>`_ (for web interaction)
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
-- [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending)
-- [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile for a bridge to the C language)
+- [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending, relying on the Gammu library)
+- [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile for a bridge from Erlang to the C language)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
 - `Ceylan-Myriad <http://myriad.esperide.org>`_ (as an Erlang toolbox)
@@ -104,11 +104,136 @@ Facilities Provided by this Layer
 
 These are mainly per-host administration services centralised here.
 
-`USSensorManager <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ manages many **hardware sensors**: at start-up it detect the main available ones, notably regarding temperatures at various locations (the CPU socket, the CPU and cores themselves, ACPI, some disks; adding GPU and RAM modules is considered) and the speed of the fans known of the motherboard (as opposed to any case fan that would be directly connected to the power supply).
+The `US Sensor Manager <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ tracks automatically many **hardware sensors**; at start-up it detects the main available ones, regarding:
 
-Then temperatures are periodically tracked (current, min, max and average) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself. Abnormal temperatures are then automatically reported to the user by the US logic.
+- **temperatures** at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); adding in the future GPU and RAM modules is considered
+- the **speed of the fans** known of the motherboard (as opposed to any case fan that would be directly connected to the power supply)
+- **chassis intrusion**, should such sensors be available
+
+(other sensors like batteries, network or USB interfaces, etc. are ignored as their measurements are mostly voltage levels)
+
+From then, the sensor manager periodically monitors these various measurement points: it filters bogus values, detects abnormal changes and reports to the user any related issue.
 
 
+
+Sensor Tracking
+==============
+
+
+Preparing the Setup
+-------------------
+
+The monitoring done by this server relies on the ``sensors`` executable
+(typically ``/usr/bin/sensors``, obtained generally from a package of the same
+name and relying on `lm-sensors
+<https://github.com/lm-sensors/lm-sensors>`_). One may install the ``i2c-tools``
+package as well for DIMM information (see R2 below).
+
+The ``sensors-detect`` script must have been run once by root beforehand (select then only the default, safer options, by hitting Enter repeatedly or simply use its ``--auto`` option), in order to configure sensors.
+
+Configuration is typically stored in ``/etc/sensors3.conf``, and must exist prior to running the US server.
+
+
+
+Mode of Operation of the Sensor Manager
+---------------------------------------
+
+Once the sensor manager is started, **temperatures** are periodically tracked (current, minimum reported one, maximum, and average since start) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself).
+
+Abnormal temperatures (that is, going above - or even below - relevant thresholds) are then automatically timestamped and reported to the user by the US logic (i.e. notified in traces with appropriate severity, and possibly sent to the user thanks to emails and/or SMS).
+
+Similarly, any **fan** that would stop whereas not being PWM is reported, and the same applies should an **intrusion** happen.
+
+Many sensors report bogus values; the US Sensor Manager does its best to filter them out appropriately.
+
+This includes temperatures outside of any realistic ranges and an intrusion being reported from boot whereas it did not happen.
+
+
+
+Temperature monitoring
+......................
+
+Temperatures are monitored based on all the sensors that are supported by ``lm-sensors`` (notably the motherboard and CPU ones).
+
+In the future extra information sources could be used:
+
+- Hard Disk Drives, thanks to hddtemp, libatasmart, udisks2 or smartmontools
+- DIMM Temperature sensors (see R2)
+- GPU, thanks to XNVCtrl for NVidia ones, or ADL SDK for ATI ones
+
+Refer to R5 for further details.
+
+`Platform Controller Hub <https://en.wikipedia.org/wiki/Platform_Controller_Hub>`_ (ex: ``pch_cannonlake-virtual-*``, ``pch_skylake-virtual-*``, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.
+
+They may be reported as autonomous first-level entries, or as measurement points of the motherboard.
+
+
+
+Fan Control
+...........
+
+The rotation speed of the fans can be measured thanks to ``lm-sensors`` as well.
+
+Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (ex: stop/low/high) will remain invisible to all programs.
+
+Currently the sensor manager is not able to discriminate between fixed-width fans and PWM ones.
+
+The ``pulses`` attribute (ex: ``fan2_pulses``) tells how many of such pulses are generated per revolution of the fan.
+
+
+
+Chassis Intrusion
+.................
+
+In this last case, prior to launching the US server, one may try to reset them; for example, as root::
+
+ $ ls -l /sys/class/hwmon/hwmon*/intrusion*
+ -rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion0_alarm
+ -rw-r--r-- 1 root root 4096 Jul  8 21:46 /sys/class/hwmon/hwmon3/intrusion0_beep
+ -rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion1_alarm
+ -rw-r--r-- 1 root root 4096 Jul  8 21:46 /sys/class/hwmon/hwmon3/intrusion1_beep
+ $ echo 0 >| /sys/class/hwmon/hwmon3/intrusion1_alarm
+ $ cat  /sys/class/hwmon/hwmon3/intrusion1_alarm
+ 1
+
+As shown, this may not succeed.
+
+
+
+Other Related Technical Information
+...................................
+
+To access information regarding a given sensor, ``psensor`` may be used: open the preferences of the sensor (click on its name in the main window), and select the menu item *Preferences*, and look at the *Chip* field. See `this link <https://wpitchoune.net/psensor/faq.html>`_ for more information.
+
+The ``sensors`` tool is reporting values found in the Linux virtual file system directory, in ``/sys/class/thermal/thermal_zone*/{temp,type}`` for temperatures.
+
+Examples:
+
+- ``Package id 0`` is your (first) CPU
+
+- ``dell_smm-virtual-0`` is your CPU fan, managed by your system firmware
+
+- ``acpitz-virtual-0`` (*ACPI Thermal Zone*) is the temperature sensor near/on your CPU socket; this sensor can be unreliable
+
+- ``coretemp-isa-0000`` measures the temperature of the specific cores
+
+
+.. For thermal information, one can also execute::
+
+ $ paste <(cat /sys/class/thermal/thermal_zone*/type) <(cat /sys/class/thermal/thermal_zone*/temp) | column -s $'\t' -t | sed 's/...$/.0°C/'
+ acpitz        27.0°C
+ acpitz        29.0°C
+ x86_pkg_temp  49.0°C
+
+See the many comments in `class_USSensorManager.erl <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ for more details.
+
+See also the following resources:
+
+- `R1 <https://askubuntu.com/questions/843231/what-is-the-meaning-of-the-output-of-the-command-sensors>`_: interpreting the output of ``sensors``
+- `R2 <https://wiki.archlinux.org/title/lm_sensors>`_: the ``lm_sensors`` documentation of Arch Linux
+- `R3 <https://www.linux.com/topic/desktop/advanced-lm-sensors-tips-and-tricks-linux-0/>`_ and `R4 <https://www.linux.com/training-tutorials/jazz-lm-sensors-graphics-and-notifications-0/>`_: ``lm-sensors`` tips and tricks
+- `R5 <https://wpitchoune.net/psensor/>`_: information about ``psensor``
+- `R6 <https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html>`_: an example of preparation/tuning of one's sensors
 
 
 .. _`free software`:
