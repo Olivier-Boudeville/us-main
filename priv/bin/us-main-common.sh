@@ -68,6 +68,10 @@ us_common_root="$(realpath ${us_common_root})"
 
 echo "US-Common root found as '${us_common_root}'."
 
+# Defined to avoid that us-common.sh sets paths like app or log relative to its
+# own root:
+#
+us_actual_root="${us_main_install_root}"
 
 # As depends on it:
 us_common_script="${us_common_root}/priv/bin/us-common.sh"
@@ -82,6 +86,8 @@ else
 	exit 100
 
 fi
+
+
 
 
 
@@ -149,8 +155,7 @@ read_us_main_config_file()
 
 	fi
 
-	#echo "us_main_username = $us_main_username"
-
+	#echo "us_main_username = ${us_main_username}"
 
 	us_main_app_base_dir=$(echo "${us_main_base_content}" | grep us_main_app_base_dir | sed 's|^{[[:space:]]*us_main_app_base_dir,[[:space:]]*"||1' | sed 's|"[[:space:]]*}.$||1')
 
@@ -245,7 +250,9 @@ read_us_main_config_file()
 	# (typically here in production mode, as a standard release, or as a sibling
 	# native directory)
 	#
-	us_main_vm_log_dir="${us_main_app_base_dir}/log"
+	#us_main_vm_log_dir="${us_main_app_base_dir}/log"
+	#echo "Setting us_main_vm_log_dir to ${us_log_dir}."
+	us_main_vm_log_dir="${us_log_dir}"
 
 	if [ ! -d "${us_main_vm_log_dir}" ]; then
 
