@@ -715,7 +715,8 @@ construct( State ) ->
 						  UpdatedSensorState );
 
 		{ _SensorEnabled=false, InitState } ->
-			?notice( "No sensor enabled, no polling scheduled." ),
+			?send_notice( InitState,
+						  "No sensor enabled, no polling scheduled." ),
 			InitState
 
 	end,
