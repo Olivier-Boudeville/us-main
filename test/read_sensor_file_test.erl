@@ -20,10 +20,12 @@
 % Creation date: Wednesday, June 9, 2021.
 
 
-% @doc Reads specified text file containing sensor output data.
+% @doc Reads and interprets specified text file containing <b>sensor output
+% data</b> (possibly gathered from another host, to test/improve the sensor
+% coverage of US-Main).
 %
 % Such a file is typically obtained thanks to:
-%      $ sensors --no-adapter -j > my_sensor_output.txt
+% $ sensors --no-adapter -j > my_sensor_output.txt
 %
 -module(read_sensor_file_test).
 
@@ -33,7 +35,7 @@
 
 
 
-% Runs the tests.
+% @doc Runs the tests.
 -spec run() -> no_return().
 run() ->
 
@@ -43,8 +45,23 @@ run() ->
 
 	test_facilities:display( "Testing the sensor-related services." ),
 
-	SensorManagerPid = class_USSensorManager:new_link( "my_sensor_output.txt" ),
+	SensorDataFilename = "my_sensor_output.txt",
 
-	wooper:delete_synchronously_instance( SensorManagerPid ),
+	case file_utils:is_existing_file_or_link( SensorDataFilename ) of
+
+		true ->
+
+			SensorManagerPid =
+				class_USSensorManager:new_link( SensorDataFilename ),
+
+			% Hence processed just after the completion of the constructor:
+			wooper:delete_synchronously_instance( SensorManagerPid );
+
+		false ->
+			test_facilities:display_fmt( "Warning: no '~ts' file available, "
+				"hence no testing of the corresponding, arbitrary sensor "
+				"output data.", [ SensorDataFilename ] )
+
+	end,
 
 	?test_stop.
