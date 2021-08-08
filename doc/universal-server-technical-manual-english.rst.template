@@ -21,7 +21,7 @@ Technical Manual of the ``Universal Server``
 
 :raw-html:`<a name="universal-server_top"></a>`
 
-:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#us-main_toc">go to toc</a> <a href="#universal-server_bottom">go to bottom</a> <a href="api-doc/index.html">browse API</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
+:raw-html:`<div class="banner"><p><em>Universal Server documentation</em> <a href="http://us-main.esperide.org">browse latest</a> <a href="https://olivier-boudeville.github.io/us-main/index.html">browse mirror</a> <a href="universal-server-technical-manual-english.pdf">get PDF</a> <a href="#universal-server_top">go to top</a> <a href="#us-main_toc">go to toc</a> <a href="#universal-server_bottom">go to bottom</a> <a href="api-doc/index.html">browse API</a> <a href="https://github.com/Olivier-Boudeville/us-main">go to project</a><a href="mailto:about(dash)universal-server(at)esperide(dot)com?subject=[Universal%20Server]%20Remark">email us</a></p></div>`
 
 
 
@@ -95,6 +95,20 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 The shorthand for ``Universal Server`` is ``us``.
 
 :raw-latex:`\pagebreak`
+
+
+
+-------------
+Configuration
+-------------
+
+The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
+
+So the information of the ``us.config`` file, found in the US Configuration directory, will apply.
+
+This allows the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_ to operate, notably in order to start, stop, or monitor a designated US-Main server.
+
+
 
 
 
