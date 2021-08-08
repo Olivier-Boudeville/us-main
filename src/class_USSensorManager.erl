@@ -799,12 +799,40 @@ destruct( State ) ->
 -spec readSensors( wooper:state() ) -> oneway_return().
 readSensors( State ) ->
 
-	?debug( "Reading sensors now." ),
+	cond_utils:if_defined( us_main_debug_sensors,
+						   ?debug( "Reading sensors now." ) ),
 
 	ReadState = update_sensor_data( State ),
 
+	cond_utils:if_defined( us_main_debug_sensors,
+		?debug_fmt( "New sensor state after update: ~ts",
+					[ to_string( State ) ] ) ),
+
 	wooper:return_state( ReadState ).
 
+
+
+% @doc Callback triggered, if this server enabled the trapping of exits,
+% whenever a linked process terminates.
+%
+-spec onWOOPERExitReceived( wooper:state(), pid(),
+		basic_utils:exit_reason() ) -> const_oneway_return().
+onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
+	% Useless to trace, triggered when executing 'sensors' for example:
+	%?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+	wooper:const_return();
+
+onWOOPERExitReceived( State, CrashPid, ExitType ) ->
+
+	% Typically: "Received exit message '{{nocatch,
+	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
+	%							FunName,Arity,Args,AtomCause}}, [...]}"
+
+	% Redundant information yet useful for console outputs:
+	?warning_fmt( "US Server ~w received and ignored following exit message "
+				  "from ~w:~n  ~p", [ self(), CrashPid, ExitType ] ),
+
+	wooper:const_return().
 
 
 % Static subsection.
@@ -871,11 +899,15 @@ get_sensor_execution_pair( State ) ->
 
 	end,
 
+	% Removing error messages such as: "ERROR: Can't get value of subfeature
+	% tempx_input: Can't read":
+	%
 	SensorArgs = [ <<"--no-adapter">>, _JSONOutput= <<"-j">> ],
 
 	ExecPair = { text_utils:string_to_binary( SensorExecPath ), SensorArgs },
 
-	%?debug_fmt( "Exec pair for sensor reading:~n ~p.", [ ExecPair ] ),
+	cond_utils:if_defined( us_main_debug_sensors,
+		?debug_fmt( "Exec pair for sensor reading:~n ~p.", [ ExecPair ] ) ),
 
 	ExecPair.
 
@@ -944,7 +976,16 @@ fetch_sensor_data( State ) ->
 
 	{ ExecPath, ExecArgs } = ?getAttr(sensor_exec_pair),
 
-	case system_utils:run_executable( ExecPath, ExecArgs ) of
+	Environment = system_utils:get_standard_environment(),
+
+	% Not our default options, as we do not want that error output such as
+	% "ERROR: Can't get value of subfeature tempx_input: Can't read" are mixed
+	% up with normal outputs; so no stderr_to_stdout:
+	%
+	PortOptions = [ stream, exit_status, use_stdio, eof ],
+
+	case system_utils:run_executable( ExecPath, ExecArgs, Environment,
+			_MaybeWorkingDir=undefined, PortOptions ) of
 
 		{ _ReturnCode=0, CmdOutput  } ->
 			?debug_fmt( "Raw (JSON) command output read from sensors: '~ts'.",
@@ -1167,12 +1208,12 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId,
 parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for cpu:~n ~p",
-	%			 [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%            [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	{ TempJSONTriples, OtherJSONTriples } = filter_cpu_json( SensorJSON ),
 
 	%?debug_fmt( "For cpu: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-	%			 [ TempJSONTriples, OtherJSONTriples ] ),
+	%            [ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -1315,7 +1356,7 @@ parse_initial_sensor_data( _SensorJSON, _SensorCateg=network, _SensorId,
 	% Ex: <<"iwlwifi_1-virtual-0">>: #{<<"temp1">> => #{}}
 
 	%?debug_fmt( "No relevant JSON expected to parse for ~ts for network "
-	%	 "interface:~n ~p", [ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%    "interface:~n ~p", [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	undefined;
 
@@ -2263,7 +2304,7 @@ update_active_sensors(
 		% No data managed for this sensor:
 		{ value, SI=#sensor_info{ id=SensorId, data=undefined } } ->
 			?debug_fmt( "For ~ts, no data is to be stored, "
-				"so not taking into account its measurement points in ~p.",
+				"so not taking into account its measurement points in:~n  ~p.",
 				[ sensor_id_to_string( SensorId ), JSONPointMap ] ),
 			SI;
 
