@@ -17,7 +17,7 @@ monitor-prod:
 
 
 debug:
-	@kill-us-main.sh ; start-us-main-native-build.sh ; ./monitor-us-main.sh
+	@kill-us-main.sh; start-us-main-native-build.sh; ./monitor-us-main.sh
 
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc
