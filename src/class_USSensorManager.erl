@@ -829,14 +829,15 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 	%							FunName,Arity,Args,AtomCause}}, [...]}"
 
 	% Redundant information yet useful for console outputs:
-	?warning_fmt( "US Server ~w received and ignored following exit message "
-				  "from ~w:~n  ~p", [ self(), CrashPid, ExitType ] ),
+	?warning_fmt( "US Sensor Manager ~w received and ignored following exit "
+				  "message from ~w:~n  ~p", [ self(), CrashPid, ExitType ] ),
 
 	wooper:const_return().
 
 
-% Static subsection.
 
+
+% Static subsection.
 
 
 % @doc Returns the PID of the supposedly already-launched sensor manager; waits
