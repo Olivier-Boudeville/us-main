@@ -1,0 +1,932 @@
+% Copyright (C) 2021-2021 Olivier Boudeville
+%
+% This file belongs to the US-Main project, a part of the Universal Server
+% framework.
+%
+% This program is free software: you can redistribute it and/or modify it under
+% the terms of the GNU Affero General Public License as published by the Free
+% Software Foundation, either version 3 of the License, or (at your option) any
+% later version.
+%
+% This program is distributed in the hope that it will be useful, but WITHOUT
+% ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+% FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+% details.
+%
+% You should have received a copy of the GNU Affero General Public License along
+% with this program. If not, see <http://www.gnu.org/licenses/>.
+%
+% Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
+% Creation date: Sunday, August 8, 2021.
+
+
+% @doc US server in charge of <b>managing a contact directory</b>, recording
+% various information about users and roles.
+%
+-module(class_USContactDirectory).
+
+
+-define( class_description, "US server in charge of managing a contact "
+	"directory, recording various information about US users." ).
+
+
+% Determines what are the direct mother classes of this class (if any):
+-define( superclasses, [ class_USServer ] ).
+
+
+% For settings regarding name registration:
+-include("us_main_defines.hrl").
+
+
+
+% Design notes:
+%
+% The user contact information are usually obtained thanks to ETF file(s)
+% ("contact files"), whose paths are obtained from the US-Main configuration
+% server.
+%
+% See https://myriad.esperide.org/#etf.
+%
+% User identifiers are not set by a contact directory (multiple directories may
+% exist, and we prefer stable identifiers, like the ones used by operating
+% systems).
+
+
+-type contact_line() :: { UserId :: user_id(),
+	FirstName :: ustring(), LastName :: ustring(),
+	Comment :: ustring(), BirthDate :: maybe( ustring() ),
+	LandlineNumber :: maybe( ustring() ), MobileNumber :: maybe( ustring() ),
+	PrimaryEmailAddress :: maybe( ustring() ),
+	SecondaryEmailAddress :: maybe( ustring() ),
+	Roles :: [ role() ] }.
+% The lines expected to be read from a contact ETF file shall respect this
+% structure.
+
+
+% Silencing:
+-export_type([ contact_line/0 ]).
+
+
+% Implementation notes:
+%
+
+
+
+% This contact directory is designed to be able to integrate to an OTP
+% supervision tree thanks to a supervisor bridge, whose behaviour is directly
+% defined in this module. See https://wooper.esperide.org/#otp-guidelines for
+% further information.
+%
+-behaviour(supervisor_bridge).
+
+% User API of the bridge:
+-export([ start_link/0 ]).
+
+
+% Callbacks of the supervisor_bridge behaviour:
+-export([ init/1, terminate/2 ]).
+
+-define( bridge_name, ?MODULE ).
+
+
+-type contact_directory_pid() :: class_USServer:server_pid().
+
+
+
+% Section about user settings.
+
+-type user_id() :: count().
+% Identifier of a user, as read by this directory. Starts at 1.
+
+
+-type birth_date() :: time_utils:date().
+% The (canonical) date of birth, typically of a person.
+
+
+-type bin_phone_number() :: bin_string().
+% A phone number (landline or mobile).
+
+
+-type role() :: 'administrator'.
+% The supported roles, to be managed by this gateway.
+
+
+-record( user_settings, {
+
+	% The identifier of this user:
+	id :: user_id(),
+
+	% The first name of this user (organisations do not have first names):
+	first_name :: maybe( bin_string() ),
+
+	% The last name of this user (corresponding to the full name of an
+	% organisation):
+	%
+	last_name :: bin_string(),
+
+	% Any comment associated to this user:
+	comment :: maybe( bin_string() ),
+
+	% The birth date (if any) of this user:
+	birth_date :: maybe( birth_date() ),
+
+
+	% The landline number (if any) associated to a user device:
+	landline_number :: maybe( bin_phone_number() ),
+
+	% The mobile number (if any) associated to a user device (more interesting
+	% than the landline as able to receive SMS):
+	%
+	mobile_number :: maybe( bin_phone_number() ),
+
+
+	% The primary email address (if any) to be used for this user (typically
+	% their personal one):
+	%
+	primary_email_address :: maybe( bin_email_address() ),
+
+	% The secondary email address (if any) to be used for this user (typically
+	% their professional one):
+	%
+	secondary_email_address :: maybe( bin_email_address() ),
+
+
+	% The roles (if any) taken in charge by this user.
+	roles :: [ role() ] } ).
+
+
+-type user_settings() :: #user_settings{}.
+% Settings corresponding to a user. Note that users may be persons or
+% organisations.
+
+
+-export_type([ contact_directory_pid/0, user_id/0, birth_date/0, role/0,
+			   user_settings/0 ]).
+
+
+% Shorthands:
+
+-type count() :: basic_utils:count().
+
+-type ustring() :: text_utils:ustring().
+-type bin_string() :: text_utils:bin_string().
+
+-type date() :: time_utils:date().
+
+%-type file_path() :: file_utils:file_path().
+-type any_file_path() :: file_utils:any_file_path().
+-type bin_directory_path() :: file_utils:bin_directory_path().
+
+-type bin_mobile_number() :: mobile:bin_mobile_number().
+
+-type bin_email_address() :: email_utils:bin_email_address().
+
+
+%-type scheduler_pid() :: class_USScheduler:scheduler_pid().
+%-type task_id() :: class_USScheduler:task_id().
+
+-type user_table() :: table( user_id(), user_settings() ).
+
+
+% The class-specific attributes:
+-define( class_attributes, [
+
+	{ user_table, user_table(),
+	  "the table recording the settings of all known users" },
+
+	{ contact_files, [ bin_file_path() ], "a list of the read contact files" },
+
+	{ execution_context, maybe( basic_utils:execution_context() ),
+	  "tells whether this server is to run in development or production mode" },
+
+	% Not set anymore by this server, but read from contact file(s):
+	%{ next_user_id, user_id(),
+	%  "the next user identifier that will be assigned by this directory" },
+
+	{ config_base_directory, maybe( bin_directory_path() ),
+	  "the base directory where all US configuration is to be found" },
+
+	{ us_config_server_pid, maybe( server_pid() ),
+	  "the PID of the overall US configuration server" } ] ).
+
+
+
+% Used by the trace_categorize/1 macro to use the right emitter:
+-define( trace_emitter_categorization, "US.Contact" ).
+
+
+% Exported helpers:
+-export([]).
+
+
+% Note: include order matters.
+
+% Allows to define WOOPER base variables and methods for that class:
+-include_lib("wooper/include/wooper.hrl").
+
+% Allows to use macros for trace sending:
+-include_lib("traces/include/class_TraceEmitter.hrl").
+
+
+
+
+% Implementation of the supervisor_bridge behaviour, for the intermediate
+% process allowing to interface this contact directory to an OTP supervision
+% tree.
+
+
+% @doc Starts and links a supervision bridge for the contact directory.
+%
+% Note: typically spawned as a supervised child of the US-Main root supervisor
+% (see us_main_sup:init/1), hence generally triggered by the application
+% initialisation.
+%
+-spec start_link() -> term().
+start_link() ->
+
+	% Apparently not displayed in a release context, yet executed:
+	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+						"the contact directory." ),
+
+	supervisor_bridge:start_link( { local, ?bridge_name },
+		_Module=?MODULE, _InitArgs=[] ).
+
+
+
+% @doc Callback to initialise this supervisor bridge, typically in answer to
+% start_link/0 being executed.
+%
+-spec init( list() ) -> { 'ok', pid(), State :: term() }
+							| 'ignore' | { 'error', Error :: term() }.
+init( _Args=[] ) ->
+
+	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
+						   "the contact directory.", [ self() ] ),
+
+	% Not specifically synchronous:
+	ContactDirectoryPid = ?MODULE:new_link(),
+
+	{ ok, ContactDirectoryPid, _InitialBridgeState=ContactDirectoryPid }.
+
+
+
+% @doc Callback to terminate this supervisor bridge.
+-spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
+terminate( Reason, _BridgeState=ContactDirectoryPid )
+  when is_pid( ContactDirectoryPid ) ->
+
+	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+		"the contact directory (reason: ~w, contact directory: ~w).",
+		[ Reason, ContactDirectoryPid ] ),
+
+	% No synchronicity especially needed:
+	ContactDirectoryPid ! delete.
+
+
+
+% Actual implementation of the contact directory.
+
+
+% @doc Constructs a blank contact directory. Typically useful when launched as
+% an (initially) stateless service when started from an OTP application context.
+%
+-spec construct( wooper:state() ) -> wooper:state().
+construct( State ) ->
+
+	% First the direct mother classes, then this class-specific actions:
+	% (traps EXITs)
+	%
+	SrvState = class_USServer:construct( State,
+		?trace_categorize("Contact directory"),
+		?us_main_contact_server_registration_name,
+		?us_main_contact_server_registration_scope ),
+
+	% As US-Main depends on US-Common, the current server may rely on the US
+	% configuration server. However, to locate it, the US configuration file
+	% must have been located and parsed:
+
+	CfgState = load_and_apply_configuration( SrvState ),
+
+	?send_notice( CfgState, "Constructed: " ++ to_string( CfgState ) ),
+
+	CfgState.
+
+
+
+% @doc Constructs a contact directory from specified ETF contact file (with no
+% link to any US configuration server); mainly used for autonomous testing.
+%
+-spec construct( wooper:state(), file_utils:any_file_path() ) -> wooper:state().
+construct( State, ContactFilePath ) ->
+
+	% First the direct mother classes, then this class-specific actions:
+	% (traps EXITs)
+	%
+	SrvState = class_USServer:construct( State,
+		?trace_categorize("contact directory"),
+		?us_main_contact_server_registration_name,
+		?us_main_contact_server_registration_scope ),
+
+	ContactFilePathStr = text_utils:ensure_string( ContactFilePath ),
+
+	InitialUserTable = table:new(),
+
+	% In this specific case, we consider that the US configuration directory is
+	% the current directory:
+	%
+	BinCfgDir = file_utils:get_bin_current_directory(),
+
+	ReadUserTable = read_contact_file( ContactFilePathStr, BinCfgDir,
+									   InitialUserTable, SrvState ),
+
+	ReadyState = setAttributes( SrvState, [
+		{ user_table, ReadUserTable },
+		{ contact_files, text_utils:ensure_binary( ContactFilePath ) },
+		{ execution_context, undefined },
+		{ config_base_directory, undefined },
+		{ us_config_server_pid,undefined } ] ),
+
+	?send_notice( ReadyState, "Constructed: " ++ to_string( ReadyState ) ),
+
+	ReadyState.
+
+
+
+% @doc Overridden destructor.
+-spec destruct( wooper:state() ) -> wooper:state().
+destruct( State ) ->
+
+	?debug_fmt( "Deletion initiated, while state is: ~ts.",
+				[ to_string( State ) ] ),
+
+	?info( "Deleted." ),
+	State.
+
+
+
+% Method section.
+
+
+% @doc Callback triggered, if this server enabled the trapping of exits,
+% whenever a linked process terminates.
+%
+-spec onWOOPERExitReceived( wooper:state(), pid(),
+		basic_utils:exit_reason() ) -> const_oneway_return().
+onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
+	?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+	wooper:const_return();
+
+onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
+
+	% Typically: "Received exit message '{{nocatch,
+	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
+	%							FunName,Arity,Args,AtomCause}}, [...]}"
+
+	% Redundant information yet useful for console outputs:
+	?warning_fmt( "US Contact Directory ~w received and ignored following exit "
+				  "message from ~w:~n  ~p", [ self(), CrashedPid, ExitType ] ),
+
+	wooper:const_return().
+
+
+
+
+% Static subsection.
+
+
+% @doc Returns the PID of the supposedly already-launched contact directory;
+% waits for it if needed.
+%
+-spec get_contact_directory() -> static_return( contact_directory_pid() ).
+get_contact_directory() ->
+
+	DirectoryPid = naming_utils:wait_for_registration_of(
+		?us_main_contact_server_registration_name,
+		naming_utils:registration_to_look_up_scope(
+			?us_main_contact_server_registration_scope ) ),
+
+	wooper:return_static( DirectoryPid ).
+
+
+
+% Helper section.
+
+
+
+% @doc Loads and applies the relevant configuration settings first from the
+% overall US configuration file.
+%
+% As a result, the US configuration file is not fully checked as such (ex: no
+% extracting and check that no entry remains; it is the job of the US config
+% server), we just select the relevant information from it.
+%
+-spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
+load_and_apply_configuration( State ) ->
+
+	CfgServerPid = class_USConfigServer:get_us_config_server( State ),
+
+	% This contact directory server is not supposed to read more the US
+	% configuration file; it should request it to the overall configuration
+	% server, about all the extra information it needs, to avoid duplicated,
+	% possibly inconsistent reading/interpretation (and in order to declare
+	% itself in the same move):
+	%
+	CfgServerPid ! { getContactSettings, [], self() },
+
+	% No possible interleaving:
+	receive
+
+		{ wooper_result, { USCfgBinDir, ExecContext, ContactFiles } } ->
+
+			InitUserTable = table:new(),
+
+			UserTable = read_contact_files( ContactFiles, USCfgBinDir,
+				InitUserTable, State ),
+
+			setAttributes( State, [
+				{ user_table, UserTable },
+				{ contact_files, ContactFiles },
+				{ execution_context, ExecContext },
+				{ config_base_directory, USCfgBinDir },
+				{ us_config_server_pid, CfgServerPid } ] )
+
+	end.
+
+
+
+
+% @doc Reads specified contact file and enriches specified table.
+-spec read_contact_file( any_file_path(), bin_directory_path(), user_table(),
+						 wooper:state() ) -> user_table().
+read_contact_file( ContactFilePath, USCfgBinDir, UserTable, State ) ->
+
+	AbsContactFilePath = file_utils:ensure_path_is_absolute( ContactFilePath,
+									_BasePath=USCfgBinDir ),
+
+	?debug_fmt( "Reading contact file '~ts'.", [ AbsContactFilePath ] ),
+
+	case file_utils:is_existing_file_or_link( AbsContactFilePath ) of
+
+		true ->
+			ReadTerms = file_utils:read_etf_file( AbsContactFilePath ),
+			add_contacts( ReadTerms, UserTable, State );
+
+		false ->
+			?error_fmt( "Specified contact file '~ts' does not exist; "
+				"no contact added.", [ AbsContactFilePath ] ),
+			UserTable
+
+	end.
+
+
+
+% @doc Adds specified contact terms (expected to be contact lines) to specified
+% contact table.
+%
+-spec add_contacts( [ term() ], user_table(), wooper:state() ) -> user_table().
+add_contacts( _ReadTerms=[], UserTable, _State ) ->
+	UserTable;
+
+% Here a valid contact_line() may be found (the T suffix means "term"):
+add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, CommentT,
+		BirthDateT, LandlineNumberT, MobileNumberT,
+		PrimaryEmailAddressT, SecondaryEmailAddressT, RolesT } | T ],
+			  UserTable, State ) ->
+
+	case vet_user_id( UserIdT ) of
+
+		invalid ->
+			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n "
+				"invalid user identifier ('~p').", [ Line, UserIdT ] ),
+			add_contacts( T, UserTable, State );
+
+		UserId ->
+			case vet_maybe_string( LastNameT ) of
+
+				invalid ->
+					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
+						"~ninvalid last name ('~p').", [ Line, LastNameT ] ),
+					add_contacts( T, UserTable, State );
+
+
+				undefined ->
+					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
+						"~nlast name must be non-empty.", [ Line ] ),
+					add_contacts( T, UserTable, State );
+
+
+				BinLastName ->
+					case vet_maybe_string( FirstNameT ) of
+
+						invalid ->
+							?error_fmt( "Invalid (hence ignored) contact "
+								"line~n  '~p':~ninvalid first name ('~p').",
+								[ Line, FirstNameT ] ),
+							add_contacts( T, UserTable, State );
+
+						MaybeBinFirstName ->
+							case vet_maybe_string( CommentT ) of
+
+								invalid ->
+									?error_fmt( "Invalid (hence ignored) "
+										"contact line:~n  '~p':~n"
+										"invalid comment ('~p').",
+										[ Line, CommentT ] ),
+									add_contacts( T, UserTable, State );
+
+								MaybeBinComment ->
+									Settings = #user_settings{
+												id=UserId,
+												first_name=MaybeBinFirstName,
+												last_name=BinLastName,
+												comment=MaybeBinComment },
+
+									vet_contacts_first( Line, T, Settings,
+										UserId,	BirthDateT, LandlineNumberT,
+										MobileNumberT, PrimaryEmailAddressT,
+										SecondaryEmailAddressT,
+										RolesT, UserTable, State )
+
+							end
+
+					end
+
+			end
+
+	end;
+
+
+add_contacts( _ReadTerms=[ InvalidLine | T ], UserTable, State ) ->
+	?error_fmt( "Read invalid (hence ignored) contact line:~n  ~p",
+				[ InvalidLine ] ),
+	add_contacts( T, UserTable, State ).
+
+
+
+% (helper)
+vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
+		MobileNumberT, PrimaryEmailAddressT, SecondaryEmailAddressT, RolesT,
+		UserTable, State ) ->
+
+	case vet_maybe_date( BirthDateT ) of
+
+		invalid ->
+			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n"
+				"invalid birth date ('~p').", [ Line, BirthDateT ] ),
+			add_contacts( T, UserTable, State );
+
+		MaybeBirthDate ->
+			case vet_phone_number( LandlineNumberT ) of
+
+				invalid ->
+					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
+						"~ninvalid landline number ('~p').",
+						[ Line, LandlineNumberT ] ),
+					add_contacts( T, UserTable, State );
+
+				MaybeLandline ->
+					case vet_phone_number( MobileNumberT ) of
+
+						invalid ->
+							?error_fmt( "Invalid (hence ignored) contact "
+								"line:~n  '~p':~ninvalid mobile number ('~p').",
+								[ Line, MobileNumberT ] ),
+							add_contacts( T, UserTable, State );
+
+						MaybeMobile ->
+							NewSettings = Settings#user_settings{
+								birth_date=MaybeBirthDate,
+								landline_number=MaybeLandline,
+								mobile_number=MaybeMobile },
+
+							vet_contacts_second( Line, T, NewSettings, UserId,
+								PrimaryEmailAddressT, SecondaryEmailAddressT,
+								RolesT, UserTable, State )
+
+					end
+
+			end
+
+	end.
+
+
+
+% (helper)
+vet_contacts_second( Line, T, Settings, UserId, PrimaryEmailAddressT,
+		SecondaryEmailAddressT, RolesT, UserTable, State ) ->
+
+	case vet_email_address( PrimaryEmailAddressT ) of
+
+		invalid ->
+			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n"
+				"invalid primary email address identifier ('~p').",
+				[ Line, PrimaryEmailAddressT ] ),
+			add_contacts( T, UserTable, State );
+
+		MaybePrimEmailAddr ->
+			case vet_email_address( SecondaryEmailAddressT ) of
+
+				invalid ->
+					?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':"
+						"~ninvalid secondary email address identifier ('~p').",
+						[ Line, SecondaryEmailAddressT ] ),
+					add_contacts( T, UserTable, State );
+
+				MaybeSecEmailAddr ->
+					case vet_roles( RolesT ) of
+
+						invalid ->
+							?error_fmt( "Invalid (hence ignored) contact "
+								"line:  '~p':~ninvalid roles ('~p').",
+								[ Line, RolesT ] ),
+							add_contacts( T, UserTable, State );
+
+						Roles ->
+							UserSettings = Settings#user_settings{
+								primary_email_address=MaybePrimEmailAddr,
+								secondary_email_address=MaybeSecEmailAddr,
+								roles=Roles },
+
+							% Uniqueness checked:
+							NewUserTable = table:add_new_entry( UserId,
+												UserSettings, UserTable ),
+
+							add_contacts( T, NewUserTable, State )
+
+					end
+
+			end
+
+	end.
+
+
+
+% @doc Reads specified contact files and enriches specified table.
+-spec read_contact_files( [ any_file_path() ], bin_directory_path(),
+						  user_table(), wooper:state() ) ->	user_table().
+read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, State ) ->
+
+	?debug_fmt( "Reading following contact files: ~ts.",
+				[ text_utils:strings_to_string( ContactFilePaths ) ] ),
+
+	lists:foldl(
+	  fun( CfgFilePath, UserTableAcc ) ->
+			  read_contact_file( CfgFilePath, USCfgBinDir, UserTableAcc, State )
+	  end,
+	  _Acc0=UserTable,
+	  _List=ContactFilePaths ).
+
+
+
+% Vetting functions.
+
+
+% @doc Vets specified term, expected to be a user identifier.
+-spec vet_user_id( term() ) -> 'invalid' | user_id().
+vet_user_id( UserId ) when is_integer( UserId ) andalso UserId > 0 ->
+	UserId;
+
+vet_user_id( _OtherUserId ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a maybe-string. Empty strings are
+% accepted.
+%
+-spec vet_maybe_string( term() ) -> 'invalid' | maybe( bin_string() ).
+vet_maybe_string( MS=undefined ) ->
+	MS;
+
+vet_maybe_string( MS ) when is_list( MS ) ->
+	case text_utils:is_string( MS ) of
+
+		true ->
+			text_utils:string_to_binary( MS );
+
+		false ->
+			invalid
+
+	end;
+
+vet_maybe_string( _MS ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a maybe-date.
+-spec vet_maybe_date( term() ) -> 'invalid' | maybe( date() ).
+vet_maybe_date( MD=undefined ) ->
+	MD;
+
+vet_maybe_date( UserDate ) ->
+	case time_utils:is_user_date( UserDate ) of
+
+		true ->
+			time_utils:user_to_canonical_date( UserDate );
+
+		false ->
+			invalid
+
+	end.
+
+
+
+% @doc Vets specified term, expected to be a maybe-phone number.
+-spec vet_phone_number( term() ) -> 'invalid' | maybe( bin_mobile_number() ).
+vet_phone_number( MPN=undefined ) ->
+	MPN;
+
+vet_phone_number( PN ) when is_list( PN ) ->
+	case text_utils:is_string( PN ) of
+
+		true ->
+			SpaceLessStr = text_utils:remove_whitespaces( PN ),
+			text_utils:string_to_binary( SpaceLessStr );
+
+		false ->
+			invalid
+
+	end;
+
+vet_phone_number( _Other ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a maybe-email address.
+-spec vet_email_address( term() ) -> 'invalid' | maybe( bin_email_address() ).
+vet_email_address( MEA=undefined ) ->
+	MEA;
+
+vet_email_address( EA ) when is_list( EA ) ->
+	case text_utils:split( EA, _Delimiters=[ $@ ] ) of
+
+		[ _User, _FQDN ] ->
+			text_utils:string_to_binary( EA );
+
+		_ ->
+			invalid
+
+	end;
+
+vet_email_address( _Other ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a list of roles.
+-spec vet_roles( term() ) -> 'invalid' | [ role() ].
+vet_roles( Roles ) ->
+	case list_utils:are_atoms( Roles ) of
+
+		true ->
+			Roles;
+
+		false ->
+			invalid
+
+	end.
+
+
+
+% @doc Returns a textual description of the specified user settings.
+-spec user_settings_to_string( user_settings() ) -> ustring().
+user_settings_to_string( #user_settings{
+		id=Id,
+		first_name=MaybeFirstName,
+		last_name=LastName,
+		comment=MaybeComment,
+		birth_date=MaybeBirthDate,
+		landline_number=MaybeLandlineNumber,
+		mobile_number=MaybeMobileNumber,
+		primary_email_address=MaybePrimAddr,
+		secondary_email_address=MaybeSecAddr,
+		roles=Roles } ) ->
+
+	% All strings are binary ones.
+
+	FullName = case MaybeFirstName of
+
+		undefined ->
+			LastName;
+
+		FirstName ->
+			% To clearly denote names:
+			text_utils:format( "~ts '~ts'", [ FirstName, LastName ] )
+
+	end,
+
+
+	CommentStr = case MaybeComment of
+
+		undefined ->
+			"";
+
+		Comment ->
+			text_utils:format( ", described as '~ts'", [ Comment ] )
+
+	end,
+
+
+	BirthStr = case MaybeBirthDate of
+
+		undefined ->
+			"";
+
+		BirthDate ->
+			text_utils:format( ", born on ~ts",
+				[ time_utils:get_textual_date( BirthDate ) ] )
+
+	end,
+
+	LandlineStr = case MaybeLandlineNumber of
+
+		undefined ->
+			"";
+
+		LandlineNumber ->
+			text_utils:format( ", whose landline number is ~ts",
+							   [ LandlineNumber ] )
+
+	end,
+
+	MobileStr = case MaybeMobileNumber of
+
+		undefined ->
+			"";
+
+		MobileNumber ->
+			text_utils:format( ", whose mobile number is ~ts",
+							   [ MobileNumber ] )
+
+	end,
+
+	PrimEmailStr = case MaybePrimAddr of
+
+		undefined ->
+			"";
+
+		PrimAddr ->
+			text_utils:format( ", whose primary email address is ~ts",
+							   [ PrimAddr ] )
+
+	end,
+
+
+	SecEmailStr = case MaybeSecAddr of
+
+		undefined ->
+			"";
+
+		SecAddr ->
+			text_utils:format( ", whose secondary email address is ~ts",
+							   [ SecAddr ] )
+
+	end,
+
+	RoleStr = case Roles of
+
+		[] ->
+			"with no role assigned";
+
+		[ Role ] ->
+			text_utils:format( "whose assigned role is ~ts", [ Role ] );
+
+		_ ->
+			text_utils:format( "whose assigned roles are: ~ts",
+				[ text_utils:atoms_to_listed_string( Roles ) ] )
+
+	end,
+
+	text_utils:format( "user '~ts' (id: ~B)~ts~ts~ts~ts~ts~ts, ~ts",
+		[ FullName, Id, CommentStr, BirthStr, LandlineStr, MobileStr,
+		  PrimEmailStr, SecEmailStr, RoleStr ] ).
+
+
+
+% @doc Returns a textual description of this contact directory.
+-spec to_string( wooper:state() ) -> ustring().
+to_string( State ) ->
+
+	% Sorted by increasing IDs:
+	SettingsdByIds = [ Settings || { _Id, Settings } <-
+		lists:sort( table:enumerate( ?getAttr(user_table) ) ) ],
+
+	UserStr = case SettingsdByIds of
+
+		[] ->
+			"no user";
+
+		[ UserSettings ] ->
+			"a single user: " ++ user_settings_to_string( UserSettings );
+
+		UserSettingsList ->
+			text_utils:format( "~B users: ~ts", [ length( UserSettingsList ),
+				text_utils:strings_to_string(
+					[ user_settings_to_string( US )
+						|| US <- UserSettingsList ] ) ] )
+
+	end,
+
+	text_utils:format( "US contact directory registering ~ts", [ UserStr ] ).
