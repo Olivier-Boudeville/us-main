@@ -25,7 +25,7 @@
 % coverage of US-Main).
 %
 % Such a file is typically obtained thanks to:
-% $ sensors --no-adapter -j > my_sensor_output.txt
+% $ sensors --no-adapter -j > test_sensor_output.txt
 %
 -module(read_sensor_file_test).
 
@@ -45,7 +45,7 @@ run() ->
 
 	test_facilities:display( "Testing the sensor-related services." ),
 
-	SensorDataFilename = "my_sensor_output.txt",
+	SensorDataFilename = "test_sensor_output.txt",
 
 	case file_utils:is_existing_file_or_link( SensorDataFilename ) of
 
