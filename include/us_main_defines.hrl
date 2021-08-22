@@ -23,8 +23,22 @@
 % Common US-Main defines.
 
 
--define( us_main_sensor_server_registration_name, us_main_sensor_server ).
+-define( us_main_contact_server_registration_name, us_main_contact_server ).
 
+% Remote singleton expected:
+-define( us_main_contact_server_registration_scope, global_only ).
+
+
+
+-define( us_main_communication_server_registration_name,
+		 us_main_communication_server ).
+
+% Remote singleton expected:
+-define( us_main_communication_server_registration_scope, global_only ).
+
+
+
+-define( us_main_sensor_server_registration_name, us_main_sensor_server ).
 
 % Local, as one instance of such server per host may run:
 -define( us_main_sensor_server_registration_scope, local_only ).
