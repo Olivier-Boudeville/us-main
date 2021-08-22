@@ -102,13 +102,47 @@ init( _Args=[ AppRunContext ] ) ->
 		_RestartStrategy=one_for_one,
 		class_USConfigServer:get_execution_target() ),
 
-	% One child, the (local) sensor manager:
+	StartFun = start_link,
+	StartArgs = [],
+
+	% Three children; first the contact directory:
+	ContactDirectorySpec = #{
+
+		id => us_contact_directory,
+
+		start => { _ContactMod=class_USContactDirectory, StartFun, StartArgs },
+
+		restart => permanent,
+
+		shutdown => 2000,
+
+		type => worker,
+
+		modules => [ class_USContactDirectory ] },
+
+
+	% Second the communication manager:
+	CommGatewaySpec = #{
+
+		id => us_communication_gateway,
+
+		start => { _CommMod=class_USCommunicationGateway, StartFun, StartArgs },
+
+		restart => permanent,
+
+		shutdown => 2000,
+
+		type => worker,
+
+		modules => [ class_USCommunicationGateway ] },
+
+
+	% Third the (local) sensor manager:
 	SensorManagerSpec = #{
 
 		id => us_sensor_manager,
 
-		start => { _SensorMod=class_USSensorManager, _SensorFun=start_link,
-				   _SensorArgs=[] },
+		start => { _SensorMod=class_USSensorManager, StartFun, StartArgs },
 
 		restart => permanent,
 
@@ -118,10 +152,12 @@ init( _Args=[ AppRunContext ] ) ->
 
 		modules => [ class_USSensorManager ] },
 
-	ChildSpecs = [ SensorManagerSpec ],
+
+	ChildSpecs = [ ContactDirectorySpec, CommGatewaySpec, SensorManagerSpec ],
+
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
-	%   "returning supervisor settings ~p and sensor manager specs ~p.",
-	%   [ SupSettings, SensorManagerSpec ] ),
+	%   "returning supervisor settings ~p and child specs ~p.",
+	%   [ SupSettings, ChildSpecs ] ),
 
 	{ ok, { SupSettings, ChildSpecs } }.
