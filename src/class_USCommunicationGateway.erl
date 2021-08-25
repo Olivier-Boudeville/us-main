@@ -24,6 +24,8 @@
 % infrastructure</b>, typically with associated users, through emails and/or
 % SMS.
 %
+% Such gateways rely on a contact directory.
+%
 -module(class_USCommunicationGateway).
 
 
@@ -102,9 +104,7 @@
 	  "the PID of the overall US configuration server" },
 
 	{ contact_directory_pid, maybe( directory_pid() ),
-	  "the PID of any associated contact directory" }
-
- ] ).
+	  "the PID of any associated contact directory" } ] ).
 
 
 
@@ -268,7 +268,19 @@ get_communication_gateway() ->
 % @doc Initialises the communication gateway.
 -spec init_communications( wooper:state() ) ->  wooper:state().
 init_communications( State ) ->
-	setAttribute( State, contact_directory_pid, undefined ).
+
+	mobile:start(),
+
+	% Also an early test that Mobile is available and functional:
+	MobInfo = mobile:get_textual_information(),
+
+	?debug_fmt( "Communication initialised; mobile information: ~ts.",
+				[ MobInfo ] ),
+
+	% Needing the contact directory for operation, done as late as possible:
+	ContactDirPid = class_USContactDirectory:get_contact_directory(),
+
+	setAttribute( State, contact_directory_pid, ContactDirPid ).
 
 
 
