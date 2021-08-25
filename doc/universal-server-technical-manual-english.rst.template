@@ -131,7 +131,7 @@ From then, the sensor manager periodically monitors these various measurement po
 
 
 Sensor Tracking
-==============
+===============
 
 
 Preparing the Setup
@@ -250,8 +250,76 @@ See also the following resources:
 - `R6 <https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html>`_: an example of preparation/tuning of one's sensors
 
 
-.. _`free software`:
+.. _`contact directory`:
 
+
+Contact Directory
+=================
+
+The US Contact Directory server allows US-Main to track information regarding US contacts, for various purposes, including for the US `communication gateway`_.
+
+
+Contact File Format
+-------------------
+
+Contact files are `ETF files <https://myriad.esperide.org/#etf>`_ that contain a range of information about persons and organisations of interest.
+
+Each non-commented line of these files shall be in the following type:
+
+.. code:: erlang
+
+ -type contact_line() :: { UserId :: user_id(),
+	FirstName :: ustring(), LastName :: ustring(), NickName :: ustring(),
+	Comment :: ustring(), BirthDate :: maybe( ustring() ),
+	LandlineNumber :: maybe( ustring() ), MobileNumber :: maybe( ustring() ),
+	PrimaryEmailAddress :: maybe( ustring() ),
+	SecondaryEmailAddress :: maybe( ustring() ),
+	PostalAddress :: maybe( ustring() ),
+	Roles :: [ role() ] }.
+
+
+A typical contact line could then be:
+
+.. code:: erlang
+
+ { 1, "James", "Bond", "007", "MI6 Agent 007", {17,5,1971},
+  "+44 9 81 47 25 40", "+44 6 26 83 37 22", "james.bond@mi6.uk.org",
+  undefined, undefined, [ administrator, secret_agent ] }.
+
+
+See also our `test contact ETF file <https://github.com/Olivier-Boudeville/us-main/blob/master/test/test_contact_directory.etf>`_ as a full example thereof.
+
+
+
+Contact File Location
+---------------------
+
+The path to a contact file can be either specified as an absolute one, or as a relative one - in which case it will be deemed relative to the US configuration directory.
+
+They may be mere symlinks pointing to contact files kept in VCS in other locations.
+
+
+
+.. _`communication gateway`:
+
+
+Communication Gateway
+=====================
+
+The purpose of the US Communication Gateway is to enable (possibly two-way) exchanges with the US users.
+
+Such communication is not to happen frow a web-based medium (see `US-Web <http://us-web.esperide.org>`_ for that), but through alternate modes such as SMS (relying then on `Ceylan-Mobile <http://mobile.esperide.org>`_) and/or e-mails (relying then on `the corresponding services of Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl>`_).
+
+For that, the correspondance between a US role (ex: ``administrator``) and actual user coordinates is established thanks to the `contact directory`_ service.
+
+
+
+
+
+
+
+
+.. _`free software`:
 
 -------
 Licence
