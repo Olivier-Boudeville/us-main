@@ -41,7 +41,7 @@
 
 % Design notes:
 %
-% The user contact information are usually obtained thanks to ETF file(s)
+% The user contact information are usually known thanks to ETF file(s)
 % ("contact files"), whose paths are obtained from the US-Main configuration
 % server.
 %
@@ -53,14 +53,26 @@
 
 
 -type contact_line() :: { UserId :: user_id(),
-	FirstName :: ustring(), LastName :: ustring(),
+	FirstName :: ustring(), LastName :: ustring(), Nickname :: ustring(),
+	Status :: user_status(),
 	Comment :: ustring(), BirthDate :: maybe( ustring() ),
 	LandlineNumber :: maybe( ustring() ), MobileNumber :: maybe( ustring() ),
 	PrimaryEmailAddress :: maybe( ustring() ),
 	SecondaryEmailAddress :: maybe( ustring() ),
+	PostalAddress :: maybe( ustring() ),
 	Roles :: [ role() ] }.
 % The lines expected to be read from a contact ETF file shall respect this
 % structure.
+%
+% Nickname acts like a pseudo or a shorter, more familiar name.
+%
+% Comment is free text.
+%
+% Birth date of interest to wish happy birthdays.
+%
+% Postal address not of use here, yet possibly specified for completeness.
+%
+% Refer to the fields of the user_settings record for more information.
 
 
 % Silencing:
@@ -99,12 +111,20 @@
 % Identifier of a user, as read by this directory. Starts at 1.
 
 
+-type user_status() :: 'enabled'
+					 | 'disabled'. % Sadly for defunct entries.
+
+
 -type birth_date() :: time_utils:date().
 % The (canonical) date of birth, typically of a person.
 
 
 -type bin_phone_number() :: bin_string().
 % A phone number (landline or mobile).
+
+
+-type postal_address() :: bin_string().
+% The main, full postal address (with country information) for this user.
 
 
 -type role() :: 'administrator'.
@@ -123,6 +143,12 @@
 	% organisation):
 	%
 	last_name :: bin_string(),
+
+	% A pseudo or a shorter, more familiar name:
+	nickname :: maybe( bin_string() ),
+
+	% The current status of this entry:
+	status = enabled :: user_status(),
 
 	% Any comment associated to this user:
 	comment :: maybe( bin_string() ),
@@ -149,6 +175,10 @@
 	% their professional one):
 	%
 	secondary_email_address :: maybe( bin_email_address() ),
+
+
+	% The known postal address (if any) to be used for this user:
+	postal_address :: maybe( postal_address() ),
 
 
 	% The roles (if any) taken in charge by this user.
@@ -186,6 +216,12 @@
 %-type task_id() :: class_USScheduler:task_id().
 
 -type user_table() :: table( user_id(), user_settings() ).
+% A table storing the settings for users.
+
+
+-type role_table() :: table( role(), [ user_id() ] ).
+% A table allowing to translate a given role into the users to which it was
+% assigned.
 
 
 % The class-specific attributes:
@@ -193,6 +229,9 @@
 
 	{ user_table, user_table(),
 	  "the table recording the settings of all known users" },
+
+	{ role_table, role_table(), "the table listing all identifiers "
+	  "corresponding to a given role" },
 
 	{ contact_files, [ bin_file_path() ], "a list of the read contact files" },
 
@@ -329,18 +368,20 @@ construct( State, ContactFilePath ) ->
 
 	ContactFilePathStr = text_utils:ensure_string( ContactFilePath ),
 
-	InitialUserTable = table:new(),
+	EmptyTable = table:new(),
 
 	% In this specific case, we consider that the US configuration directory is
 	% the current directory:
 	%
 	BinCfgDir = file_utils:get_bin_current_directory(),
 
-	ReadUserTable = read_contact_file( ContactFilePathStr, BinCfgDir,
-									   InitialUserTable, SrvState ),
+	{ ReadUserTable, ReadRoleTable } = read_contact_file( ContactFilePathStr,
+		BinCfgDir, _InitUserTable=EmptyTable, _InitRoleTable=EmptyTable,
+		SrvState ),
 
 	ReadyState = setAttributes( SrvState, [
 		{ user_table, ReadUserTable },
+		{ role_table, ReadRoleTable },
 		{ contact_files, text_utils:ensure_binary( ContactFilePath ) },
 		{ execution_context, undefined },
 		{ config_base_directory, undefined },
@@ -438,13 +479,15 @@ load_and_apply_configuration( State ) ->
 
 		{ wooper_result, { USCfgBinDir, ExecContext, ContactFiles } } ->
 
-			InitUserTable = table:new(),
+			InitTable = table:new(),
 
-			UserTable = read_contact_files( ContactFiles, USCfgBinDir,
-				InitUserTable, State ),
+			{ UserTable, RoleTable } = read_contact_files( ContactFiles,
+				USCfgBinDir, _UserTable=InitTable, _RoleTable=InitTable,
+				State ),
 
 			setAttributes( State, [
 				{ user_table, UserTable },
+				{ role_table, RoleTable },
 				{ contact_files, ContactFiles },
 				{ execution_context, ExecContext },
 				{ config_base_directory, USCfgBinDir },
@@ -457,8 +500,9 @@ load_and_apply_configuration( State ) ->
 
 % @doc Reads specified contact file and enriches specified table.
 -spec read_contact_file( any_file_path(), bin_directory_path(), user_table(),
-						 wooper:state() ) -> user_table().
-read_contact_file( ContactFilePath, USCfgBinDir, UserTable, State ) ->
+			role_table(), wooper:state() ) -> { user_table(), role_table() }.
+read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
+				   State ) ->
 
 	AbsContactFilePath = file_utils:ensure_path_is_absolute( ContactFilePath,
 									_BasePath=USCfgBinDir ),
@@ -469,12 +513,12 @@ read_contact_file( ContactFilePath, USCfgBinDir, UserTable, State ) ->
 
 		true ->
 			ReadTerms = file_utils:read_etf_file( AbsContactFilePath ),
-			add_contacts( ReadTerms, UserTable, State );
+			add_contacts( ReadTerms, UserTable, RoleTable, State );
 
 		false ->
 			?error_fmt( "Specified contact file '~ts' does not exist; "
 				"no contact added.", [ AbsContactFilePath ] ),
-			UserTable
+			{ UserTable, RoleTable }
 
 	end.
 
@@ -483,69 +527,73 @@ read_contact_file( ContactFilePath, USCfgBinDir, UserTable, State ) ->
 % @doc Adds specified contact terms (expected to be contact lines) to specified
 % contact table.
 %
--spec add_contacts( [ term() ], user_table(), wooper:state() ) -> user_table().
-add_contacts( _ReadTerms=[], UserTable, _State ) ->
-	UserTable;
+-spec add_contacts( [ term() ], user_table(), role_table(), wooper:state() ) ->
+		  { user_table(), role_table() }.
+add_contacts( _ReadTerms=[], UserTable, RoleTable, _State ) ->
+	{ UserTable, RoleTable };
 
 % Here a valid contact_line() may be found (the T suffix means "term"):
-add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, CommentT,
-		BirthDateT, LandlineNumberT, MobileNumberT,
-		PrimaryEmailAddressT, SecondaryEmailAddressT, RolesT } | T ],
-			  UserTable, State ) ->
+add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, NicknameT,
+		StatusT, CommentT, BirthDateT, LandlineNumberT, MobileNumberT,
+		PrimaryEmailAddressT, SecondaryEmailAddressT, PostalAddressT,
+		RolesT } | T ],
+			  UserTable, RoleTable, State ) ->
 
 	case vet_user_id( UserIdT ) of
 
 		invalid ->
 			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n "
 				"invalid user identifier ('~p').", [ Line, UserIdT ] ),
-			add_contacts( T, UserTable, State );
+			add_contacts( T, UserTable, RoleTable, State );
 
 		UserId ->
-			case vet_maybe_string( LastNameT ) of
+			case vet_maybe_string( FirstNameT ) of
 
 				invalid ->
 					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
-						"~ninvalid last name ('~p').", [ Line, LastNameT ] ),
-					add_contacts( T, UserTable, State );
+						"~ninvalid first name ('~p').", [ Line, FirstNameT ] ),
+					add_contacts( T, UserTable, RoleTable, State );
 
-
-				undefined ->
-					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
-						"~nlast name must be non-empty.", [ Line ] ),
-					add_contacts( T, UserTable, State );
-
-
-				BinLastName ->
-					case vet_maybe_string( FirstNameT ) of
+				MaybeBinFirstName ->
+					case vet_maybe_string( LastNameT ) of
 
 						invalid ->
 							?error_fmt( "Invalid (hence ignored) contact "
-								"line~n  '~p':~ninvalid first name ('~p').",
+								"line~n  '~p':~ninvalid last name ('~p').",
 								[ Line, FirstNameT ] ),
-							add_contacts( T, UserTable, State );
+							add_contacts( T, UserTable, RoleTable, State );
 
-						MaybeBinFirstName ->
-							case vet_maybe_string( CommentT ) of
+						undefined ->
+							?error_fmt( "Invalid (hence ignored) contact "
+								"line~n  '~p':~nlast name must be non-empty.",
+								[ Line ] ),
+							add_contacts( T, UserTable, RoleTable, State );
+
+						BinLastName ->
+							case vet_maybe_string( NicknameT ) of
 
 								invalid ->
 									?error_fmt( "Invalid (hence ignored) "
 										"contact line:~n  '~p':~n"
-										"invalid comment ('~p').",
-										[ Line, CommentT ] ),
-									add_contacts( T, UserTable, State );
+										"invalid nickname ('~p').",
+										[ Line, NicknameT ] ),
+									add_contacts( T, UserTable, RoleTable,
+												  State );
 
-								MaybeBinComment ->
+								MaybeBinNickname ->
 									Settings = #user_settings{
 												id=UserId,
 												first_name=MaybeBinFirstName,
 												last_name=BinLastName,
-												comment=MaybeBinComment },
+												nickname=MaybeBinNickname },
 
 									vet_contacts_first( Line, T, Settings,
-										UserId,	BirthDateT, LandlineNumberT,
-										MobileNumberT, PrimaryEmailAddressT,
-										SecondaryEmailAddressT,
-										RolesT, UserTable, State )
+										UserId, StatusT, CommentT, BirthDateT,
+										LandlineNumberT, MobileNumberT,
+										PrimaryEmailAddressT,
+										SecondaryEmailAddressT, PostalAddressT,
+										RolesT, UserTable, RoleTable, State )
+
 
 							end
 
@@ -556,24 +604,74 @@ add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, CommentT,
 	end;
 
 
-add_contacts( _ReadTerms=[ InvalidLine | T ], UserTable, State ) ->
-	?error_fmt( "Read invalid (hence ignored) contact line:~n  ~p",
-				[ InvalidLine ] ),
-	add_contacts( T, UserTable, State ).
+add_contacts( _ReadTerms=[ InvalidTuple | T ], UserTable, RoleTable, State )
+								when is_tuple( InvalidTuple ) ->
+
+	?error_fmt( "Read invalid (hence ignored) contact line "
+		"(a tuple with ~B elements instead of 13):~n  ~p",
+		[ size( InvalidTuple ), InvalidTuple ] ),
+
+	add_contacts( T, UserTable, RoleTable, State );
+
+
+add_contacts( _ReadTerms=[ InvalidLine | T ], UserTable, RoleTable, State ) ->
+
+	?error_fmt( "Read invalid (hence ignored) contact line "
+		"(not even a tuple):~n  ~p", [ InvalidLine ] ),
+
+	add_contacts( T, UserTable, RoleTable, State ).
 
 
 
 % (helper)
-vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
-		MobileNumberT, PrimaryEmailAddressT, SecondaryEmailAddressT, RolesT,
-		UserTable, State ) ->
+vet_contacts_first( Line, T, Settings, UserId, StatusT, CommentT, BirthDateT,
+		LandlineNumberT, MobileNumberT, PrimaryEmailAddressT,
+		SecondaryEmailAddressT, PostalAddressT, RolesT, UserTable, RoleTable,
+		State ) ->
+
+	case vet_status( StatusT ) of
+
+		invalid ->
+			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n"
+						"invalid status ('~p').", [ Line, StatusT ] ),
+			add_contacts( T, UserTable, RoleTable, State );
+
+		Status ->
+			case vet_maybe_string( CommentT ) of
+
+				invalid ->
+					?error_fmt( "Invalid (hence ignored) contact line:~n  "
+						"'~p':~ninvalid comment ('~p').",
+						[ Line, CommentT ] ),
+					add_contacts( T, UserTable, RoleTable, State );
+
+				MaybeBinComment ->
+					NewSettings = Settings#user_settings{
+						status=Status,
+						comment=MaybeBinComment },
+
+					vet_contacts_third( Line, T, NewSettings, UserId,
+						BirthDateT, LandlineNumberT, MobileNumberT,
+						PrimaryEmailAddressT, SecondaryEmailAddressT,
+						PostalAddressT, RolesT, UserTable, RoleTable, State )
+
+			end
+
+	end.
+
+
+
+% (helper)
+vet_contacts_third( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
+		MobileNumberT, PrimaryEmailAddressT, SecondaryEmailAddressT,
+		PostalAddressT, RolesT, UserTable, RoleTable, State ) ->
 
 	case vet_maybe_date( BirthDateT ) of
 
 		invalid ->
 			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n"
 				"invalid birth date ('~p').", [ Line, BirthDateT ] ),
-			add_contacts( T, UserTable, State );
+			add_contacts( T, UserTable, RoleTable, State );
 
 		MaybeBirthDate ->
 			case vet_phone_number( LandlineNumberT ) of
@@ -582,7 +680,7 @@ vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
 					?error_fmt( "Invalid (hence ignored) contact line~n  '~p':"
 						"~ninvalid landline number ('~p').",
 						[ Line, LandlineNumberT ] ),
-					add_contacts( T, UserTable, State );
+					add_contacts( T, UserTable, RoleTable, State );
 
 				MaybeLandline ->
 					case vet_phone_number( MobileNumberT ) of
@@ -591,7 +689,7 @@ vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
 							?error_fmt( "Invalid (hence ignored) contact "
 								"line:~n  '~p':~ninvalid mobile number ('~p').",
 								[ Line, MobileNumberT ] ),
-							add_contacts( T, UserTable, State );
+							add_contacts( T, UserTable, RoleTable, State );
 
 						MaybeMobile ->
 							NewSettings = Settings#user_settings{
@@ -599,9 +697,10 @@ vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
 								landline_number=MaybeLandline,
 								mobile_number=MaybeMobile },
 
-							vet_contacts_second( Line, T, NewSettings, UserId,
+							vet_contacts_fourth( Line, T, NewSettings, UserId,
 								PrimaryEmailAddressT, SecondaryEmailAddressT,
-								RolesT, UserTable, State )
+								PostalAddressT, RolesT, UserTable, RoleTable,
+								State )
 
 					end
 
@@ -612,8 +711,9 @@ vet_contacts_first( Line, T, Settings, UserId, BirthDateT, LandlineNumberT,
 
 
 % (helper)
-vet_contacts_second( Line, T, Settings, UserId, PrimaryEmailAddressT,
-		SecondaryEmailAddressT, RolesT, UserTable, State ) ->
+vet_contacts_fourth( Line, T, Settings, UserId, PrimaryEmailAddressT,
+		SecondaryEmailAddressT, PostalAddressT, RolesT, UserTable, RoleTable,
+		State ) ->
 
 	case vet_email_address( PrimaryEmailAddressT ) of
 
@@ -621,7 +721,7 @@ vet_contacts_second( Line, T, Settings, UserId, PrimaryEmailAddressT,
 			?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':~n"
 				"invalid primary email address identifier ('~p').",
 				[ Line, PrimaryEmailAddressT ] ),
-			add_contacts( T, UserTable, State );
+			add_contacts( T, UserTable, RoleTable, State );
 
 		MaybePrimEmailAddr ->
 			case vet_email_address( SecondaryEmailAddressT ) of
@@ -630,30 +730,69 @@ vet_contacts_second( Line, T, Settings, UserId, PrimaryEmailAddressT,
 					?error_fmt( "Invalid (hence ignored) contact line:~n  '~p':"
 						"~ninvalid secondary email address identifier ('~p').",
 						[ Line, SecondaryEmailAddressT ] ),
-					add_contacts( T, UserTable, State );
+					add_contacts( T, UserTable, RoleTable, State );
 
 				MaybeSecEmailAddr ->
-					case vet_roles( RolesT ) of
+					case vet_postal_address( PostalAddressT ) of
 
 						invalid ->
 							?error_fmt( "Invalid (hence ignored) contact "
-								"line:  '~p':~ninvalid roles ('~p').",
-								[ Line, RolesT ] ),
-							add_contacts( T, UserTable, State );
+								"line:~n  '~p':~ninvalid postal address "
+								"('~p').", [ Line, PostalAddressT ] ),
+							add_contacts( T, UserTable, RoleTable, State );
 
-						Roles ->
-							UserSettings = Settings#user_settings{
+						MaybePostalAddress ->
+							NewSettings = Settings#user_settings{
 								primary_email_address=MaybePrimEmailAddr,
 								secondary_email_address=MaybeSecEmailAddr,
-								roles=Roles },
+								postal_address=MaybePostalAddress },
 
-							% Uniqueness checked:
-							NewUserTable = table:add_new_entry( UserId,
-												UserSettings, UserTable ),
-
-							add_contacts( T, NewUserTable, State )
+							vet_contacts_fifth( Line, T, NewSettings, UserId,
+								RolesT, UserTable, RoleTable, State )
 
 					end
+
+			end
+
+	end.
+
+
+
+% (helper)
+vet_contacts_fifth( Line, T, Settings, UserId, RolesT, UserTable, RoleTable,
+					State )->
+
+	case vet_roles( RolesT ) of
+
+		invalid ->
+			?error_fmt( "Invalid (hence ignored) contact line:  '~p':~n"
+				"invalid roles ('~p').", [ Line, RolesT ] ),
+			add_contacts( T, UserTable, RoleTable, State );
+
+		Roles ->
+			NewSettings = Settings#user_settings{ roles=Roles },
+
+			case table:has_entry( UserId, UserTable ) of
+
+				true ->
+					?error_fmt( "Invalid (hence ignored) contact line:  '~p':~n"
+						"user id #~B already registered, corresponding "
+						"to: ~ts.", [ Line, UserId, user_settings_to_string(
+						table:get_value( UserId ) ) ] ),
+					add_contacts( T, UserTable, RoleTable, State );
+
+				false ->
+					NewUserTable = table:add_entry( UserId, NewSettings,
+													UserTable ),
+
+					NewRoleTable = lists:foldl(
+						fun( R, RT ) ->
+							table:append_to_entry( R, UserId, RT )
+						end,
+						_Acc0=RoleTable,
+						_List=Roles ),
+
+					add_contacts( T, NewUserTable, NewRoleTable, State )
 
 			end
 
@@ -663,17 +802,20 @@ vet_contacts_second( Line, T, Settings, UserId, PrimaryEmailAddressT,
 
 % @doc Reads specified contact files and enriches specified table.
 -spec read_contact_files( [ any_file_path() ], bin_directory_path(),
-						  user_table(), wooper:state() ) ->	user_table().
-read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, State ) ->
+		user_table(), role_table(), wooper:state() ) ->
+			{ user_table(), role_table() }.
+read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, RoleTable,
+					State ) ->
 
 	?debug_fmt( "Reading following contact files: ~ts.",
 				[ text_utils:strings_to_string( ContactFilePaths ) ] ),
 
 	lists:foldl(
-	  fun( CfgFilePath, UserTableAcc ) ->
-			  read_contact_file( CfgFilePath, USCfgBinDir, UserTableAcc, State )
+		fun( CfgFilePath, { UserTableAcc, RoleTableAcc } ) ->
+			read_contact_file( CfgFilePath, USCfgBinDir, UserTableAcc,
+							   RoleTableAcc, State )
 	  end,
-	  _Acc0=UserTable,
+	  _Acc0={ UserTable, RoleTable },
 	  _List=ContactFilePaths ).
 
 
@@ -710,6 +852,42 @@ vet_maybe_string( MS ) when is_list( MS ) ->
 	end;
 
 vet_maybe_string( _MS ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a user status.
+-spec vet_status( term() ) -> 'invalid' | user_status().
+vet_status( Status=enabled ) ->
+	Status;
+
+vet_status( Status=disabled ) ->
+	Status;
+
+vet_status( _OtherStatus ) ->
+	invalid.
+
+
+
+% @doc Vets specified term, expected to be a maybe-postal address. Empty strings
+% are accepted.
+%
+-spec vet_postal_address( term() ) -> 'invalid' | maybe( bin_string() ).
+vet_postal_address( PA=undefined ) ->
+	PA;
+
+vet_postal_address( PA ) when is_list( PA ) ->
+	case text_utils:is_string( PA ) of
+
+		true ->
+			text_utils:string_to_binary( PA );
+
+		false ->
+			invalid
+
+	end;
+
+vet_postal_address( _PA ) ->
 	invalid.
 
 
@@ -796,12 +974,15 @@ user_settings_to_string( #user_settings{
 		id=Id,
 		first_name=MaybeFirstName,
 		last_name=LastName,
+		nickname=MaybeNickname,
+		status=Status,
 		comment=MaybeComment,
 		birth_date=MaybeBirthDate,
 		landline_number=MaybeLandlineNumber,
 		mobile_number=MaybeMobileNumber,
 		primary_email_address=MaybePrimAddr,
 		secondary_email_address=MaybeSecAddr,
+		postal_address=MaybePostalAddress,
 		roles=Roles } ) ->
 
 	% All strings are binary ones.
@@ -817,6 +998,25 @@ user_settings_to_string( #user_settings{
 
 	end,
 
+	NickStr = case MaybeNickname of
+
+		undefined ->
+			"";
+
+		Nickname ->
+			text_utils:format( ", whose nickname is '~ts'", [ Nickname ] )
+
+	end,
+
+	StatusStr = case Status of
+
+		enabled ->
+			"enabled";
+
+		disabled ->
+			"disabled"
+
+	end,
 
 	CommentStr = case MaybeComment of
 
@@ -846,7 +1046,7 @@ user_settings_to_string( #user_settings{
 			"";
 
 		LandlineNumber ->
-			text_utils:format( ", whose landline number is ~ts",
+			text_utils:format( ", whose landline number is '~ts'",
 							   [ LandlineNumber ] )
 
 	end,
@@ -857,7 +1057,7 @@ user_settings_to_string( #user_settings{
 			"";
 
 		MobileNumber ->
-			text_utils:format( ", whose mobile number is ~ts",
+			text_utils:format( ", whose mobile number is '~ts'",
 							   [ MobileNumber ] )
 
 	end,
@@ -868,7 +1068,7 @@ user_settings_to_string( #user_settings{
 			"";
 
 		PrimAddr ->
-			text_utils:format( ", whose primary email address is ~ts",
+			text_utils:format( ", whose primary email address is '~ts'",
 							   [ PrimAddr ] )
 
 	end,
@@ -880,8 +1080,19 @@ user_settings_to_string( #user_settings{
 			"";
 
 		SecAddr ->
-			text_utils:format( ", whose secondary email address is ~ts",
+			text_utils:format( ", whose secondary email address is '~ts'",
 							   [ SecAddr ] )
+
+	end,
+
+	PostStr = case MaybePostalAddress of
+
+		undefined ->
+			"";
+
+		PostalAddress ->
+			text_utils:format( ", whose postal address is '~ts'",
+							   [ PostalAddress ] )
 
 	end,
 
@@ -891,17 +1102,35 @@ user_settings_to_string( #user_settings{
 			"with no role assigned";
 
 		[ Role ] ->
-			text_utils:format( "whose assigned role is ~ts", [ Role ] );
+			text_utils:format( "whose assigned role is '~ts'", [ Role ] );
 
 		_ ->
 			text_utils:format( "whose assigned roles are: ~ts",
-				[ text_utils:atoms_to_listed_string( Roles ) ] )
+				[ text_utils:atoms_to_quoted_listed_string( Roles ) ] )
 
 	end,
 
-	text_utils:format( "user '~ts' (id: ~B)~ts~ts~ts~ts~ts~ts, ~ts",
-		[ FullName, Id, CommentStr, BirthStr, LandlineStr, MobileStr,
-		  PrimEmailStr, SecEmailStr, RoleStr ] ).
+	text_utils:format( "user '~ts' (id: #~B)~ts, whose status is ~ts~ts~ts"
+		"~ts~ts~ts~ts~ts, ~ts",
+		[ FullName, Id, NickStr, StatusStr, CommentStr, BirthStr,
+		  LandlineStr, MobileStr, PrimEmailStr, SecEmailStr, PostStr,
+		  RoleStr ] ).
+
+
+
+% @doc Returns a textual description of the specified role information.
+-spec role_info_to_string( role(), [ user_id() ] ) -> ustring().
+role_info_to_string( Role, _UserIds=[] ) ->
+	text_utils:format( "role '~ts', not assigned to any user", [ Role ] );
+
+role_info_to_string( Role, [ UserId ] ) ->
+	text_utils:format( "role '~ts', assigned to a single user, #~B",
+					   [ Role, UserId ] );
+
+role_info_to_string( Role, UserIds ) ->
+	text_utils:format( "role '~ts', assigned to ~B users: ~ts",
+		[ Role, length( UserIds ),
+		  text_utils:integer_ids_to_listed_string( lists:sort( UserIds ) ) ] ).
 
 
 
@@ -929,4 +1158,22 @@ to_string( State ) ->
 
 	end,
 
-	text_utils:format( "US contact directory registering ~ts", [ UserStr ] ).
+	RoleStr = case table:enumerate( ?getAttr(role_table) ) of
+
+		[] ->
+			"No role was defined.";
+
+		[ { Role, UserIds } ] ->
+			text_utils:format( "A single role was defined overall: ~ts.",
+							   [ role_info_to_string( Role, UserIds ) ] );
+
+		RolePairs ->
+			text_utils:format( "~B roles were defined overall: ~ts",
+				[ length( RolePairs ), text_utils:strings_to_string(
+					[ role_info_to_string( R, UIds )
+						|| { R, UIds } <- RolePairs ] ) ] )
+
+	end,
+
+	text_utils:format( "US contact directory registering ~ts~n~ts",
+					   [ UserStr, RoleStr ] ).
