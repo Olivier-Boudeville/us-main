@@ -597,10 +597,14 @@ fans), and of reporting any abnormal situation" ).
 	{ us_config_server_pid, server_pid(),
 	  "the PID of the overall US configuration server" },
 
-	{ us_scheduler_pid, scheduler_pid(), "the PID of the main US scheduler" },
+	{ scheduler_pid, scheduler_pid(), "the PID of the main US scheduler" },
 
 	{ task_id, task_id(),
-	  "the scheduling identifier of the sensor-polling task" } ] ).
+	  "the scheduling identifier of the sensor-polling task" },
+
+	{ comm_gateway_pid, gateway_pid(),
+	  "the PID of the US communication gateway used to send user "
+	  "notifications" } ] ).
 
 
 
@@ -721,10 +725,15 @@ construct( State ) ->
 
 	end,
 
-	?send_notice( InitSensorState,
-				  "Constructed: " ++ to_string( InitSensorState ) ),
+	% To report any issue:
+	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
-	InitSensorState.
+	SetState = setAttribute( InitSensorState, comm_gateway_pid,
+							 CommGatewayPid ),
+
+	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
+
+	SetState.
 
 
 
@@ -3352,7 +3361,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 
 		{ wooper_result, { task_registered, TaskId } } ->
 			?debug_fmt( "Polling task registered, as ~B.", [ TaskId ] ),
-			setAttributes( State, [ { us_scheduler_pid, SchedulerPid },
+			setAttributes( State, [ { scheduler_pid, SchedulerPid },
 									{ task_id, TaskId } ] )
 
 	end.
@@ -3878,5 +3887,9 @@ to_string( State ) ->
 
 	end,
 
-	text_utils:format( "US sensor manager for '~ts', ~ts",
-					   [ net_utils:localhost(), TrackStr ] ).
+	text_utils:format( "US sensor manager for '~ts', ~ts; using the "
+		"US configuration server ~w, the scheduler ~w (as task #~B) and "
+		"the communication gateway ~w",
+		[ net_utils:localhost(), TrackStr, ?getAttr(us_config_server_pid),
+		  ?getAttr(scheduler_pid), ?getAttr(task_id),
+		  ?getAttr(comm_gateway_pid) ] ).
