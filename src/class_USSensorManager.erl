@@ -728,8 +728,9 @@ construct( State ) ->
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
-	SetState = setAttribute( InitSensorState, comm_gateway_pid,
-							 CommGatewayPid ),
+	SetState = setAttributes( InitSensorState, [
+		{ us_config_server_pid, undefined },
+		{ comm_gateway_pid, CommGatewayPid } ] ),
 
 	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
 
@@ -3892,9 +3893,20 @@ to_string( State ) ->
 
 	end,
 
+	SchedStr = case ?getAttr(scheduler_pid) of
+
+		undefined ->
+			"no specific scheduler";
+
+		SchedPid ->
+			% Task known if scheduler is:
+			text_utils:format( "the scheduler ~w (as task #~B)",
+				[ SchedPid, ?getAttr(task_id) ] )
+
+	end,
+
 	text_utils:format( "US sensor manager for '~ts', ~ts; using the "
-		"US configuration server ~w, the scheduler ~w (as task #~B) and "
+		"US configuration server ~w, ~ts and "
 		"the communication gateway ~w",
 		[ net_utils:localhost(), TrackStr, ?getAttr(us_config_server_pid),
-		  ?getAttr(scheduler_pid), ?getAttr(task_id),
-		  ?getAttr(comm_gateway_pid) ] ).
+		  SchedStr, ?getAttr(comm_gateway_pid) ] ).
