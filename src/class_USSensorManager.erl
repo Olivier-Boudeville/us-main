@@ -721,7 +721,8 @@ construct( State ) ->
 		{ _SensorEnabled=false, InitState } ->
 			?send_notice( InitState,
 						  "No sensor enabled, no polling scheduled." ),
-			InitState
+			setAttributes( InitState, [ { scheduler_pid, undefined },
+										{ task_id, undefined } ] )
 
 	end,
 
