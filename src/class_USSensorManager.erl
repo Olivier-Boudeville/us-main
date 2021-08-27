@@ -744,7 +744,7 @@ construct( State ) ->
 %      $ sensors --no-adapter -j > my_sensor_output.txt
 %
 % Useful to support sensors from third-party computers (transmitting such a file
-% just suffice to update this module accordingly).
+% just suffice to update this module accordingly). Applies only for testing.
 %
 -spec construct( wooper:state(), file_path() ) -> wooper:state().
 construct( State, SensorOutputFilePath ) ->
@@ -761,10 +761,15 @@ construct( State, SensorOutputFilePath ) ->
 	% Internal state of the JSON parser:
 	ParserState = initialise_json_support( SrvState ),
 
+	% Mostly bogus manager having some bogus (undefined) attributes:
 	InitState = setAttributes( SrvState, [
 					{ sensor_monitoring, false },
 					{ sensor_exec_pair, get_sensor_execution_pair( State ) },
-					{ parser_state, ParserState } ] ),
+					{ parser_state, ParserState },
+					{ us_config_server_pid, undefined },
+					{ scheduler_pid, undefined },
+					{ task_id, undefined },
+					{ comm_gateway_pid, undefined } ] ),
 
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
