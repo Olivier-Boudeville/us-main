@@ -293,9 +293,9 @@ to_string( State ) ->
 		undefined ->
 			"not knowing a contact directory";
 
-		false ->
+		ContactDirPid ->
 			text_utils:format( "knowing the contact directory ~w",
-							   [ ?getAttr(contact_directory_pid) ] )
+							   [ ContactDirPid ] )
 
 	end,
 
