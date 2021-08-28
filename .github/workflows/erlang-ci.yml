@@ -55,6 +55,8 @@ jobs:
         # Needed so that Gammu can emulate a 3G device there:
         mkdir /tmp/gammu-dummy-device
         cd ${base_dir}
+        # Corresponding configuration information:
+        /bin/cp -f _build/default/lib/mobile/conf/gammurc-for-tests $HOME/.gammurc
         # To avoid 'No sensors found!' to be returned by 'sensors', yet
         # bound to fail with 'No i2c device files found.', typically in a
         # continuous integration context:
