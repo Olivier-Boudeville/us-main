@@ -41,7 +41,7 @@ fi
 . "${us_main_common_script}" 1>/dev/null
 
 
-read_us_config_file $1 1>/dev/null
+read_us_config_file "$1" 1>/dev/null
 
 
 # No specific update/check needs regarding vm.args, as the runtime cookie is
