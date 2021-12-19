@@ -48,7 +48,18 @@
 % User information generally come from an associated contact directory (see
 % class_USContactDirectory).
 %
-% The SMS support relies on Ceylan-Mobile (see mobile.esperide.org).
+% The SMS support relies on Ceylan-Mobile (see http://mobile.esperide.org).
+
+
+% Each US-Main instance is expected to have its own, local communication
+% gateway, even if it may be in link with another one of such instance
+% concentrating more communication solutions (such as SMS sending).
+
+% This seems to be a better scheme than having only one overall, global
+% communication gateway: each US-Main instance is more autonomous and for
+% example can at least log messages even in the absence of a SMS-sending
+% communication gateway.
+
 
 
 % Implementation notes:
@@ -61,6 +72,7 @@
 % further information.
 %
 -behaviour(supervisor_bridge).
+
 
 % User API of the bridge:
 -export([ start_link/0 ]).
@@ -100,11 +112,19 @@
 % The class-specific attributes:
 -define( class_attributes, [
 
-	{ us_config_server_pid, server_pid(),
-	  "the PID of the overall US configuration server" },
+	{ us_main_config_server_pid, server_pid(),
+	  "the PID of the US-Main configuration server" },
 
 	{ contact_directory_pid, maybe( directory_pid() ),
-	  "the PID of any associated contact directory" } ] ).
+	  "the PID of any associated contact directory" },
+
+	{ sms_support_operational, boolean(), "tells whether an actual SMS "
+	  "support is enabled and operational, notably to be able to send them" },
+
+	{ parent_comm_gateway_pid, maybe( gateway_pid() ),
+	  "the PID of any parent, authoritative gateway (ex: able to send SMS)" }
+
+						   ] ).
 
 
 
@@ -196,10 +216,15 @@ construct( State ) ->
 
 	InitCommState = init_communications( SrvState ),
 
-	?send_notice( InitCommState,
-				  "Constructed: " ++ to_string( InitCommState ) ),
+	USMainCfgServerPid = class_USMainConfigServer:get_us_main_config_server(),
 
-	InitCommState.
+	SetState = setAttributes( InitCommState, [
+		{ us_main_config_server_pid, USMainCfgServerPid },
+		{ parent_comm_gateway_pid, undefined } ] ),
+
+	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
+
+	SetState.
 
 
 
@@ -271,16 +296,51 @@ init_communications( State ) ->
 
 	mobile:start(),
 
-	% Also an early test that Mobile is available and functional:
-	MobInfo = mobile:get_textual_information(),
+	?debug( "Testing whether a usable Ceylan-Mobile exists." ),
 
-	?debug_fmt( "Communication initialised; mobile information: ~ts.",
-				[ MobInfo ] ),
+	SMSSupportEnabled = case mobile:is_available() of
+
+		true ->
+
+			case mobile:has_actual_device() of
+
+				true ->
+
+					% Also an early test that Mobile is available and functional
+					% indeed:
+					%
+					MobInfo = mobile:get_textual_information(),
+
+					?info_fmt( "SMS communication via Ceylan-Mobile "
+						"initialised (available, and reported as connected to "
+						"an actual device); mobile information: ~ts.",
+						[ MobInfo ] ),
+
+					true;
+
+				false ->
+					?warning( "No SMS communication will be available: "
+						"Ceylan-Mobile found operational yet not connected "
+						"to an actual device (just emulated)." ),
+					mobile:stop(),
+					false
+
+			end;
+
+
+		false ->
+			?info( "No SMS communication will be available, no Ceylan-Mobile "
+				   "found available." ),
+			mobile:stop(),
+			false
+
+	end,
 
 	% Needing the contact directory for operation, done as late as possible:
 	ContactDirPid = class_USContactDirectory:get_contact_directory(),
 
-	setAttribute( State, contact_directory_pid, ContactDirPid ).
+	setAttributes( State, [ { contact_directory_pid, ContactDirPid },
+							{ sms_support_enabled, SMSSupportEnabled } ] ).
 
 
 
@@ -299,5 +359,28 @@ to_string( State ) ->
 
 	end,
 
-	text_utils:format( "US communication gateway, ~ts",
-					   [ ContactStr ] ).
+	CfgStr = case ?getAttr(us_config_server_pid) of
+
+		% Would be surprising:
+		undefined ->
+			"not knowing a US config server";
+
+		CfgSrvPid ->
+			text_utils:format( "knowing the US config server ~w",
+							   [ CfgSrvPid ] )
+
+	end,
+
+	ParentGatewayStr = case ?getAttr(parent_comm_gateway_pid) of
+
+		undefined ->
+			"not registering a parent communication gateway";
+
+		GtwPid ->
+			text_utils:format( "registering parent communication gateway ~w",
+							   [ GtwPid ] )
+
+	end,
+
+	text_utils:format( "US communication gateway, ~ts, ~ts, ~ts",
+					   [ ContactStr, CfgStr, ParentGatewayStr ] ).
