@@ -113,8 +113,12 @@ exec() ->
 	%app_facilities:display( "Looking up aggregator by name: ~ts.",
 	%                        [ AggregatorName ] ),
 
-	AggregatorPid =
-		naming_utils:get_registered_pid_for( AggregatorName, global ),
+	% The trace aggregator is expected to run in the target node, but to be
+	% registered there only locally, to avoid clashing with any other
+	% aggregator:
+	%
+	AggregatorPid = naming_utils:get_locally_registered_pid_for(
+									AggregatorName, MainTargetNodeName ),
 
 	app_facilities:display( "Creating now a local trace listener." ),
 
