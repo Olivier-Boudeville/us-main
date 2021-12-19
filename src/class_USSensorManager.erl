@@ -532,14 +532,46 @@ fans), and of reporting any abnormal situation" ).
 % Section for temperature defines.
 
 
+
+% An initial temperature value below this threshold denotes a bogus measure,
+% resulting in the corresponding measurement point to be disabled from start.
+%
+% We consider that, when this sensor manager starts, the local computer is
+% running under norminal condition, and that thus any worryingly low or high
+% reported temperature denotes a bogus sensor.
+%
+% So for example a sensor reporting 7°C at manager start-up is deemed bogus
+% rather than being a real problem; afterwards this temperature means a problem
+% (and not a bogus sensor).
+%
+-define( low_bogus_temperature_initial_threshold, 8.0 ).
+
+
 % A temperature value below this threshold denotes a bogus measure, resulting in
-% the corresponding measurement point to be disabled:
+% the corresponding measurement point to be disabled (at any time after
+% initialization):
 %
 -define( low_bogus_temperature_threshold, 5.0 ).
 
 
+
 % A temperature value above this threshold denotes a bogus measure (ex: 127°C),
 % resulting in the corresponding measurement point to be disabled:
+%
+% We consider that, when this sensor manager starts, the local computer is
+% running under norminal condition, and that thus any worryingly low or high
+% reported temperature denotes a bogus sensor.
+%
+% So for example a sensor reporting 82°C at manager start-up is deemed bogus
+% rather than being a real problem; afterwards this temperature means a problem
+% (and not a bogus sensor).
+%
+-define( high_bogus_temperature_initial_threshold, 75.0 ).
+
+
+% A temperature value above this threshold denotes a bogus measure (ex: 127°C),
+% resulting in the corresponding measurement point to be disabled (at any time
+% after initialization):
 %
 -define( high_bogus_temperature_threshold, 125.0 ).
 
@@ -1628,8 +1660,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 					%
 					% (value considered afterwards, as all post-init updates)
 					%
-					case vet_temperature( AttrValue, AttrName, BinPointName,
-										  SensorId, State ) of
+					case vet_initial_temperature( AttrValue, AttrName,
+							BinPointName, SensorId, State ) of
 
 						true ->
 							% To be taken into account once all other attributes
@@ -1674,8 +1706,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				% measured):
 				%
 				Suffix="min" ->
-					case vet_temperature( AttrValue, Suffix, BinPointName,
-										  SensorId, State ) of
+					case vet_initial_temperature( AttrValue, Suffix,
+							BinPointName, SensorId, State ) of
 
 						false ->
 							% Just ignored then:
@@ -1688,8 +1720,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 				% Same as for "min" just above:
 				Suffix="max" ->
-					case vet_temperature( AttrValue, Suffix, BinPointName,
-										  SensorId, State ) of
+					case vet_initial_temperature( AttrValue, Suffix,
+							BinPointName, SensorId, State ) of
 
 						false ->
 							% Just ignored then:
@@ -1702,8 +1734,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 				Suffix="alarm" ->
 					% First ensure that this alarm has not a bogus value:
-					case vet_temperature( AttrValue, Suffix, BinPointName,
-										  SensorId, State ) of
+					case vet_initial_temperature( AttrValue, Suffix,
+							BinPointName, SensorId, State ) of
 
 						false ->
 							% Just ignored then:
@@ -1769,7 +1801,8 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 %
 init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 
-	case vet_temperature( AttrValue, Suffix, BinPointName, SensorId, State ) of
+	case vet_initial_temperature( AttrValue, Suffix, BinPointName, SensorId,
+								  State ) of
 
 		false ->
 			% Just ignored then:
@@ -2399,8 +2432,8 @@ update_data_table( PointsDataTable,
 
 				{ value, CurrentTemp } ->
 
-					NewTempData = case vet_temperature( CurrentTemp, Desc,
-							PointNameBin, SensorId, State ) of
+					NewTempData = case vet_runtime_temperature( CurrentTemp,
+							Desc, PointNameBin, SensorId, State ) of
 
 						true ->
 							% Status 'enabled' implies these fields are set:
@@ -2597,8 +2630,8 @@ update_data_table( PointsDataTable,
 
 
 
-% @doc Examines the specified reported, current temperature and takes any
-% appropriate action.
+% @doc Examines the specified reported, current (runtime) temperature and takes
+% any appropriate action.
 %
 % (sensor expected to be enabled)
 %
@@ -3375,10 +3408,21 @@ init_polling( SensorPollPeriodicity, State ) ->
 
 
 
-% @doc Vets specified temperature regarding bogus range.
--spec vet_temperature( celsius(), temperature_description(),
+% @doc Vets specified initial (stricter) temperature regarding bogus range.
+-spec vet_initial_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
-vet_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
+vet_initial_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
+	vet_temperature( Temp, TempDesc,
+		_Min=?low_bogus_temperature_initial_threshold,
+		_Max=?high_bogus_temperature_initial_threshold, "bogus", BinPointName,
+		SensorId, State ).
+
+
+
+% @doc Vets specified runtime temperature regarding bogus range.
+-spec vet_runtime_temperature( celsius(), temperature_description(),
+		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
+vet_runtime_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 	vet_temperature( Temp, TempDesc, _Min=?low_bogus_temperature_threshold,
 		_Max=?high_bogus_temperature_threshold, "bogus", BinPointName,
 		SensorId, State ).
