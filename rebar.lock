@@ -2,7 +2,7 @@
 [{<<"jsx">>,{pkg,<<"jsx">>,<<"3.0.0">>},0},
  {<<"mobile">>,
   {git,"git://github.com/Olivier-Boudeville/Ceylan-Mobile",
-       {ref,"c031f6005b0983f23a0a1cf29b0fb2823f455705"}},
+       {ref,"6e7f3091575d5796f2f57052611eeb97624e1c91"}},
   0},
  {<<"myriad">>,
   {git,"git://github.com/Olivier-Boudeville/Ceylan-Myriad",
