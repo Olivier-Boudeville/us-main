@@ -22,6 +22,13 @@
 
 % Common US-Main defines.
 
+-define( default_us_main_config_server_registration_name,
+		 us_main_config_server ).
+
+% As they should not clash:
+-define( default_us_main_config_server_registration_scope, local_only ).
+
+
 
 -define( us_main_contact_server_registration_name, us_main_contact_server ).
 
@@ -33,8 +40,11 @@
 -define( us_main_communication_server_registration_name,
 		 us_main_communication_server ).
 
-% Remote singleton expected:
--define( us_main_communication_server_registration_scope, global_only ).
+
+% A local instance expected on each node, possibly in link with another one
+% concentrating more communication solutions (such as SMS sending):
+%
+-define( us_main_communication_server_registration_scope, local_only ).
 
 
 
