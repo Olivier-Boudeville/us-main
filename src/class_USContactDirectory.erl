@@ -245,7 +245,7 @@
 	{ config_base_directory, maybe( bin_directory_path() ),
 	  "the base directory where all US configuration is to be found" },
 
-	{ us_config_server_pid, maybe( server_pid() ),
+	{ us_main_config_server_pid, maybe( server_pid() ),
 	  "the PID of the overall US configuration server" } ] ).
 
 
@@ -385,7 +385,7 @@ construct( State, ContactFilePath ) ->
 		{ contact_files, text_utils:ensure_binary( ContactFilePath ) },
 		{ execution_context, undefined },
 		{ config_base_directory, undefined },
-		{ us_config_server_pid,undefined } ] ),
+		{ us_main_config_server_pid,undefined } ] ),
 
 	?send_notice( ReadyState, "Constructed: " ++ to_string( ReadyState ) ),
 
@@ -464,7 +464,7 @@ get_contact_directory() ->
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
-	CfgServerPid = class_USConfigServer:get_us_config_server( State ),
+	USMainCfgServerPid = class_USMainConfigServer:get_us_main_config_server(),
 
 	% This contact directory server is not supposed to read more the US
 	% configuration file; it should request it to the overall configuration
@@ -472,7 +472,7 @@ load_and_apply_configuration( State ) ->
 	% possibly inconsistent reading/interpretation (and in order to declare
 	% itself in the same move):
 	%
-	CfgServerPid ! { getContactSettings, [], self() },
+	USMainCfgServerPid ! { getContactSettings, [], self() },
 
 	% No possible interleaving:
 	receive
@@ -491,7 +491,7 @@ load_and_apply_configuration( State ) ->
 				{ contact_files, ContactFiles },
 				{ execution_context, ExecContext },
 				{ config_base_directory, USCfgBinDir },
-				{ us_config_server_pid, CfgServerPid } ] )
+				{ us_main_config_server_pid, USMainCfgServerPid } ] )
 
 	end.
 
