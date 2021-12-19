@@ -97,6 +97,7 @@ The shorthand for ``Universal Server`` is ``us``.
 :raw-latex:`\pagebreak`
 
 
+.. _`US-Main configuration file`:
 
 -------------
 Configuration
@@ -104,34 +105,43 @@ Configuration
 
 The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
 
-So the information of the ``us.config`` file, found in the US Configuration directory, will apply.
+So the base information of the user-specified ``us.config`` file, found in the US Configuration directory, will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
 
-This allows the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_ to operate, notably in order to start, stop, or monitor a designated US-Main server.
+Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
+
+.. code:: erlang
+
+ {us_main_config_filename, "us-main-for-tests.config"}.
+
+
+This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
 
 
 
+-----------------------------------------
+Facilities Provided by this US-Main Layer
+-----------------------------------------
 
----------------------------------
-Facilities Provided by this Layer
----------------------------------
+These are mainly per-host administration services.
 
-These are mainly per-host administration services centralised here.
+
+
+Monitoring of Host Sensors
+==========================
+
+The objective here is to track the various (and numerous) sensors of interest that most modern computers include; should abnormal feedback be detected, it is to be automatically reported thanks to the `communication gateway`_ service.
 
 The `US Sensor Manager <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ tracks automatically many **hardware sensors**; at start-up it detects the main available ones, regarding:
 
-- **temperatures** at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); adding in the future GPU and RAM modules is considered
-- the **speed of the fans** known of the motherboard (as opposed to any case fan that would be directly connected to the power supply)
+- **temperatures** at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); in the future, adding GPU and RAM modules is considered
+- the **speed of the fans** known of the motherboard (as opposed to any case fan that would be directly connected to the power supply and that would remain invisible)
 - **chassis intrusion**, should such sensors be available
 
-(other sensors like batteries, network or USB interfaces, etc. are ignored as their measurements are mostly voltage levels)
+(other sensors like batteries, network or USB interfaces, etc. are at least currently ignored, as their measurements are mostly voltage levels)
 
-From then, the sensor manager periodically monitors these various measurement points: it filters bogus values, detects abnormal changes and reports to the user any related issue.
+From then, the sensor manager periodically monitors the various measurement points exhibited by such sensors: it does its best to filter bogus values, to detect abnormal changes and to report to the user any related issue.
 
-
-
-Sensor Tracking
-===============
 
 
 Preparing the Setup
@@ -145,31 +155,34 @@ package as well for DIMM information (see R2 below).
 
 The ``sensors-detect`` script must have been run once by root beforehand (select then only the default, safer options, by hitting Enter repeatedly or simply use its ``--auto`` option), in order to configure sensors.
 
-Configuration is typically stored in ``/etc/sensors3.conf``, and must exist prior to running the US server.
+Sensor configuration is typically stored in ``/etc/sensors3.conf``, and must exist prior to running the US-Main server.
 
 
 
 Mode of Operation of the Sensor Manager
 ---------------------------------------
 
-Once the sensor manager is started, **temperatures** are periodically tracked (current, minimum reported one, maximum, and average since start) and compared to thresholds (any critical temperatures reported by the chips, and alarm ones set by our sensor manager itself).
+Once the sensor manager is started, **temperatures** are periodically tracked (i.e. the currently reported one, plus minimum, maximum, and average since start) and compared to thresholds (any critical temperature as reported by the chips, and also ones set by our sensor manager itself in order to trigger alarms).
 
-Abnormal temperatures (that is, going above - or even below - relevant thresholds) are then automatically timestamped and reported to the user by the US logic (i.e. notified in traces with appropriate severity, and possibly sent to the user thanks to emails and/or SMS).
+Abnormal temperatures (that is, going above - or even below - relevant thresholds) are then automatically timestamped and reported to the user by the US logic (i.e. notified in traces with appropriate severity, and possibly sent to the user thanks to emails and/or SMS, see the `communication gateway`_ service).
 
-Similarly, any **fan** that would stop whereas not being PWM is reported, and the same applies should an **intrusion** happen.
+Similarly, any **fan** that would stop whereas not being PWM [#]_  is reported, and the same applies should an **intrusion** happen.
 
-Many sensors report bogus values; the US Sensor Manager does its best to filter them out appropriately.
+.. [#] PWM stands for `Pulse-width modulation <https://en.wikipedia.org/wiki/Pulse-width_modulation>`_; the speed of these fans can be controlled by their power source (typically the motherboard).
 
-This includes temperatures outside of any realistic ranges and an intrusion being reported from boot whereas it did not happen.
+
+Many sensors report bogus values; the US Sensor Manager does its best to filter them out appropriately. This includes temperatures outside of any realistic ranges and an intrusion being reported right from US-Main startup (whereas, supposedly, it had not happened already).
 
 
 
 Temperature monitoring
 ......................
 
-Temperatures are monitored based on all the sensors that are supported by ``lm-sensors`` (notably the motherboard and CPU ones).
+Temperatures are monitored based on all the sensors that are supported by ``lm-sensors`` (notably the motherboard and CPU ones). Many sensors report, even when they are correctly tuned, bogus values, and are more like very poor random generators (see how to mute_ them).
 
-In the future extra information sources could be used:
+The sensor manager considers that, when it starts, most temperatures are under control. So it will consider that any too low or too high temperature reported is bogus (refer to the ``{low,high}_bogus_temperature_threshold`` defines).
+
+In the future, extra information sources could be used:
 
 - Hard Disk Drives, thanks to hddtemp, libatasmart, udisks2 or smartmontools
 - DIMM Temperature sensors (see R2)
@@ -177,7 +190,7 @@ In the future extra information sources could be used:
 
 Refer to R5 for further details.
 
-`Platform Controller Hub <https://en.wikipedia.org/wiki/Platform_Controller_Hub>`_ (ex: ``pch_cannonlake-virtual-*``, ``pch_skylake-virtual-*``, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.
+Note that `Platform Controller Hub <https://en.wikipedia.org/wiki/Platform_Controller_Hub>`_ (ex: ``pch_cannonlake-virtual-*``, ``pch_skylake-virtual-*``, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.
 
 They may be reported as autonomous first-level entries, or as measurement points of the motherboard.
 
@@ -190,7 +203,7 @@ The rotation speed of the fans can be measured thanks to ``lm-sensors`` as well.
 
 Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (ex: stop/low/high) will remain invisible to all programs.
 
-Currently the sensor manager is not able to discriminate between fixed-width fans and PWM ones.
+Currently the sensor manager is not able to discriminate between fixed-speed fans and PWM ones.
 
 The ``pulses`` attribute (ex: ``fan2_pulses``) tells how many of such pulses are generated per revolution of the fan.
 
@@ -207,10 +220,42 @@ In this last case, prior to launching the US server, one may try to reset them; 
  -rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion1_alarm
  -rw-r--r-- 1 root root 4096 Jul  8 21:46 /sys/class/hwmon/hwmon3/intrusion1_beep
  $ echo 0 >| /sys/class/hwmon/hwmon3/intrusion1_alarm
- $ cat  /sys/class/hwmon/hwmon3/intrusion1_alarm
+ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
  1
 
 As shown, this may not succeed.
+
+
+
+.. _mute:
+
+Muting Faulty Sensors
+.....................
+
+Some sensors are hopelessly flawed and are bound to raise false alarms at any time.
+
+Once they triggered a sufficient number of them, the safest route is to mute them, which can be done thanks to the ``us_sensor_monitoring`` entry of the `US-Main configuration file`_.
+
+Let's suppose that a sensor whose identifier is ``{_SensorType=nct6792, _SensorInterface=isa, _SensorNumber="0a20"}`` shall have its measurement point ``AUXTIN1`` be muted, and that one wants to disable another one, ``{acpitz, acpi, "0"}``, as a whole (i.e. all its measurement points).
+
+It can be done with the following configuration entry:
+
+.. code:: erlang
+
+ {sensor_monitoring, [
+
+	% Here shall be specified a list of
+	% {sensor_id(), 'all_points' | [ measurement_point_name() ]} pairs
+	% in order to mute bogus sensors / measurement points:
+	%
+	{muted_measurement_points, [
+		{{nct6792, isa, "0a20"}, ["AUXTIN1"]},
+		{{acpitz, acpi, "0"}, all_points}
+							   ]}
+						]}.
+
+
+
 
 
 
@@ -250,8 +295,8 @@ See also the following resources:
 - `R6 <https://blog.hqcodeshop.fi/archives/276-Improving-Nuvoton-NCT6776-lm_sensors-output.html>`_: an example of preparation/tuning of one's sensors
 
 
-.. _`contact directory`:
 
+.. _`contact directory`:
 
 Contact Directory
 =================
@@ -264,7 +309,7 @@ Contact File Format
 
 Contact files are `ETF files <https://myriad.esperide.org/#etf>`_ that contain a range of information about persons and organisations of interest.
 
-Each non-commented line of these files shall be in the following type:
+Each non-commented line of these files shall be of the following format:
 
 .. code:: erlang
 
@@ -284,7 +329,7 @@ A typical contact line could then be:
 
  { 1, "James", "Bond", "007", "MI6 Agent 007", {17,5,1971},
   "+44 9 81 47 25 40", "+44 6 26 83 37 22", "james.bond@mi6.uk.org",
-  undefined, undefined, [ administrator, secret_agent ] }.
+  undefined, undefined, [administrator, secret_agent] }.
 
 
 See also our `test contact ETF file <https://github.com/Olivier-Boudeville/us-main/blob/master/test/test_contact_directory.etf>`_ as a full example thereof.
@@ -302,7 +347,6 @@ They may be mere symlinks pointing to contact files kept in VCS in other locatio
 
 .. _`communication gateway`:
 
-
 Communication Gateway
 =====================
 
@@ -310,12 +354,51 @@ The purpose of the US Communication Gateway is to enable (possibly two-way) exch
 
 Such communication is not to happen frow a web-based medium (see `US-Web <http://us-web.esperide.org>`_ for that), but through alternate modes such as SMS (relying then on `Ceylan-Mobile <http://mobile.esperide.org>`_) and/or e-mails (relying then on `the corresponding services of Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl>`_).
 
-For that, the correspondance between a US role (ex: ``administrator``) and actual user coordinates is established thanks to the `contact directory`_ service.
+For that, the correspondance between a US role (ex: ``administrator``) and actual user information is established thanks to the `contact directory`_ service.
 
 
 
 
+.. _`network infrastructure tracker`:
 
+Network Support Monitoring
+==========================
+
+This service allows to ensure that the local host (on which US-Main is running) enjoys a functional **network support**, in terms of:
+
+- ICMP probes (ping)
+- Internet (IP) connectivity
+- DNS resolution
+
+This is checked by ensuring periodically that a set of target hosts, specified as direct IP addresses and/or DNS names, can indeed be interacted with through the network.
+
+Of course any issue (typically outage of a given network service) is then reported by appropriate means (i.e. by SMS rather than by email then).
+
+Extra
+
+
+
+.. _`monitoring of online services`:
+
+Remote Monitoring of Online Services
+====================================
+
+The purpose here is to monitor online services (typically websites) provided by networked peers.
+
+Each service is tracked based on a set of information:
+
+- protocol: ``http``, ``https``, maybe in the future ``ftp`` or alike
+- base hostname, specified as a DNS name or an IP address
+- possibly a resource designator (ex: a specific URL) for the actual checking
+
+
+
+Next Services
+=============
+
+The following services are planned (some day) for addition:
+
+- UPS (`Uninterruptible Power Supply <https://en.wikipedia.org/wiki/Uninterruptible_power_supply>`_) monitoring, to be notified whenever a related event happens (typically a power failure from the electrical grid)
 
 
 
