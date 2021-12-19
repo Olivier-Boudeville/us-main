@@ -36,16 +36,27 @@
 -define( server_registration_name, ?MODULE ).
 
 
+% For the general_main_settings record:
+-include("class_USMainConfigServer.hrl").
 
-% Shorthand:
+
+% Shorthands:
+
+-type execution_target() :: basic_utils:execution_target().
 -type application_run_context() :: otp_utils:application_run_context().
+-type child_spec() :: supervisor:child_spec().
 
 
 
 % Implementation notes:
 %
-% Spawns automatically the US-Main Sensor Manager (which relies on the US-Common
-% infrastructure, notably its scheduler.
+% Spawns automatically the US-Main:
+%
+% - Configuration Server
+% - Contact Directory
+% - Communication Gateway
+% - Sensor Manager (which relies on the US-Common infrastructure, notably its
+% scheduler)
 
 
 
@@ -70,7 +81,7 @@ start_link( AppRunContext ) ->
 
 % @doc Initialises this OTP supervisor.
 -spec init( [ application_run_context() ] ) ->
-				{ 'ok', { supervisor:sup_flags(), supervisor:child_spec() } }.
+				{ 'ok', { supervisor:sup_flags(), [ child_spec() ] } }.
 init( _Args=[ AppRunContext ] ) ->
 
 	otp_utils:check_application_run_context( AppRunContext ),
@@ -88,76 +99,126 @@ init( _Args=[ AppRunContext ] ) ->
 
 	trace_bridge:register( BridgeSpec ),
 
-	trace_bridge:debug_fmt( "Starting us_main supervisor (run context: ~ts)...",
-							[ AppRunContext ] ),
+	ExecTarget = class_USConfigServer:get_execution_target(),
+
+	trace_bridge:debug_fmt( "Starting us_main supervisor (run context: ~ts; "
+		"execution target: ~ts)...", [ AppRunContext, ExecTarget ] ),
 
 	% Watchdog check every 15 minutes:
 	AggregatorPid ! { enableWatchdog, [ _PeriodInSecs=15*60 ] },
 
-	% The logic below shall better be in a (single) supervised child, for a
-	% better logic separation.
 
 	SupSettings = otp_utils:get_supervisor_settings(
 		% If a child process terminates, only that process is restarted:
 		_RestartStrategy=one_for_one,
 		class_USConfigServer:get_execution_target() ),
 
-	StartFun = start_link,
-	StartArgs = [],
+	% Four children; first is an OTP supervisor bridge in charge of the US-Main
+	% configuration server:
+	%
+	ConfigServerSpec = get_config_bridge_spec( ExecTarget ),
 
-	% Three children; first the contact directory:
-	ContactDirectorySpec = #{
+	% Second child, another supervisor bridge in charge of the (US-Main) contact
+	% directory:
+	%
+	ContactDirectorySpec = get_contact_directory_bridge_spec( ExecTarget ),
 
-		id => us_contact_directory,
+	% Third, a bridge in charge of the (US-Main) the communication manager:
+	CommGatewaySpec = get_communication_manager_bridge_spec( ExecTarget ),
 
-		start => { _ContactMod=class_USContactDirectory, StartFun, StartArgs },
+	% Fourth, a bridge in charge of the (US-Main, local) sensor manager:
+	SensorManagerSpec = get_sensor_manager_bridge_spec( ExecTarget ),
 
-		restart => permanent,
-
-		shutdown => 2000,
-
-		type => worker,
-
-		modules => [ class_USContactDirectory ] },
-
-
-	% Second the communication manager:
-	CommGatewaySpec = #{
-
-		id => us_communication_gateway,
-
-		start => { _CommMod=class_USCommunicationGateway, StartFun, StartArgs },
-
-		restart => permanent,
-
-		shutdown => 2000,
-
-		type => worker,
-
-		modules => [ class_USCommunicationGateway ] },
-
-
-	% Third the (local) sensor manager:
-	SensorManagerSpec = #{
-
-		id => us_sensor_manager,
-
-		start => { _SensorMod=class_USSensorManager, StartFun, StartArgs },
-
-		restart => permanent,
-
-		shutdown => 2000,
-
-		type => worker,
-
-		modules => [ class_USSensorManager ] },
-
-
-	ChildSpecs = [ ContactDirectorySpec, CommGatewaySpec, SensorManagerSpec ],
-
+	ChildSpecs = [ ConfigServerSpec, ContactDirectorySpec, CommGatewaySpec,
+				   SensorManagerSpec ],
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
 	%   "returning supervisor settings ~p and child specs ~p.",
 	%   [ SupSettings, ChildSpecs ] ),
 
 	{ ok, { SupSettings, ChildSpecs } }.
+
+
+
+% @doc Returns the bridge spec for the US-Main configuration server.
+-spec get_config_bridge_spec( execution_target() ) -> child_spec().
+get_config_bridge_spec( ExecTarget ) ->
+
+	#{ id => us_main_configuration_server_id,
+
+	   start => { _Mod=class_USMainConfigServer, _Fun=start_link, _Args=[] },
+
+	   % Always restarted in production:
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   % This child process is of the 'supervisor' type, and, in
+	   % https://erlang.org/doc, the
+	   % design_principles/sup_princ.html#child-specification page explains that
+	   % 'infinity' is required here (rather than, say, a 2-second termination
+	   % was allowed before brutal killing):
+	   %
+	   shutdown => infinity,
+
+	   % As it is a WOOPER instance (not for example a gen_server):
+	   type => supervisor,
+
+	   modules => [ class_USMainConfigServer ] }.
+
+
+
+% @doc Returns the bridge spec for the US-Main contact directory.
+-spec get_contact_directory_bridge_spec( execution_target() ) -> child_spec().
+get_contact_directory_bridge_spec( ExecTarget ) ->
+
+	% Refer to get_config_bridge_spec/1 for comments:
+	#{ id => us_contact_directory,
+
+	   start => { _Mod=class_USContactDirectory, _Fun=start_link, _Args=[] },
+
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   shutdown => infinity,
+
+	   type => supervisor,
+
+	   modules => [ class_USContactDirectory ] }.
+
+
+
+% @doc Returns the bridge spec for the US-Main communication manager.
+-spec get_communication_manager_bridge_spec( execution_target() ) ->
+			child_spec().
+get_communication_manager_bridge_spec( ExecTarget ) ->
+
+	% Refer to get_config_bridge_spec/1 for comments:
+	#{ id => us_communication_gateway,
+
+	   start =>
+			{ _Mod=class_USCommunicationGateway, _Fun=start_link, _Args=[] },
+
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   shutdown => infinity,
+
+	   type => supervisor,
+
+	   modules => [ class_USCommunicationGateway ] }.
+
+
+
+% @doc Returns the bridge spec for the US-Main (local) sensor manager.
+-spec get_sensor_manager_bridge_spec( execution_target() ) -> child_spec().
+get_sensor_manager_bridge_spec( ExecTarget ) ->
+
+	% Refer to get_config_bridge_spec/1 for comments:
+	#{ id => us_sensor_manager,
+
+	   start => { _Mod=class_USSensorManager, _Fun=start_link, _Args=[] },
+
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   shutdown => infinity,
+
+	   type => supervisor,
+
+	   modules => [ class_USSensorManager ] }.
