@@ -12,7 +12,7 @@ US_MAIN_TOP = .
 		stop stop-as-release                                               \
 		log cat-log tail-log                                               \
 		inspect monitor-development monitor-production                     \
-		kill shell test test-interactive test-ci                           \
+		kill shell test test-us-interactive test-ci                        \
 		clean clean-logs real-clean clean-otp-build-tree clean-rebar-cache \
 		info info-local info-conditionals info-deps
 
@@ -314,11 +314,11 @@ kill:
 	-@killall epmd run_erl 2>/dev/null || true
 
 
-test: test-interactive
+test: test-us-interactive
 
 
 # Shorthand:
-shell: test-interactive
+shell: test-us-interactive
 
 
 # us_main auto-booted:
@@ -326,7 +326,7 @@ shell: test-interactive
 # One may paste 'io:format( \"~s\", [ us_main:get_runtime_configuration() ] ).'
 # in following shell:
 #
-test-interactive: compile
+test-us-interactive: compile
 	@$(MYRIAD_REBAR_EXEC) shell
 
 
