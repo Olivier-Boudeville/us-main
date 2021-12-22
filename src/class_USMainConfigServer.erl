@@ -46,7 +46,7 @@
 -include("us_main_defines.hrl").
 
 
--export_type([  ]).
+-export_type([ general_main_settings/0 ]).
 
 
 
@@ -94,7 +94,8 @@
 
 % Implementation notes:
 %
-
+% The US-main configuration server is responsible for the parsing and sharing of
+% all US-Main configuration information.
 
 
 -type us_main_config_table() :: table( atom(), term() ).
@@ -157,9 +158,7 @@
 	%  "src, priv, ebin, etc. can be found)" },
 
 	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
-	  "(as absolute paths), whence contact information may be read" }
-
- ] ).
+	  "(as absolute paths), whence contact information may be read" } ] ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -337,7 +336,6 @@ load_and_apply_configuration( State ) ->
 
 		{ wooper_result, { BinCfgDir, ExecContext, MaybeMainCfgFilename } } ->
 
-
 			StoreState = setAttributes( State, [
 				{ execution_context, ExecContext },
 				{ nitrogen_roots, [] },
@@ -423,7 +421,6 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 
-
 % Helper section.
 
 
@@ -448,9 +445,9 @@ manage_registrations( _ConfigTable, State ) ->
 		"(scope: ~ts).", [ CfgRegName, CfgRegScope ] ),
 
 	setAttributes( State, [
-			% Inherited:
-			{ registration_name, CfgRegName },
-			{ registration_scope, CfgRegScope } ] ).
+		% Inherited:
+		{ registration_name, CfgRegName },
+		{ registration_scope, CfgRegScope } ] ).
 
 
 
@@ -474,7 +471,7 @@ manage_contacts( ConfigTable, State ) ->
 			BinAbsFiles = text_utils:ensure_binaries( Files ),
 
 			%?info_fmt( "User-configured contact files: ~ts",
-			%		   [ text_utils:binaries_to_string( BinAbsFiles ) ] ),
+			%           [ text_utils:binaries_to_string( BinAbsFiles ) ] ),
 
 			BinAbsFiles;
 
