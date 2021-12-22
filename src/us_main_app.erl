@@ -98,8 +98,8 @@ exec() ->
 
 
 
-% @doc Called when US-Main itself is started as an OTP application (as opposed
-% to natively, "manually", see exec/0).
+% @doc Called when US-Main itself is started as an OTP release (as opposed to
+% natively, "manually", see exec/0).
 %
 % The setup and dependency management shall have been done already by the OTP
 % release system. So here no ebin path to set or prerequisite applications to
@@ -127,7 +127,7 @@ start( StartType, StartArgs ) ->
 	%timer:sleep( 2000 ),
 
 	%basic_utils:display( "Prerequisites started; loaded applications:~n~p~n",
-	%					  [ application:loaded_applications() ] ),
+	%                     [ application:loaded_applications() ] ),
 
 	% See http://erlang.org/doc/design_principles/applications.html:
 	us_main_sup:start_link( as_otp_release ).
