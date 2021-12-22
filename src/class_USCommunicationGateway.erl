@@ -169,9 +169,9 @@ start_link() ->
 
 
 % @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/0 being executed.
+% start_link/0 above being executed.
 %
--spec init( list() ) -> { 'ok', pid(), State :: term() }
+-spec init( [] ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
