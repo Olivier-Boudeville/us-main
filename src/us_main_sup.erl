@@ -51,7 +51,6 @@
 % Implementation notes:
 %
 % Spawns automatically the US-Main:
-%
 % - Configuration Server
 % - Contact Directory
 % - Communication Gateway
@@ -146,7 +145,9 @@ get_config_bridge_spec( ExecTarget ) ->
 
 	#{ id => us_main_configuration_server_id,
 
-	   start => { _Mod=class_USMainConfigServer, _Fun=start_link, _Args=[] },
+	   start => { _Mod=class_USMainConfigServer, _Fun=start_link,
+				  _Args=[ _SupervisorPid=self(),
+						  _AppRunContext=as_otp_release ] },
 
 	   % Always restarted in production:
 	   restart => otp_utils:get_restart_setting( ExecTarget ),
