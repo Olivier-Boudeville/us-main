@@ -35,6 +35,22 @@
 -define( superclasses, [ class_USServer ] ).
 
 
+% This communication gateway is designed to be able to integrate to an OTP
+% supervision tree thanks to a supervisor bridge, whose behaviour is directly
+% defined in this module. See https://wooper.esperide.org/#otp-guidelines for
+% further information.
+%
+-behaviour(supervisor_bridge).
+
+
+% User API of the bridge:
+-export([ start_link/2 ]).
+
+% Callbacks of the supervisor_bridge behaviour:
+-export([ init/1, terminate/2 ]).
+
+-define( bridge_name, ?MODULE ).
+
 
 % For the general_main_settings records:
 -include("class_USMainConfigServer.hrl").
@@ -179,6 +195,62 @@
 
 % To define get_execution_target/0:
 -include_lib("myriad/include/utils/basic_utils.hrl").
+
+
+
+% Implementation of the supervisor_bridge behaviour, for the intermediate
+% process allowing to interface this US-Main configuration server with an OTP
+% supervision tree.
+
+
+% @doc Starts and links a supervision bridge for the US-Main configuration
+% server.
+%
+% Note: typically spawned as a supervised child of the US-Main root supervisor
+% (see us_main_sup:init/1), hence generally triggered by the application
+% initialisation.
+%
+-spec start_link( supervisor_pid(), application_run_context() ) -> term().
+start_link( SupervisorPid, AppRunContext ) ->
+
+	% Apparently not displayed in a release context, yet executed:
+	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+						"the communication gateway." ),
+
+	supervisor_bridge:start_link( { local, ?bridge_name },
+		_Module=?MODULE, _InitArgs=[ SupervisorPid, AppRunContext ] ).
+
+
+
+% @doc Callback to initialise this supervisor bridge, typically in answer to
+% start_link/2 above being executed.
+%
+-spec init( list() ) -> { 'ok', pid(), State :: term() }
+							| 'ignore' | { 'error', Error :: term() }.
+init( _Args=[ SupervisorPid, AppRunContext ] ) ->
+
+	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
+		"the configuration server (US-Main OTP root supervisor: ~w; "
+		"application run context: ~ts).",
+		[ self(), SupervisorPid, AppRunContext ] ),
+
+	% Not specifically synchronous:
+	CfgSrvPid = ?MODULE:new_link( SupervisorPid, AppRunContext ),
+
+	{ ok, CfgSrvPid, _InitialBridgeState=CfgSrvPid }.
+
+
+
+% @doc Callback to terminate this supervisor bridge.
+-spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
+terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
+
+	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+		"the configuration server (reason: ~w, configuration server: ~w).",
+		[ Reason, CfgSrvPid ] ),
+
+	% No synchronicity especially needed:
+	CfgSrvPid ! delete.
 
 
 
