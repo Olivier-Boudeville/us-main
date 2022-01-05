@@ -212,7 +212,9 @@ The ``pulses`` attribute (ex: ``fan2_pulses``) tells how many of such pulses are
 Chassis Intrusion
 .................
 
-In this last case, prior to launching the US server, one may try to reset them; for example, as root::
+In this last case, prior to launching the US server, one may try to reset them; for example, as root:
+
+.. code:: bash
 
  $ ls -l /sys/class/hwmon/hwmon*/intrusion*
  -rw-r--r-- 1 root root 4096 Jul 11 19:30 /sys/class/hwmon/hwmon3/intrusion0_alarm
