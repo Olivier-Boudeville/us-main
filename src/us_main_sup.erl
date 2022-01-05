@@ -20,7 +20,7 @@
 % Creation date: Wednesday, June 16, 2021.
 
 
-% @doc <b>Root OTP supervisor</b> of the us_main application.
+% @doc <b>Root OTP supervisor</b> of the US-Main application.
 %
 % Directly created by us_main_app.
 %
