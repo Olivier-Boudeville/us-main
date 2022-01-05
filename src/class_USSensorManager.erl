@@ -1,4 +1,4 @@
-% Copyright (C) 2021-2021 Olivier Boudeville
+% Copyright (C) 2021-2022 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
