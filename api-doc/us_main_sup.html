@@ -24,6 +24,10 @@
 <p><tt>application_run_context() = <a href="otp_utils.html#type-application_run_context">otp_utils:application_run_context()</a></tt></p>
 
 
+<h3 class="typedecl"><a name="type-child_spec">child_spec()</a></h3>
+<p><tt>child_spec() = <a href="http://www.erlang.org/edoc/doc/stdlib/doc/supervisor.html#type-child_spec">supervisor:child_spec()</a></tt></p>
+
+
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#init-1">init/1</a></td><td>Initialises this OTP supervisor.</td></tr>
 <tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Starts and links the US-Main supervisor, with OTP conventions.</td></tr>
@@ -34,7 +38,7 @@
 
 <h3 class="function"><a name="init-1">init/1</a></h3>
 <div class="spec">
-<p><tt>init(Args::[<a href="#type-application_run_context">application_run_context()</a>]) -&gt; {ok, {<a href="http://www.erlang.org/edoc/doc/stdlib/doc/supervisor.html#type-sup_flags">supervisor:sup_flags()</a>, <a href="http://www.erlang.org/edoc/doc/stdlib/doc/supervisor.html#type-child_spec">supervisor:child_spec()</a>}}</tt><br></p>
+<p><tt>init(Args::[<a href="#type-application_run_context">application_run_context()</a>]) -&gt; {ok, {<a href="http://www.erlang.org/edoc/doc/stdlib/doc/supervisor.html#type-sup_flags">supervisor:sup_flags()</a>, [<a href="#type-child_spec">child_spec()</a>]}}</tt><br></p>
 <p> </p>
 </div><p>Initialises this OTP supervisor.</p>
 

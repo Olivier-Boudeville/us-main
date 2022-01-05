@@ -34,8 +34,8 @@ conf/us_main.app.src; see start/2)</p>
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#exec-0">exec/0</a></td><td>Runs US-Main, directly (ex: as 'make us_main_exec') rather than as an OTP
  release.</td></tr>
-<tr><td valign="top"><a href="#start-2">start/2</a></td><td>Called when US-Main itself is started as an OTP application (as opposed 
-to natively, "manually", see exec/0).</td></tr>
+<tr><td valign="top"><a href="#start-2">start/2</a></td><td>Called when US-Main itself is started as an OTP release (as opposed to 
+natively, "manually", see exec/0).</td></tr>
 <tr><td valign="top"><a href="#start_application-1">start_application/1</a></td><td>Starts required applications (not used currently).</td></tr>
 <tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Stops the US-Main application.</td></tr>
 </table>
@@ -54,8 +54,8 @@ to natively, "manually", see exec/0).</td></tr>
 <div class="spec">
 <p><tt>start(StartType, StartArgs) -&gt; any()</tt></p>
 <p> </p>
-</div><p><p>Called when US-Main itself is started as an OTP application (as opposed 
-to natively, "manually", see exec/0).</p>
+</div><p><p>Called when US-Main itself is started as an OTP release (as opposed to 
+natively, "manually", see exec/0).</p>
 
  <p>The setup and dependency management shall have been done already by the OTP 
 release system. So here no ebin path to set or prerequisite applications to 
