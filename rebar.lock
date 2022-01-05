@@ -6,7 +6,7 @@
   0},
  {<<"myriad">>,
   {git,"git://github.com/Olivier-Boudeville/Ceylan-Myriad",
-       {ref,"2d6598f55d017185b3f857941ccaa37ebe426fed"}},
+       {ref,"2b4d59f7eeb7897fd679e2fa23e07295b0811a9d"}},
   0},
  {<<"seaplus">>,
   {git,"git://github.com/Olivier-Boudeville/Ceylan-Seaplus",
