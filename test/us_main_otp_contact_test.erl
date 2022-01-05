@@ -18,7 +18,9 @@
 %
 % Author: Olivier Boudeville (olivier.boudeville@esperide.com)
 % Creation date: Saturday, August 21, 2021.
-%
+
+
+% @doc Module in charge of the testing of the <b>US-Main contact services</b>.
 -module(us_main_otp_contact_test).
 
 
@@ -28,7 +30,7 @@
 
 
 
-% Actual test:
+% @doc Actual test.
 test_us_main_contact_management( OrderedAppNames ) ->
 
 	test_facilities:display( "Testing the contact-related services; for that "
@@ -100,7 +102,7 @@ test_us_main_contact_management( OrderedAppNames ) ->
 
 
 
-% Runs the tests.
+% @doc Runs the tests.
 %
 % Note that the {us_main, us_common, traces, wooper, myriad}.app files will have
 % to be found and used for this test to succeed: US-Web, US-Common, Traces,
