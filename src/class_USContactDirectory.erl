@@ -528,7 +528,7 @@ read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
 % contact table.
 %
 -spec add_contacts( [ term() ], user_table(), role_table(), wooper:state() ) ->
-		    { user_table(), role_table() }.
+			{ user_table(), role_table() }.
 add_contacts( _ReadTerms=[], UserTable, RoleTable, _State ) ->
 	{ UserTable, RoleTable };
 
