@@ -194,8 +194,14 @@ terminate( Reason, _BridgeState=CommGatewayPid )
 		"the communication gateway (reason: ~w, communication gateway: ~w).",
 		[ Reason, CommGatewayPid ] ),
 
-	% No synchronicity especially needed:
-	CommGatewayPid ! delete.
+	% Synchronicity needed, otherwise a potential race condition exists, leading
+	% this process to be killed by its OTP supervisor instead of being normally
+	% stopped:
+	%
+	wooper:delete_synchronously_instance( CommGatewayPid ),
+
+	trace_bridge:debug_fmt( "US-Main communication gateway ~w terminated.",
+						   [ CommGatewayPid ] ).
 
 
 
@@ -359,14 +365,14 @@ to_string( State ) ->
 
 	end,
 
-	CfgStr = case ?getAttr(us_config_server_pid) of
+	CfgStr = case ?getAttr(us_main_config_server_pid) of
 
 		% Would be surprising:
 		undefined ->
-			"not knowing a US config server";
+			"not knowing a US-Main configuration server";
 
 		CfgSrvPid ->
-			text_utils:format( "knowing the US config server ~w",
+			text_utils:format( "knowing the US-Main configuration server ~w",
 							   [ CfgSrvPid ] )
 
 	end,
