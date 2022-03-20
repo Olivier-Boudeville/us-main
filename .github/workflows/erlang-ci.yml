@@ -55,7 +55,7 @@ jobs:
         mkdir -p "${cfg_dir}"
         cd "${cfg_dir}"
         ln -s "${us_common_base_dir}/priv/for-testing/us.config"
-        #ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
+        ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
         # Needed so that Gammu can emulate a 3G device there:
         mkdir /tmp/gammu-dummy-device
         cd ${base_dir}
