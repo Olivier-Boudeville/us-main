@@ -50,11 +50,11 @@ fans), and of reporting any abnormal situation" ).
 
 % Two phases shall be considered:
 %
-%  - an initial pass through all measurement points of all sensors, in order to
-%  initialise properly them, based on a per-category exhaustive filtering
+% - an initial pass through all measurement points of all sensors, in order to
+% initialise properly them, based on a per-category exhaustive filtering
 %
-%  - regular update passes, just picking the enabled points, updating their
-%  status and possibly reporting any detected issue
+% - regular update passes, just picking the enabled points, updating their
+% status and possibly reporting any detected issue
 
 
 
@@ -711,14 +711,21 @@ init( _Args=[] ) ->
 % @doc Callback to terminate this supervisor bridge.
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=SensorManagerPid )
-  when is_pid( SensorManagerPid ) ->
+								when is_pid( SensorManagerPid ) ->
 
 	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
 		"the sensor management (reason: ~w, sensor manager: ~w).",
 		[ Reason, SensorManagerPid ] ),
 
-	% No synchronicity especially needed:
-	SensorManagerPid ! delete.
+	% Synchronicity needed, otherwise a potential race condition exists, leading
+	% this process to be killed by its OTP supervisor instead of being normally
+	% stopped:
+	%
+	wooper:delete_synchronously_instance( SensorManagerPid ),
+
+	trace_bridge:debug_fmt( "US-Main sensor manager ~w terminated.",
+						   [ SensorManagerPid ] ).
+
 
 
 
@@ -797,13 +804,13 @@ construct( State, SensorOutputFilePath ) ->
 
 	% Mostly bogus manager having some bogus (undefined) attributes:
 	InitState = setAttributes( SrvState, [
-					{ sensor_monitoring, false },
-					{ sensor_exec_pair, get_sensor_execution_pair( State ) },
-					{ parser_state, ParserState },
-					{ us_config_server_pid, undefined },
-					{ scheduler_pid, undefined },
-					{ task_id, undefined },
-					{ comm_gateway_pid, undefined } ] ),
+		{ sensor_monitoring, false },
+		{ sensor_exec_pair, get_sensor_execution_pair( State ) },
+		{ parser_state, ParserState },
+		{ us_config_server_pid, undefined },
+		{ scheduler_pid, undefined },
+		{ task_id, undefined },
+		{ comm_gateway_pid, undefined } ] ),
 
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
@@ -1232,7 +1239,7 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId,
 		filter_cpu_socket_json( SensorJSON ),
 
 	%debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
-	%			[ TempJSONTriples, OtherJSONTriples ] ),
+	%           [ TempJSONTriples, OtherJSONTriples ] ),
 
 	case OtherJSONTriples of
 
@@ -1325,7 +1332,7 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId,
 parse_initial_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 
 	%?debug_fmt( "JSON to parse for ~ts for disk:~n ~p",
-	%			[ sensor_id_to_string( SensorId ), SensorJSON ] ),
+	%            [ sensor_id_to_string( SensorId ), SensorJSON ] ),
 
 	{ TempJSONTriples, OtherJSONTriples } = filter_disk_json( SensorJSON ),
 
@@ -1630,12 +1637,12 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 	% So we just drop (and not check the prefix):
 	%case text_utils:split_after_prefix( _Prefix=BinPointName, AttrName ) of
 	%
-	%	no_prefix ->
-	%		?error_fmt( "Attribute '~ts' not prefixed with the name of "
-	%			"the current measurement point '~ts', thus ignored.",
-	%			[ AttrName, BinPointName ] ),
-	%		init_temp_point( T, BinPointName, TempData, SensorId, PointValueMap,
-	%						 State );
+	%   no_prefix ->
+	%       ?error_fmt( "Attribute '~ts' not prefixed with the name of "
+	%           "the current measurement point '~ts', thus ignored.",
+	%           [ AttrName, BinPointName ] ),
+	%       init_temp_point( T, BinPointName, TempData, SensorId, PointValueMap,
+	%                        State );
 
 	Separator = $_,
 
@@ -1887,8 +1894,7 @@ create_fan_data( PointValueMap, BinPointName, BinDesc, SensorId, State ) ->
 % (helper)
 % End of recursion, here with no fan reading:
 init_fan_point( _FanEntries=[], BinPointName,
-		FanData=#fan_data{ current=undefined }, SensorId,
-		State ) ->
+		FanData=#fan_data{ current=undefined }, SensorId, State ) ->
 
 	?error_fmt( "For fan measurement point '~ts' of ~ts, no fan "
 		"speed was reported; disabling this point.",
@@ -1930,11 +1936,11 @@ init_fan_point( _FanEntries=[], _BinPointName, FanData, _SensorId, _State  ) ->
 
 
 % Example of AttrNameBin/AttrValue entries for a "fan2" point:
-%		"fan2_input": 1048.000,
-%		"fan2_min": 0.000,
-%		"fan2_alarm": 0.000,
-%		"fan2_beep": 0.000,
-%		"fan2_pulses": 2.000
+%   "fan2_input": 1048.000,
+%   "fan2_min": 0.000,
+%   "fan2_alarm": 0.000,
+%   "fan2_beep": 0.000,
+%   "fan2_pulses": 2.000
 %
 init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				FanData, SensorId, State ) ->
@@ -2443,11 +2449,11 @@ update_data_table( PointsDataTable,
 							NewAvgCount = AvgCount + 1,
 
 							SyncTempData = TempData#temperature_data{
-											current=CurrentTemp,
-											min_reached=NewMinTemp,
-											max_reached=NewMaxTemp,
-											avg_sum=NewAvgSum,
-											avg_count=NewAvgCount },
+								current=CurrentTemp,
+								min_reached=NewMinTemp,
+								max_reached=NewMaxTemp,
+								avg_sum=NewAvgSum,
+								avg_count=NewAvgCount },
 
 							% Returns new temperature_data:
 							examine_temperature( PointNameBin, CurrentTemp,
