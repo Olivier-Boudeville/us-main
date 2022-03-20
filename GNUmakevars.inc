@@ -94,7 +94,7 @@ endif
 
 
 # The uniquely-defined version of this layer, for all uses, including rebar:
-US_MAIN_VERSION := 0.0.5
+US_MAIN_VERSION := 0.0.6
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
@@ -232,4 +232,8 @@ else
 			FORCE_EVAL := $(error Unable to find the build root of Ceylan-Mobile from '$(realpath .)'.)
 		endif
 	endif
+endif
+
+ifndef PREDECESSOR_LAYER_TOPS
+	PREDECESSOR_LAYER_TOPS := $(US_COMMON_TOP) $(MOBILE_TOP)
 endif
