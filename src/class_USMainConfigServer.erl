@@ -78,6 +78,9 @@
 
 
 -define( us_main_sensor_key, sensor_monitoring ).
+-define( us_main_app_base_dir_key, us_main_app_base_dir ).
+-define( us_main_log_dir_key, us_main_log_dir ).
+
 
 -define( us_main_muted_points_key, muted_measurement_points ).
 -define( us_main_all_points, all_points ).
@@ -86,9 +89,16 @@
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
--define( known_config_keys, [ ?us_main_sensor_key,
-							  ?us_main_contact_files_key ] ).
+-define( known_config_keys,
+		 [ ?us_main_sensor_key, ?us_main_app_base_dir_key,
+		   ?us_main_log_dir_key, ?us_main_contact_files_key ] ).
 
+
+% The last-resort environment variable:
+-define( us_main_app_env_variable, "US_MAIN_APP_BASE_DIR" ).
+
+
+-define( default_log_base_dir, "/var/log/universal-server/us-main" ).
 
 
 % Design notes:
@@ -124,19 +134,12 @@
 
 % Shorthands:
 
-%-type error_reason() :: basic_utils:error_reason().
+-type execution_context() :: basic_utils:execution_context().
 
 -type ustring() :: text_utils:ustring().
-%-type any_string() :: text_utils:any_string().
 
-%-type file_path() :: file_utils:file_path().
 -type bin_file_path() :: file_utils:bin_file_path().
-%-type directory_path() :: file_utils:directory_path().
 -type bin_directory_path() :: file_utils:bin_directory_path().
-%-type any_directory_path() :: file_utils:any_directory_path().
-
-%-type registration_name() :: naming_utils:registration_name().
-%-type registration_scope() :: naming_utils:registration_scope().
 
 -type supervisor_pid() :: otp_utils:supervisor_pid().
 -type application_run_context() :: otp_utils:application_run_context().
@@ -148,7 +151,7 @@
 % The class-specific attributes:
 -define( class_attributes, [
 
-	{ execution_context, basic_utils:execution_context(),
+	{ execution_context, execution_context(),
 	  "tells whether this server is to run in development or production mode" },
 
 	% As it impacts at least various paths:
@@ -169,9 +172,15 @@
 	  "the base directory where all US configuration is to be found "
 	  "(not the us_main/priv/conf internal directory)" },
 
-	%{ app_base_directory, bin_directory_path(),
-	%  "the base directory of the US-Main application (the root where "
-	%  "src, priv, ebin, etc. can be found)" },
+	{ app_base_directory, bin_directory_path(),
+	  "the base directory of the US-Main application (the root where "
+	  "src, priv, ebin, etc. can be found)" },
+
+	{ conf_directory, bin_directory_path(),
+	  "the US-Main internal configuration directory, 'us_main/priv/conf'" },
+
+	{ log_directory, bin_directory_path(), "the directory where (non-VM) US-Main
+	  logs shall be written, notabl traces" },
 
 	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
 	  "(as absolute paths), whence contact information may be read" } ] ).
@@ -249,8 +258,14 @@ terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
 		"the configuration server (reason: ~w, configuration server: ~w).",
 		[ Reason, CfgSrvPid ] ),
 
-	% No synchronicity especially needed:
-	CfgSrvPid ! delete.
+	% Synchronicity needed, otherwise a potential race condition exists, leading
+	% this process to be killed by its OTP supervisor instead of being normally
+	% stopped:
+	%
+	wooper:delete_synchronously_instance( CfgSrvPid ),
+
+	trace_bridge:debug_fmt( "US-Main configuration server ~w terminated.",
+							[ CfgSrvPid ] ).
 
 
 
@@ -289,8 +304,8 @@ construct( State, SupervisorPid, AppRunContext ) ->
 
 	% Other attributes set by the next function:
 	SupState = setAttributes( TraceState, [
-					{ app_run_context, AppRunContext },
-					{ us_main_supervisor_pid, SupervisorPid } ] ),
+		{ app_run_context, AppRunContext },
+		{ us_main_supervisor_pid, SupervisorPid } ] ),
 
 	CfgState = load_and_apply_configuration( SupState ),
 
@@ -303,8 +318,11 @@ construct( State, SupervisorPid, AppRunContext ) ->
 	% Now that the log directory is known, we can properly redirect the traces.
 	% Already a trace emitter:
 
-	NewBinTraceFilePath = file_utils:bin_join(
-		getAttribute( CfgState, log_directory ), "us_main.traces" ),
+	LogDirBin = getAttribute( CfgState, log_directory ),
+
+	file_utils:create_directory_if_not_existing( LogDirBin, create_parents ),
+
+	NewBinTraceFilePath = file_utils:bin_join( LogDirBin, "us_main.traces" ),
 
 	?send_debug_fmt( CfgState, "Requesting the renaming of trace file "
 					 "to '~ts'.", [ NewBinTraceFilePath ] ),
@@ -322,7 +340,6 @@ destruct( State ) ->
 
 	?debug( "Deletion initiated." ),
 
-
 	?info( "Deleted." ),
 	State.
 
@@ -339,6 +356,8 @@ destruct( State ) ->
 								const_request_return( general_main_settings() ).
 getMainConfigSettings( State ) ->
 
+	% TODO.
+
 	GenMainSettings = #general_main_settings{ },
 
 	?debug_fmt( "Returning the general main configuration settings:~n  ~p",
@@ -348,6 +367,16 @@ getMainConfigSettings( State ) ->
 
 
 
+% @doc Returns suitable contact settings (typically for the contact directory).
+-spec getContactSettings( wooper:state() ) ->
+			const_request_return( { bin_directory_path(), execution_context(),
+									[ bin_file_path() ] } ).
+getContactSettings( State ) ->
+
+	ContactSettings = { ?getAttr(config_base_directory),
+						?getAttr(execution_context), ?getAttr(contact_files) },
+
+	wooper:const_return_result( ContactSettings ).
 
 
 
@@ -366,8 +395,8 @@ onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
 onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 	% Typically: "Received exit message '{{nocatch,
-	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
-	%							FunName,Arity,Args,AtomCause}}, [...]}"
+	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
+	%       FunName,Arity,Args,AtomCause}}, [...]}"
 
 	?error_fmt( "Received and ignored an exit message '~p' from ~w.",
 				[ ExitType, CrashedPid ] ),
@@ -401,7 +430,7 @@ load_and_apply_configuration( State ) ->
 	% possibly inconsistent reading/interpretation (and in order to declare
 	% itself in the same move):
 	%
-	CfgServerPid ! { getMainRuntimeSettings, [], self() },
+	CfgServerPid ! { getUSMainRuntimeSettings, [], self() },
 
 	% No possible interleaving:
 	receive
@@ -410,11 +439,9 @@ load_and_apply_configuration( State ) ->
 
 			StoreState = setAttributes( State, [
 				{ execution_context, ExecContext },
-				{ nitrogen_roots, [] },
-				{ meta_main_settings, undefined },
 				{ config_base_directory, BinCfgDir },
-				{ us_config_server_pid, CfgServerPid },
-				{ log_analysis_settings, undefined } ] ),
+				{ log_directory, ?default_log_base_dir },
+				{ us_config_server_pid, CfgServerPid } ] ),
 
 			load_main_config( BinCfgDir, MaybeMainCfgFilename, StoreState )
 
@@ -452,7 +479,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 		false ->
 			% Possibly user/group permission issue:
-			?error_fmt( "No main configuration file found or accessible "
+			?error_fmt( "No US-Main configuration file found or accessible "
 				"(ex: symbolic link to an inaccessible file); tried '~ts'.",
 				[ MainCfgFilePath ] ),
 			throw( { us_main_config_file_not_found,
@@ -469,7 +496,11 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	RegState = manage_registrations( MainCfgTable, State ),
 
-	ContactState = manage_contacts( MainCfgTable, RegState ),
+	AppState = manage_app_base_directories( MainCfgTable, RegState ),
+
+	LogState = manage_log_directory( MainCfgTable, AppState ),
+
+	ContactState = manage_contacts( MainCfgTable, LogState ),
 
 	LicitKeys = ?known_config_keys,
 
@@ -521,6 +552,304 @@ manage_registrations( _ConfigTable, State ) ->
 		{ registration_name, CfgRegName },
 		{ registration_scope, CfgRegScope } ] ).
 
+
+
+% @doc Manages any user-configured application base directory, and sets related
+% directories.
+%
+-spec manage_app_base_directories( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_app_base_directories( ConfigTable, State ) ->
+
+	% As opposed to, say, start/stop script, the Erlang code does not care so
+	% much about these directories, so warnings, not errors, were issued if
+	% not found (the US framework being also launchable thanks to, for example,
+	% 'make debug'). We finally opted for a stricter policy, as errors could be
+	% induced afterwards.
+
+	AppRunContext = ?getAttr(app_run_context),
+
+	MaybeConfBaseDir = case table:lookup_entry( ?us_main_app_base_dir_key,
+												ConfigTable ) of
+
+		key_not_found ->
+			undefined;
+
+		{ value, D } when is_list( D ) ->
+			?info_fmt( "User-configured US-Main application base directory "
+					   "is '~ts'.", [ D ] ),
+			D;
+
+		{ value, InvalidDir }  ->
+			?error_fmt( "Read invalid user-configured US-Main application base "
+						"directory: '~p'.", [ InvalidDir ] ),
+			throw( { invalid_us_main_app_base_directory, InvalidDir,
+					 ?us_main_app_base_dir_key, AppRunContext } )
+
+	end,
+
+	MaybeBaseDir = case MaybeConfBaseDir of
+
+		undefined ->
+			case system_utils:get_environment_variable(
+					?us_main_app_env_variable ) of
+
+				false ->
+					undefined;
+
+				% Might be set, yet to an empty string, typically because of
+				% US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}":
+				%
+				"" ->
+					undefined;
+
+				EnvDir ->
+					?info_fmt( "No user-configured US-Main application base "
+						"directory set in configuration file, using the value "
+						"of the '~ts' environment variable: '~ts'.",
+						[ ?us_main_app_env_variable, EnvDir ] ),
+					EnvDir
+
+			end;
+
+		_ ->
+			MaybeConfBaseDir
+
+	end,
+
+	RawBaseDir = case MaybeBaseDir of
+
+		undefined ->
+			guess_app_dir( AppRunContext, State );
+
+		_ ->
+			MaybeBaseDir
+
+	end,
+
+	BaseDir = file_utils:ensure_path_is_absolute( RawBaseDir ),
+
+	% We check not only that this candidate app directory exists, but also that
+	% it is a right one, expecting to have a 'priv' direct subdirectory then:
+
+	MaybeBaseBinDir =
+			case file_utils:is_existing_directory_or_link( BaseDir ) of
+
+		true ->
+			BinBaseDir = text_utils:string_to_binary( BaseDir ),
+			case AppRunContext of
+
+				as_otp_release ->
+					% As, if run as a release, it may end with a version (ex:
+					% "us_main-0.0.1") or as a "us_main-latest" symlink thereof:
+					%
+					case filename:basename( BaseDir ) of
+
+						"us_main" ++ _ ->
+							?info_fmt( "US-Main (release) application base "
+								"directory set to '~ts'.", [ BaseDir ] ),
+							BinBaseDir;
+
+						_Other ->
+							%?warning_fmt( "The US-Main application base "
+							%  "directory '~ts' does not seem legit (it "
+							%  "should end with 'us_main'), thus considering "
+							%  "knowing none.", [ BaseDir ] ),
+							%undefined
+							throw( { incorrect_us_main_app_base_directory,
+									 BaseDir, ?us_main_app_base_dir_key,
+									 AppRunContext } )
+
+					end;
+
+				as_native ->
+					case file_utils:get_last_path_element( BaseDir ) of
+
+						"us_main" ->
+							?info_fmt( "US-Main (native) application base "
+									   "directory set to '~ts'.", [ BaseDir ] ),
+							BinBaseDir;
+
+						_Other ->
+							throw( { incorrect_us_main_app_base_directory,
+									 BaseDir, ?us_main_app_base_dir_key,
+									 AppRunContext } )
+
+					end
+
+			end,
+
+			% Final paranoid check:
+			PrivDir = file_utils:join( BinBaseDir, "priv" ),
+			case file_utils:is_existing_directory_or_link( PrivDir ) of
+
+				true ->
+					BinBaseDir;
+
+				false ->
+					?error_fmt( "The determined US-Main application base "
+						"directory '~ts' does not have a 'priv' subdirectory.",
+						[ BinBaseDir ] ),
+					throw( { no_priv_us_main_app_base_directory, BaseDir,
+							 ?us_main_app_base_dir_key } )
+
+			end;
+
+
+		false ->
+			%?warning_fmt( "The US-Main application base directory '~ts' does "
+			%   "not exist, thus considering knowing none.", [ BaseDir ] ),
+			%undefined
+			throw( { non_existing_us_main_app_base_directory, BaseDir,
+					 ?us_main_app_base_dir_key } )
+
+
+	end,
+
+	% The internal US-Main directory (see conf_directory) used to be derived
+	% from the app base one (as a 'conf' subdirectory thereof), yet because of
+	% that it was not included in releases. So instead this 'conf' directory is
+	% a subdirectory of 'priv':
+	%
+	% (for some reason, using this module, although it is listed in us_main.app,
+	% results with code:priv_dir/1 in a bad_name exception)
+	%
+	%TargetMod = ?MODULE,
+	%TargetMod = us_main_app,
+	TargetMod = us_main_sup,
+
+	ConfBinDir = file_utils:bin_join(
+		otp_utils:get_priv_root( TargetMod, _BeSilent=true ), "conf" ),
+
+	% Set in all cases:
+	setAttributes( State, [ { app_base_directory, MaybeBaseBinDir },
+							{ conf_directory, ConfBinDir } ] ).
+
+
+
+% @doc Tries to guess the US-Main application directory.
+guess_app_dir( AppRunContext, State ) ->
+
+	CurrentDir = file_utils:get_current_directory(),
+
+	GuessingDir = case AppRunContext of
+
+		as_otp_release ->
+			% In [...]/us_main/_build/default/rel/us_main, and we want the first
+			% us_main, so:
+			%
+			OTPPath = file_utils:normalise_path( file_utils:join(
+							[ CurrentDir, "..", "..", "..", ".." ] ) ),
+
+			case file_utils:get_base_path( OTPPath ) of
+
+				"us_main" ->
+					% Looks good:
+					OTPPath;
+
+				% Not found; another try, if running as a test (from
+				% us_main/test):
+				%
+				_ ->
+					file_utils:get_base_path( CurrentDir )
+
+			end;
+
+		as_native ->
+			% In the case of a native build, running from us_main/src (covers
+			% also the case where a test is being run from us_main/test), so:
+			%
+			file_utils:get_base_path( CurrentDir )
+
+	end,
+
+	% Was a warning:
+	?info_fmt( "No user-configured US-Main application base directory set "
+		"(neither in configuration file nor through the '~ts' environment "
+		"variable), hence trying to guess it, in a ~ts context, as '~ts'.",
+		[ ?us_main_app_env_variable, AppRunContext, GuessingDir ] ),
+
+	GuessingDir.
+
+
+
+
+% @doc Manages any user-configured log directory to rely on, creating it if
+% necessary.
+%
+-spec manage_log_directory( us_main_config_table(), wooper:state() ) ->
+								wooper:state().
+manage_log_directory( ConfigTable, State ) ->
+
+	% Longer paths if defined as relative, yet finally preferred as
+	% '/var/log/universal-server/us-main' (rather than
+	% '/var/log/universal-server') as it allows separating US-Main from any
+	% other US-* services:
+	%
+	LogDir = case table:lookup_entry( ?us_main_log_dir_key, ConfigTable ) of
+
+		key_not_found ->
+			% Bound to require special permissions:
+			?default_log_base_dir;
+
+		{ value, D } when is_list( D ) ->
+			file_utils:ensure_path_is_absolute( D,
+												?getAttr(app_base_directory) );
+
+		{ value, InvalidDir }  ->
+			?error_fmt( "Read invalid user-configured log directory: '~p'.",
+						[ InvalidDir ] ),
+			throw( { invalid_log_directory, InvalidDir, ?us_main_log_dir_key } )
+
+	end,
+
+	case file_utils:is_existing_directory( LogDir ) of
+
+		true ->
+			ok;
+
+		false ->
+
+			%throw( { non_existing_base_us_web_log_directory, LogDir } )
+
+			?warning_fmt( "The base US-Web log directory '~ts' does not exist, "
+						  "creating it.", [ LogDir ] ),
+
+			% As for example the default path would require to create
+			% /var/log/universal-server/us-web:
+			%
+			file_utils:create_directory_if_not_existing( LogDir,
+														 create_parents )
+
+	end,
+
+	% Enforce security in all cases ("chmod 700"); if it fails here, the
+	% combined path/user configuration must be incorrect; however we might not
+	% be the owner of that directory (ex: if the us-web user is different from
+	% the US-Common one).
+	%
+	% So:
+	%
+	CurrentUserId = system_utils:get_user_id(),
+
+	case file_utils:get_owner_of( LogDir ) of
+
+		CurrentUserId ->
+
+			Perms = [ owner_read, owner_write, owner_execute,
+					  group_read, group_write, group_execute ],
+
+			file_utils:change_permissions( LogDir, Perms );
+
+		% Not owned, do nothing:
+		_OtherId ->
+			ok
+
+	end,
+
+	BinLogDir = text_utils:ensure_binary( LogDir ),
+
+	setAttribute( State, log_directory, BinLogDir ).
 
 
 
