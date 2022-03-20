@@ -85,12 +85,23 @@ test_us_main_sensor_management( OrderedAppNames ) ->
 	test_facilities:display( "Waiting over." ),
 
 
-	?test_info( "Successful test (not fully ended yet) of the US-Web OTP "
+	?test_info( "Successful test (not fully ended yet) of the US-Main OTP "
 				"application." ),
 
-	% Including US-Web:
+	% Including US-Main:
 	?test_info( "Stopping all user applications." ),
 	otp_utils:stop_user_applications( OrderedAppNames ),
+
+	% Not able to use Traces anymore:
+	trace_utils:debug_fmt( "Waiting for the termination of the US-Main "
+						   "sensor manager (~w).", [ SensorManagerPid ] ),
+
+	receive
+
+		{'EXIT', SensorManagerPid, normal } ->
+			ok
+
+	end,
 
 	% None expected to be left:
 	basic_utils:check_no_pending_message(),

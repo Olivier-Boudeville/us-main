@@ -16,7 +16,7 @@
 % You should have received a copy of the GNU Affero General Public License along
 % with this program. If not, see <http://www.gnu.org/licenses/>.
 %
-% Author: Olivier Boudeville (olivier.boudeville@esperide.com)
+% Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Saturday, August 21, 2021.
 
 
@@ -87,27 +87,38 @@ test_us_main_contact_management( OrderedAppNames ) ->
 	test_facilities:display( "Waiting over." ),
 
 
-	?test_info( "Successful test (not fully ended yet) of the US-Web OTP "
+	?test_info( "Successful test (not fully ended yet) of the US-Main OTP "
 				"application." ),
 
-	% Including US-Web:
+	% Including US-Main:
 	?test_info( "Stopping all user applications." ),
 	otp_utils:stop_user_applications( OrderedAppNames ),
+
+	% Not able to use Traces anymore:
+	trace_utils:debug_fmt( "Waiting for the termination of the US-Main "
+						   "contact directory (~w).", [ ContactDirectoryPid ] ),
+
+	receive
+
+		{'EXIT', ContactDirectoryPid, normal } ->
+			ok
+
+	end,
 
 	% None expected to be left:
 	basic_utils:check_no_pending_message(),
 
 	test_facilities:display(
-		"Successful end of test of the US-Web OTP application." ).
+		"Successful end of test of the US-Main OTP application." ).
 
 
 
 % @doc Runs the tests.
 %
-% Note that the {us_main, us_common, traces, wooper, myriad}.app files will have
-% to be found and used for this test to succeed: US-Web, US-Common, Traces,
-% WOOPER and Myriad must be already available as prerequisite, fully-built OTP
-% applications.
+% Note that the {us_main, us_common, mobile, seaplus, traces, wooper,
+% myriad}.app files will have to be found and used for this test to succeed:
+% US-Main, US-Common, Mobile, Seaplus, Traces, WOOPER and Myriad must be already
+% available as prerequisite, fully-built OTP applications.
 %
 -spec run() -> no_return().
 run() ->

@@ -1,4 +1,4 @@
-% Copyright (C) 2021-2022 Olivier Boudeville
+% Copyright (C) 2020-2022 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
@@ -27,12 +27,12 @@
 %
 -module(us_main_stop_app).
 
-% For exec/0 export:
--include_lib("myriad/include/app_facilities.hrl").
+
+-export([ exec/0 ]).
+
 
 % For update_code_path_for_myriad/0 and all:
 -include_lib("myriad/include/myriad_script_include.hrl").
-
 
 
 % For trace_aggregator_name:
