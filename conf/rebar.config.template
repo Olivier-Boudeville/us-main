@@ -30,20 +30,23 @@
 %
 {deps, [
 
-	{myriad,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Myriad",
-				   {branch, "master"}}},
-	{wooper,    {git, "git://github.com/Olivier-Boudeville/Ceylan-WOOPER",
-				   {branch, "master"}}},
-	{traces,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Traces",
-				   {branch, "master"}}},
+	{myriad,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Myriad.git",
+					{branch, "master"}}},
 
-	{seaplus,   {git, "git://github.com/Olivier-Boudeville/Ceylan-Seaplus",
-				   {branch, "master"}}},
-	{mobile,    {git, "git://github.com/Olivier-Boudeville/Ceylan-Mobile",
-				   {branch, "master"}}},
+	{wooper,    {git, "https://github.com/Olivier-Boudeville/Ceylan-WOOPER.git",
+					{branch, "master"}}},
 
-	{us_common, {git, "git://github.com/Olivier-Boudeville/us-common",
-				   {branch, "master"}}},
+	{traces,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Traces.git",
+					{branch, "master"}}},
+
+	{seaplus,   {git, "https://github.com/Olivier-Boudeville/Ceylan-Seaplus.git",
+					{branch, "master"}}},
+
+	{mobile,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Mobile.git",
+					{branch, "master"}}},
+
+	{us_common, {git, "https://github.com/Olivier-Boudeville/us-common.git",
+					{branch, "master"}}},
 
 	% One of these two JSON parsers is needed for US-Sensor:
 	{jsx, "3.0.0"}
