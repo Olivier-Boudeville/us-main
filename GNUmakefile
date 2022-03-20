@@ -314,9 +314,6 @@ kill:
 	-@killall epmd run_erl 2>/dev/null || true
 
 
-test: test-us-interactive
-
-
 # Shorthand:
 shell: test-us-interactive
 
