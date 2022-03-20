@@ -68,8 +68,8 @@
 exec() ->
 
 	% Expecting Myriad to be already available in this branch:
-	trace_bridge:info(
-		"Starting the US-Main application natively (not as a release)." ),
+	trace_bridge:info( "Starting the US-Main application natively "
+					   "(ex: not as an OTP release)." ),
 
 	cond_utils:if_defined( us_main_debug_execution,
 		trace_bridge:debug_fmt( "Initially, the ~ts",
@@ -89,6 +89,8 @@ exec() ->
 	% applications are compiled and preparing their starting; no application
 	% blacklisting done here.
 	%
+	% Includes the us_main application itself:
+
 	OrderedAppNames =
 		otp_utils:prepare_for_execution( _ThisApp=us_main, BuildRootDir ),
 
