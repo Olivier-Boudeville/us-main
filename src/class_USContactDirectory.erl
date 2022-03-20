@@ -318,8 +318,14 @@ terminate( Reason, _BridgeState=ContactDirectoryPid )
 		"the contact directory (reason: ~w, contact directory: ~w).",
 		[ Reason, ContactDirectoryPid ] ),
 
-	% No synchronicity especially needed:
-	ContactDirectoryPid ! delete.
+	% Synchronicity needed, otherwise a potential race condition exists, leading
+	% this process to be killed by its OTP supervisor instead of being normally
+	% stopped:
+	%
+	wooper:delete_synchronously_instance( ContactDirectoryPid ),
+
+	trace_bridge:debug_fmt( "US-Main contact directory ~w terminated.",
+						   [ ContactDirectoryPid ] ).
 
 
 
@@ -782,8 +788,8 @@ vet_contacts_fifth( Line, T, Settings, UserId, RolesT, UserTable, RoleTable,
 					add_contacts( T, UserTable, RoleTable, State );
 
 				false ->
-					NewUserTable = table:add_entry( UserId, NewSettings,
-													UserTable ),
+					NewUserTable =
+						table:add_entry( UserId, NewSettings, UserTable ),
 
 					NewRoleTable = lists:foldl(
 						fun( R, RT ) ->
@@ -814,9 +820,9 @@ read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, RoleTable,
 		fun( CfgFilePath, { UserTableAcc, RoleTableAcc } ) ->
 			read_contact_file( CfgFilePath, USCfgBinDir, UserTableAcc,
 							   RoleTableAcc, State )
-	  end,
-	  _Acc0={ UserTable, RoleTable },
-	  _List=ContactFilePaths ).
+		end,
+		_Acc0={ UserTable, RoleTable },
+		_List=ContactFilePaths ).
 
 
 
