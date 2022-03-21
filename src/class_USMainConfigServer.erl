@@ -645,7 +645,14 @@ manage_app_base_directories( ConfigTable, State ) ->
 					%
 					case filename:basename( BaseDir ) of
 
+						% From a clone with our conventions:
 						"us_main" ++ _ ->
+							?info_fmt( "US-Main (release) application base "
+								"directory set to '~ts'.", [ BaseDir ] ),
+							BinBaseDir;
+
+						% For a clone to a default directory (ex: in CI):
+						"us-main" ++ _ ->
 							?info_fmt( "US-Main (release) application base "
 								"directory set to '~ts'.", [ BaseDir ] ),
 							BinBaseDir;
