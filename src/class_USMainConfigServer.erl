@@ -641,17 +641,18 @@ manage_app_base_directories( ConfigTable, State ) ->
 
 				as_otp_release ->
 					% As, if run as a release, it may end with a version (ex:
-					% "us_main-0.0.1") or as a "us_main-latest" symlink thereof:
+					% "us_main-0.0.1"), or a "us_main-latest" symlink thereof,
+					% or directly as "us-main":
 					%
 					case filename:basename( BaseDir ) of
 
-						% From a clone with our conventions:
+						% From a clone made with our deployment conventions:
 						"us_main" ++ _ ->
 							?info_fmt( "US-Main (release) application base "
 								"directory set to '~ts'.", [ BaseDir ] ),
 							BinBaseDir;
 
-						% For a clone to a default directory (ex: in CI):
+						% For a clone made to a default directory (ex: by CI):
 						"us-main" ++ _ ->
 							?info_fmt( "US-Main (release) application base "
 								"directory set to '~ts'.", [ BaseDir ] ),
