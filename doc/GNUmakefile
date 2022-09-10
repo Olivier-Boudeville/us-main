@@ -77,9 +77,12 @@ export-doc-to-official: clean-doc create-links doc
 	@/bin/scp $(SP) -r $(WEB_CONTENT) $(WEB_SRV):$(WEB_ROOT)/US-Main
 
 
+# H option for 'cp', so that any local MathJax is copied (not symlinked to a
+# local directory) in target branch:
+#
 export-doc-to-mirror: clean-doc create-links doc
 	@echo "   Exporting US-Main documentation to mirror website in $(US_MAIN_WEB_MIRROR_BRANCH)"
-	@/bin/cp -rf $(WEB_CONTENT) $(US_MAIN_WEB_MIRROR_BRANCH) && cd $(US_MAIN_WEB_MIRROR_BRANCH) && git add . && git merge -s ours && git commit -m "US-Main doc updated." && git push && git pull --ff-only
+	@/bin/cp -rfH $(WEB_CONTENT) $(US_MAIN_WEB_MIRROR_BRANCH) && cd $(US_MAIN_WEB_MIRROR_BRANCH) && git add . && git merge -s ours && git commit -m "US-Main doc updated." && git push && git pull --ff-only
 
 
 
