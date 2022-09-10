@@ -255,7 +255,7 @@ get_target_node_names( Cfg ) ->
 % @doc Returns the TCP port range to use (if any).
 get_tcp_port_range( Cfg ) ->
 
-	MaybePortRange = list_table:get_value_with_defaults( _K=tcp_port_range,
+	MaybePortRange = list_table:get_value_with_default( _K=tcp_port_range,
 												_Default=undefined, Cfg ),
 
 	%trace_utils:debug_fmt( "TCP port range: ~p.", [ MaybePortRange ] ),
