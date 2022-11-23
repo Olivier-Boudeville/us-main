@@ -62,10 +62,6 @@
 
 
 
-% Implementation notes:
-%
-
-
 % This communication gateway is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
 % defined in this module. See https://wooper.esperide.org/#otp-guidelines for
@@ -129,11 +125,8 @@
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.Communication" ).
+-define( trace_emitter_categorization, "US.US-Main.Communication" ).
 
-
-% Exported helpers:
--export([]).
 
 
 % Note: include order matters.
@@ -188,7 +181,7 @@ init( _Args=[] ) ->
 % @doc Callback to terminate this supervisor bridge.
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=CommGatewayPid )
-  when is_pid( CommGatewayPid ) ->
+								when is_pid( CommGatewayPid ) ->
 
 	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
 		"the communication gateway (reason: ~w, communication gateway: ~w).",

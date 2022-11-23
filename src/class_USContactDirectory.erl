@@ -251,11 +251,8 @@
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.Contact" ).
+-define( trace_emitter_categorization, "US.US-Main.Contact" ).
 
-
-% Exported helpers:
--export([]).
 
 
 % Note: include order matters.
@@ -588,10 +585,10 @@ add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, NicknameT,
 
 								MaybeBinNickname ->
 									Settings = #user_settings{
-												id=UserId,
-												first_name=MaybeBinFirstName,
-												last_name=BinLastName,
-												nickname=MaybeBinNickname },
+										id=UserId,
+										first_name=MaybeBinFirstName,
+										last_name=BinLastName,
+										nickname=MaybeBinNickname },
 
 									vet_contacts_first( Line, T, Settings,
 										UserId, StatusT, CommentT, BirthDateT,

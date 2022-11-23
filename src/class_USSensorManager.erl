@@ -82,7 +82,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 % Note that map_hashtable instances are explicitly mentioned instead of tables
-% as this is the actual type returned by the json_utils.
+% as this is the actual type returned by the json_utils module.
 
 
 % Section about JSON data being read.
@@ -103,7 +103,7 @@ fans), and of reporting any abnormal situation" ).
 -type json_point_map() :: map_hashtable:map_hashtable( measurement_point_name(),
 													   point_attribute_map() ).
 % Table associating, to a measurement point (ex: `<<"Core 0">>'), a table of the
-% associated attributes (i.e. a point_attribute_map/0).
+% associated attributes (that is a point_attribute_map/0).
 
 
 -type json_point_entry() :: { measurement_point_name(), point_attribute_map() }.
@@ -641,7 +641,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.Sensors" ).
+-define( trace_emitter_categorization, "US.US-Main.Sensors" ).
 
 
 % Exported helpers:
@@ -938,7 +938,6 @@ get_sensor_execution_pair( State ) ->
 	SensorExecPath = case executable_utils:lookup_executable( SensorExec ) of
 
 		false ->
-
 			PathVar =
 				system_utils:get_environment_variable_for_executable_lookup(),
 
@@ -974,17 +973,15 @@ get_sensor_execution_pair( State ) ->
 initialise_json_support( State ) ->
 
 	% We will interpret the JSON outputs of sensors, so:
-	case json_utils:is_parser_available() of
+	json_utils:is_parser_available() orelse
+		begin
 
-		true ->
-			ok;
-
-		false ->
 			?error( "No JSON parser found available. "
 						++ system_utils:get_json_unavailability_hint() ),
-			throw( no_json_backend )
 
-	end,
+			throw( no_json_backend )
+				
+		end,
 
 	ParserState = json_utils:start_parser(),
 
@@ -1241,19 +1238,12 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId,
 	%debug_fmt( "For cpu_socket: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
 	%           [ TempJSONTriples, OtherJSONTriples ] ),
 
-	case OtherJSONTriples of
-
-		[] ->
-			ok;
-
-		_ ->
-			?warning_fmt( "Following ~B CPU-socket measurement points "
-				"could not be categorised for '~ts': ~ts.",
-				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
-				  text_utils:strings_to_string( [ json_triple_to_string( JT )
-								|| JT <- OtherJSONTriples ] ) ] )
-
-	end,
+	OtherJSONTriples =:= [] orelse
+		?warning_fmt( "Following ~B CPU-socket measurement points "
+			"could not be categorised for '~ts': ~ts.",
+			[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+			  text_utils:strings_to_string( [ json_triple_to_string( JT )
+							|| JT <- OtherJSONTriples ] ) ] ),
 
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
@@ -1271,20 +1261,13 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu, SensorId, State ) ->
 	%?debug_fmt( "For cpu: TempJSONTriples: ~p~nOtherJSONTriples: ~p",
 	%            [ TempJSONTriples, OtherJSONTriples ] ),
 
-	case OtherJSONTriples of
-
-		[] ->
-			ok;
-
-		_ ->
-			?warning_fmt( "Following ~B CPU measurements points "
-				"could not be categorised for '~ts': ~ts.",
-				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
-				  text_utils:strings_to_string(
-					[ json_triple_to_string( JT )
-								|| JT <- OtherJSONTriples ] ) ] )
-
-	end,
+	OtherJSONTriples =:= [] orelse
+		?warning_fmt( "Following ~B CPU measurements points "
+			"could not be categorised for '~ts': ~ts.",
+			[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+			  text_utils:strings_to_string(
+				[ json_triple_to_string( JT )
+							|| JT <- OtherJSONTriples ] ) ] ),
 
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
@@ -1304,20 +1287,13 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=motherboard, SensorId,
 	%   [ TempJSONTriples, FanJSONTriples, IntrusionJSONTriples,
 	%     OtherJSONTriples ] ),
 
-	case OtherJSONTriples of
-
-		[] ->
-			ok;
-
-		_ ->
-			?warning_fmt( "Following ~B motherboard measurements points "
-				"could not be categorised for '~ts': ~ts.",
-				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
-				  text_utils:strings_to_string(
-					[ json_triple_to_string( JT )
-								|| JT <- OtherJSONTriples ] ) ] )
-
-	end,
+	OtherJSONTriples =:= [] orelse
+		?warning_fmt( "Following ~B motherboard measurements points "
+			"could not be categorised for '~ts': ~ts.",
+			[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+			  text_utils:strings_to_string(
+				[ json_triple_to_string( JT )
+							|| JT <- OtherJSONTriples ] ) ] ),
 
 	TempDataTable = register_temperature_points( TempJSONTriples,
 								_EmptyDataTable=table:new(), SensorId, State ),
@@ -1339,20 +1315,13 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=disk, SensorId, State ) ->
 	%?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
 	%            [ TempJSONTriples, OtherJSONTriples ] ),
 
-	case OtherJSONTriples of
-
-		[] ->
-			ok;
-
-		_ ->
-			?warning_fmt( "Following ~B disk measurements points "
-				"could not be categorised for '~ts': ~ts.",
-				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
-				  text_utils:strings_to_string(
-					[ json_triple_to_string( JT )
-								|| JT <- OtherJSONTriples ] ) ] )
-
-	end,
+	OtherJSONTriples =:= [] orelse
+		?warning_fmt( "Following ~B disk measurements points "
+			"could not be categorised for '~ts': ~ts.",
+			[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+			  text_utils:strings_to_string(
+				[ json_triple_to_string( JT )
+							|| JT <- OtherJSONTriples ] ) ] ),
 
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
@@ -1374,20 +1343,13 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=chipset, SensorId,
 	%?debug_fmt( "TempJSONTriples: ~p~nOtherJSONTriples: ~p",
 	%            [ TempJSONTriples, OtherJSONTriples ] ),
 
-	case OtherJSONTriples of
-
-		[] ->
-			ok;
-
-		_ ->
-			?warning_fmt( "Following ~B chipset measurements points "
-				"could not be categorised for '~ts': ~ts.",
-				[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
-				  text_utils:strings_to_string(
-					[ json_triple_to_string( JT )
-								|| JT <- OtherJSONTriples ] ) ] )
-
-	end,
+	OtherJSONTriples =:= [] orelse
+		?warning_fmt( "Following ~B chipset measurements points "
+			"could not be categorised for '~ts': ~ts.",
+			[ length( OtherJSONTriples ), sensor_id_to_string( SensorId ),
+			  text_utils:strings_to_string(
+				[ json_triple_to_string( JT )
+							|| JT <- OtherJSONTriples ] ) ] ),
 
 	register_temperature_points( TempJSONTriples, _EmptyDataTable=table:new(),
 								 SensorId, State );
@@ -1497,9 +1459,9 @@ create_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
 	% Here the current temperature has not been taken into account yet:
 	init_temp_point( _TempEntries=map_hashtable:enumerate( PointValueMap ),
 		BinPointName, #temperature_data{
-						description=BinDesc,
-						% Already the case: alert_state=nominal;
-						alert_timestamp=time_utils:get_timestamp() },
+			description=BinDesc,
+			% Already the case: alert_state=nominal;
+			alert_timestamp=time_utils:get_timestamp() },
 		SensorId, State ).
 
 
@@ -3587,18 +3549,15 @@ check_intrusion_data( IntrusData=#intrusion_data{
 											wooper:state().
 parse_sensor_output_from_file( OutputFilePath, State ) ->
 
-	case file_utils:is_existing_file_or_link( OutputFilePath ) of
+	file_utils:is_existing_file_or_link( OutputFilePath ) orelse
+		begin
 
-		true ->
-			ok;
-
-		false ->
 			?error_fmt( "The file '~ts' from which sensor output is to be read "
 				"does not exist (current directory: '~ts').",
 				[ OutputFilePath, file_utils:get_current_directory() ] ),
 			throw( { sensor_output_file_not_found, OutputFilePath } )
 
-	end,
+		end,
 
 	% Better integrated than if using json_utils:from_json_file/1:
 	BinJson = file_utils:read_whole( OutputFilePath ),

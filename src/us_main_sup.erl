@@ -56,7 +56,7 @@
 % - Communication Gateway
 % - Sensor Manager (which relies on the US-Common infrastructure, notably its
 % scheduler)
-
+% - Home Automation Server
 
 
 % @doc Starts and links the US-Main supervisor, with OTP conventions.
@@ -112,7 +112,7 @@ init( _Args=[ AppRunContext ] ) ->
 		_RestartStrategy=one_for_one,
 		class_USConfigServer:get_execution_target() ),
 
-	% Four children; first is an OTP supervisor bridge in charge of the US-Main
+	% Five children; first is an OTP supervisor bridge in charge of the US-Main
 	% configuration server:
 	%
 	ConfigServerSpec = get_config_bridge_spec( ExecTarget ),
@@ -128,8 +128,13 @@ init( _Args=[ AppRunContext ] ) ->
 	% Fourth, a bridge in charge of the (US-Main, local) sensor manager:
 	SensorManagerSpec = get_sensor_manager_bridge_spec( ExecTarget ),
 
+	% Fifth, a bridge in charge of the (Oceanic-based, local) house automation
+	% server, acting as an Enocean gateway:
+	%
+	HouseAutomationServerSpec = get_house_automation_bridge_spec( ExecTarget ),
+
 	ChildSpecs = [ ConfigServerSpec, ContactDirectorySpec, CommGatewaySpec,
-				   SensorManagerSpec ],
+				   SensorManagerSpec, HouseAutomationServerSpec ],
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
 	%   "returning supervisor settings ~p and child specs ~p.",
@@ -223,3 +228,25 @@ get_sensor_manager_bridge_spec( ExecTarget ) ->
 	   type => supervisor,
 
 	   modules => [ class_USSensorManager ] }.
+
+
+
+% @doc Returns the bridge spec for the house automation gateway (a server
+% integrating Oceanic):
+%
+-spec get_house_automation_bridge_spec( execution_target() ) -> child_spec().
+get_house_automation_bridge_spec( ExecTarget ) ->
+
+	% Refer to get_config_bridge_spec/1 for comments:
+	#{ id => us_house_automation_server,
+
+	   start => { _Mod=class_USHomeAutomationServer, _Fun=start_link,
+				  _Args=[] },
+
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   shutdown => infinity,
+
+	   type => supervisor,
+
+	   modules => [ class_USHomeAutomationServer ] }.
