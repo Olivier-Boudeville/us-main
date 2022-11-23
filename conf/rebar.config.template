@@ -26,7 +26,8 @@
 %  make target, at least to force an update of rebar.lock)
 %
 % We prefer here listing most dependencies explicitly (ex: Myriad, Seaplus,
-% etc., could be implied):
+% etc., could be implied; yet for example erlang-serial is implied behind
+% Oceanic):
 %
 {deps, [
 
@@ -43,6 +44,9 @@
 					{branch, "master"}}},
 
 	{mobile,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Mobile.git",
+					{branch, "master"}}},
+
+	{oceanic,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Oceanic.git",
 					{branch, "master"}}},
 
 	{us_common, {git, "https://github.com/Olivier-Boudeville/us-common.git",
