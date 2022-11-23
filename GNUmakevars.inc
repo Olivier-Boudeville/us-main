@@ -235,17 +235,17 @@ endif
 
 
 # And for Oceanic (which implies erlang-serial):
-ifneq ($(wildcard $(OCEANIC_TOP)/_checkouts/oceanic/.),)
+ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/oceanic/.),)
 	# By default, expect a checkout directory:
-	OCEANIC_TOP = $(OCEANIC_TOP)/_checkouts/oceanic
+	OCEANIC_TOP = $(US_MAIN_TOP)/_checkouts/oceanic
 else
 	# Second, a sibling one is searched for:
-	ifneq ($(wildcard $(OCEANIC_TOP)/../oceanic/.),)
-		OCEANIC_TOP = $(OCEANIC_TOP)/../oceanic
+	ifneq ($(wildcard $(US_MAIN_TOP)/../oceanic/.),)
+		OCEANIC_TOP = $(US_MAIN_TOP)/../oceanic
    else
 		# Otherwise most probably in a 'rebar3 compile' context:
-		ifneq ($(wildcard $(OCEANIC_TOP)/_build/default/lib/oceanic/.),)
-			OCEANIC_TOP = $(OCEANIC_TOP)/_build/default/lib/oceanic
+		ifneq ($(wildcard $(US_MAIN_TOP)/_build/default/lib/oceanic/.),)
+			OCEANIC_TOP = $(US_MAIN_TOP)/_build/default/lib/oceanic
 		else
 			FORCE_EVAL := $(error Unable to find the build root of Ceylan-Oceanic from '$(realpath .)'.)
 		endif
