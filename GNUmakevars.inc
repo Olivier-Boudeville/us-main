@@ -94,7 +94,7 @@ endif
 
 
 # The uniquely-defined version of this layer, for all uses, including rebar:
-US_MAIN_VERSION := 0.0.8
+US_MAIN_VERSION := 0.0.9
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
@@ -215,7 +215,6 @@ else
 endif
 
 
-
 # We do the same for Mobile (which implies Seaplus):
 ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/mobile/.),)
 	# By default, expect a checkout directory:
@@ -234,6 +233,26 @@ else
 	endif
 endif
 
+
+# And for Oceanic (which implies erlang-serial):
+ifneq ($(wildcard $(OCEANIC_TOP)/_checkouts/oceanic/.),)
+	# By default, expect a checkout directory:
+	OCEANIC_TOP = $(OCEANIC_TOP)/_checkouts/oceanic
+else
+	# Second, a sibling one is searched for:
+	ifneq ($(wildcard $(OCEANIC_TOP)/../oceanic/.),)
+		OCEANIC_TOP = $(OCEANIC_TOP)/../oceanic
+   else
+		# Otherwise most probably in a 'rebar3 compile' context:
+		ifneq ($(wildcard $(OCEANIC_TOP)/_build/default/lib/oceanic/.),)
+			OCEANIC_TOP = $(OCEANIC_TOP)/_build/default/lib/oceanic
+		else
+			FORCE_EVAL := $(error Unable to find the build root of Ceylan-Oceanic from '$(realpath .)'.)
+		endif
+	endif
+endif
+
+
 ifndef PREDECESSOR_LAYER_TOPS
-	PREDECESSOR_LAYER_TOPS := $(US_COMMON_TOP) $(MOBILE_TOP)
+	PREDECESSOR_LAYER_TOPS := $(US_COMMON_TOP) $(MOBILE_TOP) $(OCEANIC_TOP)
 endif
