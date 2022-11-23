@@ -86,6 +86,7 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
 - [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending, relying on the Gammu library)
 - [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile for a bridge from Erlang to the C language)
+- `Ceylan-Oceanic <http://oceanic.esperide.org>`_ (for the support of home automation, through the integration of Enocean devices and actuators; relies on `our fork of erlang-serial <https://github.com/Olivier-Boudeville/erlang-serial>`_)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
 - `Ceylan-Myriad <http://myriad.esperide.org>`_ (as an Erlang toolbox)
@@ -123,8 +124,13 @@ This US-Main configuration file concentrates the settings of all the services pr
 Facilities Provided by this US-Main Layer
 -----------------------------------------
 
-These are mainly per-host administration services.
+These are mainly administration services.
 
+
+House Automation
+================
+
+This is done thanks to the `Ceylan-Oceanic <http://oceanic.esperide.org>`_ library.
 
 
 Monitoring of Host Sensors
