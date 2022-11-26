@@ -46,6 +46,7 @@
 	{mobile,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Mobile.git",
 					{branch, "master"}}},
 
+	% Implies our fork of erlang-serial:
 	{oceanic,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Oceanic.git",
 					{branch, "master"}}},
 
