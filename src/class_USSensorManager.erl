@@ -62,6 +62,9 @@ fans), and of reporting any abnormal situation" ).
 
 % Regarding sensors, refer to the Technical Manual of the Universal Server
 % (http://us-main.esperide.org).
+%
+% Many sensors look like poorly-designed random generators.
+
 
 % This sensor manager is designed to be able to integrate to an OTP supervision
 % tree thanks to a supervisor bridge, whose behaviour is directly defined in
@@ -81,7 +84,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 
-% Note that map_hashtable instances are explicitly mentioned instead of tables
+% Note that map_hashtable instances are explicitly mentioned instead of tables,
 % as this is the actual type returned by the json_utils module.
 
 
@@ -102,8 +105,8 @@ fans), and of reporting any abnormal situation" ).
 
 -type json_point_map() :: map_hashtable:map_hashtable( measurement_point_name(),
 													   point_attribute_map() ).
-% Table associating, to a measurement point (ex: `<<"Core 0">>'), a table of the
-% associated attributes (that is a point_attribute_map/0).
+% Table associating, to a measurement point (e.g. `<<"Core 0">>'), a table of
+% the corresponding attributes (that is a point_attribute_map/0).
 
 
 -type json_point_entry() :: { measurement_point_name(), point_attribute_map() }.
@@ -127,15 +130,15 @@ fans), and of reporting any abnormal situation" ).
 
 -type raw_sensor_type() :: ustring().
 % The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
-% "radeon", etc.; many exist as they correspond to different chips (ex:
+% "radeon", etc.; many exist as they correspond to different chips (e.g.
 % "nct6792") on motherboards.
 
 
 -type atom_sensor_type() :: atom().
-% Atom-based version of a raw sensor type (ex: 'coretemp').
+% Atom-based version of a raw sensor type (e.g. 'coretemp').
 
 
--type sensor_category() :: 'cpu' % Also includes APU (ex: Atom+Radeon)
+-type sensor_category() :: 'cpu' % Also includes APU (e.g. Atom+Radeon)
 						 | 'cpu_socket' % Often less reliable than 'cpu'.
 						 | 'motherboard'
 						 | 'chipset' % Like pch_skylake-virtual-*.
@@ -158,11 +161,11 @@ fans), and of reporting any abnormal situation" ).
 
 -type sensor_number() :: bin_string().
 % Kept as a (binary) string (even if is an hexadecimal value), for clarity.
-% Ex: `<<"0a20">>'.
+% For example `<<"0a20">>'.
 
 
 -type raw_sensor_id() :: bin_string().
-% Full identifier of a sensor, directly as read from JSON; ex:
+% Full identifier of a sensor, directly as read from JSON; e.g.
 % `<<"coretemp-isa-0000">>', `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>',
 % `<<"radeon-pci-0008">>', etc.; structure is
 % `<<"RawSensorType-SensorInterface-SensorNumber">>'.
@@ -171,7 +174,7 @@ fans), and of reporting any abnormal situation" ).
 -type sensor_id() ::
 		{ atom_sensor_type(), sensor_interface(), sensor_number() }.
 % Full identifier of a sensor, directly deriving from a raw one.
-% Ex: `{coretemp, isa, <<"0a20">>}'.
+% For example `{coretemp, isa, <<"0a20">>}'.
 
 
 -type sensor_table() :: table( raw_sensor_id(), sensor_info() ).
@@ -185,8 +188,8 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type measurement_point_name() :: bin_string().
-% The (raw) name of a measurement point (ex: `<<"temp1">>' or `<<"Core 0">>') of
-% a sensor (which may provide multiple points), as read from JSON.
+% The (raw) name of a measurement point (e.g. `<<"temp1">>' or `<<"Core 0">>')
+% of a sensor (which may provide multiple points), as read from JSON.
 
 
 -type measurement_point_description() :: bin_string().
@@ -195,8 +198,8 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type point_status() :: 'enabled' | 'disabled'.
-% The enable status of a measurement point. Those that reports bogus values
-% shall be disabled.
+% The enable status of a measurement point. Those that report bogus values shall
+% be disabled.
 
 
 -type point_attribute() :: bin_string().
@@ -209,8 +212,8 @@ fans), and of reporting any abnormal situation" ).
 
 -type point_attribute_map() ::
 		map_hashtable:map_hashtable( point_attribute(), point_value() ).
-% Table associating, to an attribute (ex: `<<"temp1_crit">>') of a measurement
-% point, a value (ex: 105.0).
+% Table associating, to an attribute (e.g. `<<"temp1_crit">>') of a measurement
+% point, a value (e.g. 105.0).
 
 
 %-type point_attribute_entry() :: { point_attribute(), point_value() }.
@@ -228,17 +231,17 @@ fans), and of reporting any abnormal situation" ).
 % - AUXTIN (auxiliary temperature index): power supply temperature sensor
 % - SYSTIN (system temperature index): motherboard temperature
 
-% Settings: HYST (hysteresis; this is the value that you want an alarm to turn
-% off. For example, if your alarm temperature is 80C, set your HYST value to
-% stop the alarm when the temperature falls to 75C.)
+% Settings: HYST (hysteresis; this is the value at which you want an alarm to
+% turn off. For example, if your alarm temperature is 80°C, set your HYST value
+% to stop the alarm when the temperature falls to 75°C.)
 
 
 -type temperature_description() :: ustring().
-% The description of a temperature (ex: "alarm").
+% The description of a temperature (e.g. "alarm").
 
 
 -type range_description() :: ustring().
-% The description of a temperature range (ex: "bogus").
+% The description of a temperature range (e.g. "bogus").
 
 
 % By decreasing temperature:
@@ -256,7 +259,7 @@ fans), and of reporting any abnormal situation" ).
 	% The name of the attribute to read from the JSON table in order to
 	% determine the current temperature of the associated point:
 	%
-	% (ex: <<"temp9_input">>)
+	% (e.g. <<"temp9_input">>)
 	%
 	input_attribute :: point_attribute(),
 
@@ -298,13 +301,14 @@ fans), and of reporting any abnormal situation" ).
 
 	% We ensure that all thresholds are set, even if the sensor does not report
 	% corresponding values. We consider that thresholds shall be strictly
-	% exceeded to change severity.
+	% exceeded in order to change severity.
 	%
 	% Of course following inequalities shall hold:
 	%   crit_low < alarm_low < alarm_high < crit_high
 	%
 	% and under nominal conditions, the current measured temperature shall be in
 	% [alarm_low; alarm_high].
+
 
 	% The minimum allowed temperature, below which we consider that an alarm
 	% shall be raised (it is typically set higher than any crit_low):
@@ -349,8 +353,8 @@ fans), and of reporting any abnormal situation" ).
 % Section regarding fan sensors.
 
 
--type fan_type() :: 'fixed_speed' % Fans rotated at a fixed speed, regardless of
-								  % temperature
+-type fan_type() :: 'fixed_speed' % Fans are rotated at a fixed speed,
+                                  % regardless of temperature
 				  | 'pwm' % Pulse-Width modulation (controlled fan speed)
 				  | 'unknown'.
 % The detected type of a given fan.
@@ -377,7 +381,7 @@ fans), and of reporting any abnormal situation" ).
 	% The name of the attribute to read from the JSON table in order to
 	% determine the current fan speed of the associated point:
 	%
-	% (ex: <<"fan2_input">>)
+	% (e.g. <<"fan2_input">>)
 	%
 	input_attribute :: point_attribute(),
 
@@ -424,14 +428,14 @@ fans), and of reporting any abnormal situation" ).
 
 
 	% Tells, if defined, what is the speed threshold below which an alarm shall
-	% be raised regarding that fan (ex: a fixed-speed fan that would halt for
+	% be raised regarding that fan (e.g. a fixed-speed fan that would halt for
 	% any reason).
 	%
 	alarm_low = undefined :: maybe( rpm() ),
 
 
 	% Tells, if defined, what is the speed threshold above which an alarm shall
-	% be raised regarding that fan (ex: a PWM fan having to speed because of
+	% be raised regarding that fan (e.g. a PWM fan having to speed because of
 	% excessive heat).
 	%
 	alarm_high = undefined :: maybe( rpm() ),
@@ -461,7 +465,7 @@ fans), and of reporting any abnormal situation" ).
 	% The name of the attribute to read from the JSON table in order to
 	% determine the current intrusion status of the associated point:
 	%
-	% (ex: <<"intrusion0">>)
+	% (e.g. <<"intrusion0">>)
 	%
 	input_attribute :: point_attribute(),
 
@@ -504,7 +508,7 @@ fans), and of reporting any abnormal situation" ).
 
 -type points_data_table() :: table( measurement_point_name(), point_data() ).
 % A table associating, for a given sensor, to each of its measurement points,
-% its data (ex: regarding temperature, intrusion, etc.).
+% its data (e.g. regarding temperature, intrusion, etc.).
 
 
 -record( sensor_info, {
@@ -519,7 +523,7 @@ fans), and of reporting any abnormal situation" ).
 	category :: sensor_category(),
 
 	% All data (of all sorts; and if any, as the category of this sensor must be
-	% known to be interpreted) monitored by that sensor:
+	% known in order to be interpreted) monitored by that sensor:
 	%
 	data :: maybe( points_data_table() ) } ).
 
@@ -555,7 +559,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 
-% A temperature value above this threshold denotes a bogus measure (ex: 127°C),
+% A temperature value above this threshold denotes a bogus measure (e.g. 127°C),
 % resulting in the corresponding measurement point to be disabled:
 %
 % We consider that, when this sensor manager starts, the local computer is
@@ -569,7 +573,7 @@ fans), and of reporting any abnormal situation" ).
 -define( high_bogus_temperature_initial_threshold, 75.0 ).
 
 
-% A temperature value above this threshold denotes a bogus measure (ex: 127°C),
+% A temperature value above this threshold denotes a bogus measure (e.g. 127°C),
 % resulting in the corresponding measurement point to be disabled (at any time
 % after initialization):
 %
@@ -980,7 +984,7 @@ initialise_json_support( State ) ->
 						++ system_utils:get_json_unavailability_hint() ),
 
 			throw( no_json_backend )
-				
+
 		end,
 
 	ParserState = json_utils:start_parser(),
@@ -996,7 +1000,7 @@ initialise_json_support( State ) ->
 
 
 
-% @doc Initialises and integrates the first data (ex: temperatures and fan
+% @doc Initialises and integrates the first data (e.g. temperatures and fan
 % speeds) read from sensors.
 %
 -spec initialise_sensor_data( wooper:state() ) ->
@@ -1009,7 +1013,7 @@ initialise_sensor_data( State ) ->
 			{ true, parse_initial_sensor_output( CmdOutput, State ) };
 
 		% If initialisation detects that no sensor is available, this is not a
-		% showstopper anymore, as in some contexts (ex: continuous integration)
+		% showstopper anymore, as in some contexts (e.g. continuous integration)
 		% this might happen and should not crash such a manager:
 		%
 		error ->
@@ -1175,11 +1179,11 @@ categorise_sensor( _RawSensorType="nvme" ) ->
 categorise_sensor( RawSensorType="nct" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), motherboard };
 
-% Ex: "thinkpad-isa-0000"
+% For example "thinkpad-isa-0000"
 categorise_sensor( RawSensorType="thinkpad" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), motherboard };
 
-% Ex: "pch_skylake-virtual-0"
+% For example "pch_skylake-virtual-0"
 categorise_sensor( RawSensorType="pch_" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), chipset };
 
@@ -1191,11 +1195,11 @@ categorise_sensor( _RawSensorType="radeon" ) ->
 	% No real gpu-specific information found in JSON yet:
 	{ radeon, cpu };
 
-% Ex: "iwlwifi_1-virtual-0"
+% For example "iwlwifi_1-virtual-0"
 categorise_sensor( RawSensorType="iwlwifi" ++ _ ) ->
 	{ text_utils:string_to_atom( RawSensorType ), network };
 
-% Ex: "ucsi_source_psy_USBC000:001-isa-0000" (for USB-C)
+% For example "ucsi_source_psy_USBC000:001-isa-0000" (for USB-C)
 categorise_sensor( RawSensorType ) ->
 	{ text_utils:string_to_atom( RawSensorType ), bus }.
 
@@ -1330,7 +1334,7 @@ parse_initial_sensor_data( SensorJSON, _SensorCateg=chipset, SensorId,
 						   State ) ->
 
 	% Autonomous chipset.
-	% Ex: "pch_skylake-virtual-0":{
+	% For example "pch_skylake-virtual-0":{
 	%  "temp1":{ "temp1_input": 30.000
 	%  }
 	%},
@@ -1359,7 +1363,7 @@ parse_initial_sensor_data( _SensorJSON, _SensorCateg=battery, _SensorId,
 						   _State ) ->
 
 	% Batteries are boring.
-	% Ex: <<"BAT0-acpi-0">>: #{<<"curr1">> => #{<<"curr1_input">> => 3.476},
+	% For example <<"BAT0-acpi-0">>: #{<<"curr1">> => #{<<"curr1_input">> => 3.476},
 	%                          <<"in0">> => #{<<"in0_input">> => 12.417}}
 
 	%?debug_fmt( "No relevant JSON expected to parse for ~ts for battery:~n ~p",
@@ -1371,7 +1375,7 @@ parse_initial_sensor_data( _SensorJSON, _SensorCateg=network, _SensorId,
 						   _State ) ->
 
 	% Network interfaces are boring.
-	% Ex: <<"iwlwifi_1-virtual-0">>: #{<<"temp1">> => #{}}
+	% For example <<"iwlwifi_1-virtual-0">>: #{<<"temp1">> => #{}}
 
 	%?debug_fmt( "No relevant JSON expected to parse for ~ts for network "
 	%    "interface:~n ~p", [ sensor_id_to_string( SensorId ), SensorJSON ] ),
@@ -1381,7 +1385,7 @@ parse_initial_sensor_data( _SensorJSON, _SensorCateg=network, _SensorId,
 parse_initial_sensor_data( _SensorJSON, _SensorCateg=bus, _SensorId, _State ) ->
 
 	% Buses are boring.
-	% Ex: "ucsi_source_psy_USBC000:001-isa-0000":{
+	% For example "ucsi_source_psy_USBC000:001-isa-0000":{
 	%  "in0":{
 	%     "in0_input": 0.000,
 	%     "in0_min": 0.000,
@@ -1422,7 +1426,7 @@ register_temperature_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
 	DataTable;
 
 
-% Ex: BinPointName = <<"temp1">>, BinDesc=<<"Some description">> and
+% For example BinPointName = <<"temp1">>, BinDesc=<<"Some description">> and
 % PointValueMap = #{<<"temp1_crit">> => 105.0, <<"temp1_input">> => 27.8}.
 %
 register_temperature_points(
@@ -1577,7 +1581,7 @@ init_temp_point( _TempEntries=[], _BinPointName,
 	check_temperature_data( ReadyTempData );
 
 
-% Ex: AttrNameBin = <<"temp1_input">>, AttrValue = 44.85:
+% For example AttrNameBin = <<"temp1_input">>, AttrValue = 44.85:
 init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				 TempData, SensorId, State ) ->
 
@@ -1818,7 +1822,7 @@ register_fan_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
 	DataTable;
 
 
-% Ex: "fan2":{ "fan2_input": 1048.000, "fan2_min": 0.000, "fan2_alarm": 0.000,
+% For example "fan2":{ "fan2_input": 1048.000, "fan2_min": 0.000, "fan2_alarm": 0.000,
 %			   "fan2_beep": 0.000, "fan2_pulses": 2.000 },
 register_fan_points(
 		_PointTriples=[ { BinPointName, BinDesc, PointValueMap } | T ],
@@ -2057,7 +2061,7 @@ register_intrusion_points( _PointTriples=[], DataTable, _SensorId, _State ) ->
 	DataTable;
 
 
-% Ex: BinPointName = <<"intrusion0">>, BinDesc=<<"Some description">> and
+% For example BinPointName = <<"intrusion0">>, BinDesc=<<"Some description">> and
 % PointValueMap = #{<<"intrusion0_alarm">> => 1.0,
 %                   <<"intrusion0_beep">> => 0.0}.
 %
@@ -2128,7 +2132,7 @@ init_intrus_point( _IntrusEntries=[], BinPointName, IntrusData, _SensorId,
 		IntrusData#intrusion_data{ input_attribute=BinPointName } );
 
 
-% Ex: AttrNameBin = <<"intrusion0_alarm">>, AttrValue = 1.0:
+% For example AttrNameBin = <<"intrusion0_alarm">>, AttrValue = 1.0:
 init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
 				   BinPointName, IntrusData, SensorId, State ) ->
 
@@ -2267,7 +2271,7 @@ decode_sensor_json( SensorJsonStr, State ) ->
 
 
 
-% @doc Updates the sensor data (ex: temperatures and fan speeds), as read from
+% @doc Updates the sensor data (e.g. temperatures and fan speeds), as read from
 % sensors.
 %
 update_sensor_data( State ) ->
@@ -2579,7 +2583,7 @@ update_data_table( PointsDataTable,
 
 			end;
 
-		% Perfectly normal, as many points (ex: "in7") have no interest:
+		% Perfectly normal, as many points (e.g. "in7") have no interest:
 		key_not_found ->
 
 			% Convenient to catch non-interpreted entries (otherwise fully
@@ -2878,7 +2882,7 @@ get_fan_state( _CurrentSpeed, _FanType=fixed_speed, _AlarmLowSpeed,
 	nominal;
 
 
-% No abnormal low speed if being PWM (ex: just stopping after a temperature
+% No abnormal low speed if being PWM (e.g. just stopping after a temperature
 % drop):
 %
 get_fan_state( CurrentSpeed, _FanType=pwm, _AlarmLowSpeed, AlarmHighSpeed )
@@ -2968,7 +2972,7 @@ filter_cpu_socket_json( SensorJSON ) ->
 
 	% Plain strings used (for matching), as we cannot leave the name of the
 	% measurement points as binaries: if having "tempN_input", N can have one
-	% digit or more (ex: <<"temp10_input">>), and non-last segments must of
+	% digit or more (e.g. <<"temp10_input">>), and non-last segments must of
 	% course be of fixed length.
 	%
 	BasicTriples = [ { text_utils:binary_to_string( BinStr ), BinStr, V }
@@ -2980,7 +2984,7 @@ filter_cpu_socket_json( SensorJSON ) ->
 
 % (helper)
 filter_cpu_socket_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
-	% Original order is clearer (ex: for core numbers):
+	% Original order is clearer (e.g. for core numbers):
 	{ lists:reverse( TempAcc ), OtherAcc };
 
 
@@ -3022,7 +3026,7 @@ filter_cpu_json( SensorJSON ) ->
 
 % (helper)
 filter_cpu_json( _BasicTriples=[], TempAcc, OtherAcc ) ->
-	% Original order is clearer (ex: for core numbers):
+	% Original order is clearer (e.g. for core numbers):
 	{ lists:reverse( TempAcc ), OtherAcc };
 
 filter_cpu_json(
@@ -3047,7 +3051,7 @@ filter_cpu_json(
 	filter_cpu_json( T, [ JSONTriple | TempAcc ], OtherAcc );
 
 
-% Ex: <<"k10temp-pci-00c3">>: #{<<"temp1">> =>...
+% For example <<"k10temp-pci-00c3">>: #{<<"temp1">> =>...
 filter_cpu_json(
 		_BasicTriples=[ { _Name="temp" ++ Num, BinPointName, V } | T ],
 		TempAcc, OtherAcc ) ->
@@ -3218,7 +3222,7 @@ filter_motherboard_json( _BasicTriples=[
 
 
 % Explicitly ignored entries are typically:
-%  - "in*" (ex: "in1" - but not "intrusion1") [voltage? unassigned input port?]
+%  - "in*" (e.g. "in1" - but not "intrusion1") [voltage? unassigned input port?]
 %  - Vcore, Vbat, AVCC, 3VSB, +3.3V
 %  - beep_enable
 %  - PCH_* (Platform Control Hub) such as PCH_CPU_TEMP
@@ -3240,8 +3244,8 @@ filter_motherboard_json( _BasicTriples=[
 	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
 
 
-% Ex: PCH_CHIP_CPU_MAX_TEMP, PCH_CHIP_TEMP, PCH_CPU_TEMP (temperatures; yet
-% often returned as being 0°C):
+% For example PCH_CHIP_CPU_MAX_TEMP, PCH_CHIP_TEMP, PCH_CPU_TEMP (temperatures;
+% yet often returned as being 0°C):
 %
 filter_motherboard_json( _BasicTriples=[
 		{ Name="PCH_" ++ _, BinPointName, V } | T ],
