@@ -1,5 +1,5 @@
 [Unit]
-Description=Universal Server service (US-Main)
+Description=Universal Server service (US-Main), as a native build
 Requires=network.target
 After=network.target
 
@@ -16,14 +16,15 @@ After=network.target
 Type=forking
 
 
-# The two scripts below are typically symlinks pointing to an install of US-Main.
+# The two Exec scripts below are typically symlinks pointing to an install of
+# US-Main.
 
 # To inspect the outputs, use:
-# journalctl --pager-end --unit=us-main.service
+# journalctl --pager-end --unit=us-main-as-native-build.service
 #
-ExecStart=/usr/local/bin/start-us-main.sh
+ExecStart=/usr/local/bin/start-us-main-as-native-build.sh
 
-ExecStop=/usr/local/bin/stop-us-main.sh
+ExecStop=/usr/local/bin/stop-us-main-as-native-build.sh
 
 [Install]
 WantedBy=multi-user.target
