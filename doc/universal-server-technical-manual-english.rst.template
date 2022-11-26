@@ -81,11 +81,11 @@ Layer Stack
 
 From the highest level to the lowest, as summarised `here <https://github.com/Olivier-Boudeville/us-main>`_, a software stack involving the Universal Server usually is like:
 
-- the *Universal Server* services themselves (i.e. this `us-main <http://us.esperide.org/>`_ layer)
+- the *Universal Server* services themselves (i.e. this `US-Main <http://us.esperide.org/>`_ layer)
 - [optional] the *Universal Webserver*, i.e. `US-Web <http://us-web.esperide.org/>`_ (for web interaction)
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
 - [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending, relying on the Gammu library)
-- [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile for a bridge from Erlang to the C language)
+- [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile, for a bridge from Erlang to the C language)
 - `Ceylan-Oceanic <http://oceanic.esperide.org>`_ (for the support of home automation, through the integration of Enocean devices and actuators; relies on `our fork of erlang-serial <https://github.com/Olivier-Boudeville/erlang-serial>`_)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
@@ -97,25 +97,6 @@ The shorthand for ``Universal Server`` is ``us``.
 
 :raw-latex:`\pagebreak`
 
-
-.. _`US-Main configuration file`:
-
--------------
-Configuration
--------------
-
-The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
-
-So the base information of the user-specified ``us.config`` file, found in the US Configuration directory, will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
-
-Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
-
-.. code:: erlang
-
- {us_main_config_filename, "us-main-for-tests.config"}.
-
-
-This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
 
 
@@ -382,8 +363,6 @@ This is checked by ensuring periodically that a set of target hosts, specified a
 
 Of course any issue (typically outage of a given network service) is then reported by appropriate means (i.e. by SMS rather than by email then).
 
-Extra
-
 
 
 .. _`monitoring of online services`:
@@ -410,32 +389,19 @@ The following services are planned (some day) for addition:
 
 
 
-.. _`free software`:
 
--------
-Licence
--------
+.. _`installation`:
 
-The ``Universal Server`` is licensed by its author (Olivier Boudeville) under the `GNU Affero General Public License <https://www.gnu.org/licenses/agpl-3.0.en.html>`_ as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.
-
-This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.
-
-We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.
-
-
-
----------------------------------
-Current Stable Version & Download
----------------------------------
+-----------------------------------------------------
+Installing US-Main: Current Stable Version & Download
+-----------------------------------------------------
 
 As mentioned, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
 
 We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines), and building the Universal Server from sources, thanks to GNU ``make``.
 
-We recommend, for all Erlang-related software, to rely on rebar3.
-
-One wanting to be able to operate on the source code of these dependencies may define appropriate symbolic links in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant GIT clones.
-
+.. We recommend, for all Erlang-related software, to rely on rebar3.
+One may prefer to rely on rebar3; then, if wanting to be able to operate on the source code of the dependencies, appropriate symbolic links  may be defined in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant Git clones  (typically sibling ones).
 
 
 
@@ -444,7 +410,7 @@ Using Cutting-Edge GIT
 
 This is the installation method that we use and recommend; the Universal Server ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
 
-Once Erlang, Cowboy and possibly Awstats are available, it should be just a matter of executing:
+Once Erlang is available, it should be just a matter of executing:
 
 .. code:: bash
 
@@ -457,7 +423,16 @@ Once Erlang, Cowboy and possibly Awstats are available, it should be just a matt
  $ git clone https://github.com/Olivier-Boudeville/Ceylan-Traces traces
  $ cd traces && make all && cd ..
 
+
  # Possibly:
+ $ git clone https://github.com/Olivier-Boudeville/erlang-serial
+ $ cd erlang-serial && make && DESTDIR=. make install && cd ..
+
+ $ git clone https://github.com/Olivier-Boudeville/Ceylan-Oceanic oceanic
+ $ cd oceanic && make all && cd ..
+
+
+ # Also possibly:
  $ git clone https://github.com/Olivier-Boudeville/Ceylan-Seaplus seaplus
  $ cd seaplus && make all && cd ..
 
@@ -466,10 +441,10 @@ Once Erlang, Cowboy and possibly Awstats are available, it should be just a matt
 
 
  $ git clone https://github.com/Olivier-Boudeville/us-common
- $ cd us-common && make all
+ $ cd us-common && make all && cd ..
 
  $ git clone https://github.com/Olivier-Boudeville/us-main
- $ cd us-main && make all
+ $ cd us-main && make all && cd ..
 
 
 
@@ -499,12 +474,75 @@ As discussed in these sections of `Myriad <http://myriad.esperide.org/myriad.htm
 
 Then we benefit from a standalone, complete Universal Server.
 
-As for Myriad, WOOPER, Traces and US-Common, most versions of the Universal Server are also published as `Hex packages <https://hex.pm/packages/us_main>`_.
+.. comment As for Myriad, WOOPER, Traces and US-Common, most versions of the Universal Server are also published as `Hex packages <https://hex.pm/packages/us_main>`_.
 
 For more details, one may have a look at:
 
 - `rebar.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar.config.template>`_, the general rebar configuration file used when generating the Universal Server OTP application and release (implying the automatic management of Myriad and WOOPER)
 - `rebar-for-hex.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar-for-hex.config.template>`_, to generate a corresponding Hex package for Universal Server (whose structure and conventions is quite different from the previous OTP elements)
+
+
+
+
+.. _`configuration`:
+
+.. _`US-Main configuration file`:
+
+-------------------
+Configuring US-Main
+-------------------
+
+The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
+
+So the base information of the user-specified ``us.config`` file, found in the US Configuration directory, will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
+
+Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
+
+.. code:: erlang
+
+ {us_main_config_filename, "us-main-for-tests.config"}.
+
+
+This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
+
+
+
+.. _`execution`:
+
+-----------------
+Launching US-Main
+-----------------
+
+We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use).
+
+In this last case, first a symbolic link pointing to this script shall be typically created in the ``/usr/local/bin`` directory of the host of interest. Then the server is to be triggered based on ``/etc/systemd/system/us-main-as-native-build.service`` (see `us-main-as-native-build.service <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service>`_).
+
+For example:
+
+.. code:: bash
+
+ $ systemctl start us-main-as-native-build
+ $ journalctl --pager-end --unit=us-main-as-native-build.service
+ $ systemctl enable us-main-as-native-build
+
+Then one may run ``monitor-us-main.sh`` to browse its traces live at any time.
+
+Like notified in the start-up message::
+
+ -- Starting US-Main natively-built application as user 'stallone' (EPMD port: 4506)...
+		Executing application us_main_app.beam as a service (second form)
+ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-up is successful indeed.
+
+  **************************************************************
+  ** Node 'us_main' ready and running as a daemon.
+  ** Use 'to_erl /tmp/launch-erl-1103261' to connect to that node.
+  ** (then type CTRL-D to exit without killing the node)
+  **************************************************************
+  (authbind success reported)
+
+one may use ``to_erl`` to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means *killing* that node; prefer CTRL-D (once).
+
+For further information one may refer to the `US-Main shell scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).
 
 
 -------
@@ -513,6 +551,19 @@ Support
 
 Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the `project interface <https://github.com/Olivier-Boudeville/us-main>`_ (typically `issues <https://github.com/Olivier-Boudeville/us-main/issues>`_) or directly at the email address mentioned at the beginning of this document.
 
+
+
+.. _`free software`:
+
+-------
+Licence
+-------
+
+The ``Universal Server`` is licensed by its author (Olivier Boudeville) under the `GNU Affero General Public License <https://www.gnu.org/licenses/agpl-3.0.en.html>`_ as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.
+
+This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.
+
+We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.
 
 
 
