@@ -89,8 +89,8 @@
 % The class-specific attributes:
 -define( class_attributes, [
 
-	{ oc_srv_pid, oceanic_server_pid(),
-	  "the PID of the Oceanic server used by this server" },
+	{ oc_srv_pid, maybe( oceanic_server_pid() ),
+	  "the PID of the Oceanic server (if any can exist) used by this server" },
 
 	{ comm_gateway_pid, gateway_pid(),
 	  "the PID of the US communication gateway used to send user "
@@ -201,13 +201,25 @@ construct( State, TtyPath ) ->
 		?us_main_house_automation_server_registration_name,
 		?us_main_house_automation_server_registration_scope ),
 
-	OcSrvPid = oceanic:start_link( TtyPath, _EventListenerPid=self() ),
+	% Do not start Oceanic if it is bound to fail:
+	MaybeOcSrvPid = case oceanic:is_available( TtyPath ) of
+
+		{ true, _SerialRootDir } ->
+			oceanic:start_link( TtyPath, _EventListenerPid=self() );
+
+		{ false, ReasonStr, ErrorTerm } ->
+			?send_warning_fmt( SrvState,
+				"The Oceanic support will not be available "
+				"(reason: ~ts; error term: ~p).", [ ReasonStr, ErrorTerm ] ),
+			undefined
+
+	end,
 
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
 	SetState = setAttributes( SrvState, [
-		{ oc_srv_pid, OcSrvPid },
+		{ oc_srv_pid, MaybeOcSrvPid },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
 
 	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
@@ -223,7 +235,15 @@ destruct( State ) ->
 	?debug_fmt( "Deletion initiated, while state is: ~ts.",
 				[ to_string( State ) ] ),
 
-	oceanic:synchronous_stop( ?getAttr(oc_srv_pid) ),
+	case ?getAttr(oc_srv_pid) of
+
+		undefined ->
+			ok;
+
+		OcSrvPid ->
+			oceanic:synchronous_stop( OcSrvPid )
+
+	end,
 
 	?info( "Deleted." ),
 	State.
@@ -239,16 +259,16 @@ destruct( State ) ->
 %
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
-onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
-	% Useless to trace, triggered when executing 'sensors' for example:
-	%?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
+	% Possibly useless to trace:
+	?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
 	wooper:const_return();
 
 onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 
 	% Typically: "Received exit message '{{nocatch,
-	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
-	%							FunName,Arity,Args,AtomCause}}, [...]}"
+	%  {wooper_oneway_failed,<0.44.0>,class_XXX,
+	%   FunName,Arity,Args,AtomCause}}, [...]}"
 
 	% Redundant information yet useful for console outputs:
 	?warning_fmt( "US home automation server ~w received and ignored "
@@ -270,12 +290,12 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 			static_return( house_automation_server_pid() ).
 get_house_automation_server() ->
 
-	SrvPid = naming_utils:wait_for_registration_of(
+	OcSrvPid = naming_utils:wait_for_registration_of(
 		?us_main_house_automation_server_registration_name,
 		naming_utils:registration_to_look_up_scope(
 			?us_main_house_automation_server_registration_scope ) ),
 
-	wooper:return_static( SrvPid ).
+	wooper:return_static( OcSrvPid ).
 
 
 
@@ -287,6 +307,18 @@ get_house_automation_server() ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	text_utils:format( "US house automation server "
-		"relying on its Oceanic server ~w and on the communication gateway ~w",
-		[ ?getAttr(oc_srv_pid), ?getAttr(comm_gateway_pid) ] ).
+	OcSrvStr = case ?getAttr(oc_srv_pid) of
+
+		undefined ->
+			"not relying on an Oceanic server";
+
+
+		 OcSrvPid ->
+			text_utils:format( "relying on its Oceanic server ~w",
+							   [ OcSrvPid ] )
+
+	end,
+
+	text_utils:format( "US house automation server ~ts "
+		"and using the communication gateway ~w",
+		[ OcSrvStr, ?getAttr(comm_gateway_pid) ] ).
