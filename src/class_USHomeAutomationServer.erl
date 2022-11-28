@@ -82,8 +82,11 @@
 
 -type device_path() :: file_utils:device_path().
 
-%-type oceanic_server_pid() :: oceanic:oceanic_server_pid().
+-type bytes_per_second() :: system_utils:bytes_per_second().
 
+-type oceanic_server_pid() :: oceanic:oceanic_server_pid().
+
+-type device_event() :: oceanic:device_event().
 
 
 % The class-specific attributes:
@@ -141,8 +144,8 @@ start_link() ->
 % @doc Callback to initialise this supervisor bridge, typically in answer to
 % start_link/0 being executed.
 %
--spec init( list() ) -> { 'ok', pid(), State :: term() }
-							| 'ignore' | { 'error', Error :: term() }.
+-spec init( list() ) -> { 'ok', pid(), State :: term() } | 'ignore'
+					  | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
 	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
@@ -209,8 +212,8 @@ construct( State, TtyPath ) ->
 
 		{ false, ReasonStr, ErrorTerm } ->
 			?send_warning_fmt( SrvState,
-				"The Oceanic support will not be available "
-				"(reason: ~ts; error term: ~p).", [ ReasonStr, ErrorTerm ] ),
+				"The Oceanic support will not be available. ~ts~n"
+				"(error term: ~p).", [ ReasonStr, ErrorTerm ] ),
 			undefined
 
 	end,
@@ -251,6 +254,51 @@ destruct( State ) ->
 
 
 % Method section.
+
+
+% Management of messages sent by Oceanic:
+
+
+% @doc Handles a device event notified by the specified Oceanic server.
+-spec onEnoceanEvent( wooper:state(), device_event(),
+					  oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanEvent( State, Event, OcSrvPid ) when is_tuple( Event ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	cond_utils:if_defined( us_main_debug_house_automation,
+		?debug_fmt( "Received following device event from Oceanic "
+			"server ~w: ~ts",
+			[ OcSrvPid, oceanic:device_event_to_string( Event ) ] ) ),
+
+	wooper:const_return();
+
+
+onEnoceanEvent( State, OtherEvent, OcSrvPid ) ->
+
+	?error_fmt( "Received an unexpected device event (~p) from ~w, "
+				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Handles a possible jamming attempt, as suspected and reported by the
+% specified Oceanic server.
+%
+-spec onEnoceanJamming( wooper:state(), bytes_per_second(),
+						oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	?alert_fmt( "Received a notification from Oceanic server ~w of a "
+		"possible jamming attempt (traffic level of ~B bytes per second).",
+		[ OcSrvPid, TrafficLevel ] ),
+
+	wooper:const_return().
 
 
 
