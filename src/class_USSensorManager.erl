@@ -354,7 +354,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type fan_type() :: 'fixed_speed' % Fans are rotated at a fixed speed,
-                                  % regardless of temperature
+								  % regardless of temperature
 				  | 'pwm' % Pulse-Width modulation (controlled fan speed)
 				  | 'unknown'.
 % The detected type of a given fan.
@@ -1045,8 +1045,12 @@ fetch_sensor_data( State ) ->
 			_MaybeWorkingDir=undefined, PortOptions ) of
 
 		{ _ReturnCode=0, CmdOutput  } ->
-			?debug_fmt( "Raw (JSON) command output read from sensors: '~ts'.",
-						[ CmdOutput ] ),
+
+			cond_utils:if_defined( us_main_debug_execution,
+				?debug_fmt(
+					"Raw (JSON) command output read from sensors: '~ts'.",
+					[ CmdOutput ] ) ),
+
 			{ ok, CmdOutput };
 
 		% Message typically starts with 'No sensors found!...":
@@ -1646,7 +1650,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 
-							% Happens very often:
+							% Happens very often; like to be disabled soon:
 							%?error_fmt( "Invalid value associated to "
 							%   "temperature attribute '~ts' (got '~p'); "
 							%   "skipping that information.",
@@ -1769,7 +1773,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 
 
-% @doc Initialises the specified measurement point with specified critical
+% @doc Initialises the specified measurement point with the specified critical
 % temperature.
 %
 init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
@@ -2264,8 +2268,9 @@ decode_sensor_json( SensorJsonStr, State ) ->
 
 	DecodedMap = json_utils:from_json( SensorJsonStr, ParserState ),
 
-	?debug_fmt( "Top-level JSON-decoded map for sensors: ~ts",
-				[ map_hashtable:to_string( DecodedMap ) ] ),
+	cond_utils:if_defined( us_main_debug_sensors,
+		?debug_fmt( "Top-level JSON-decoded map for sensors: ~ts",
+					[ map_hashtable:to_string( DecodedMap ) ] ) ),
 
 	DecodedMap.
 
@@ -2299,7 +2304,8 @@ update_from_sensor_output( SensorJsonStr, State ) ->
 	JSONDecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
 	% Quite convenient:
-	?debug_fmt( "Updating sensors from '~p'.", [ JSONDecodedMap ] ),
+	cond_utils:if_defined( us_main_debug_sensors,
+		?debug_fmt( "Updating sensors from '~p'.", [ JSONDecodedMap ] ) ),
 
 	update_active_sensors( map_hashtable:enumerate( JSONDecodedMap ),
 						   ?getAttr(sensor_table), State ).
@@ -2426,14 +2432,21 @@ update_data_table( PointsDataTable,
 								SyncTempData, SensorId, State );
 
 						false ->
-							?warning_fmt( "Read for ~ts, temperature "
+							% Was a non-disabling warning:
+							?error_fmt( "Read for ~ts, temperature "
 								"measurement point '~ts', a value considered "
 								"invalid for input temperature attribute "
-								"'~ts': ~p (ignoring it).",
+								"'~ts': ~p (ignoring this measurement point "
+								"from now on).",
 								[ sensor_id_to_string( SensorId ), PointNameBin,
 								  InputAttrName, CurrentTemp ] ),
 
-							TempData
+							%TempData
+
+							% Stricter now: we just disable any reporting at
+							% least once a bogus value (temperature here):
+							%
+							TempData#temperature_data{ status=disabled }
 
 					end,
 
@@ -2513,6 +2526,9 @@ update_data_table( PointsDataTable,
 											   SyncFanData, SensorId, State );
 
 						false ->
+							% If wanting to be stricter, to be promoted to a
+							% disabling error:
+							%
 							?warning_fmt( "Read for ~ts, fan measurement "
 								"point '~ts', a value considered invalid "
 								"for input fan attribute '~ts': ~p "
@@ -2521,6 +2537,7 @@ update_data_table( PointsDataTable,
 								  InputAttrName, CurrentSpeed ] ),
 
 							FanData
+							%FanData#fan_data{ status=disabled }
 
 					end,
 
@@ -3380,7 +3397,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 
 
 
-% @doc Vets specified initial (stricter) temperature regarding bogus range.
+% @doc Vets the specified initial (stricter) temperature regarding bogus range.
 -spec vet_initial_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
 vet_initial_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
@@ -3391,7 +3408,7 @@ vet_initial_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 
 
 
-% @doc Vets specified runtime temperature regarding bogus range.
+% @doc Vets the specified runtime temperature regarding bogus range.
 -spec vet_runtime_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
 vet_runtime_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
@@ -3401,7 +3418,7 @@ vet_runtime_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 
 
 
-% @doc Vets specified temperature regarding specified range.
+% @doc Vets the specified temperature regarding specified range.
 -spec vet_temperature( celsius(), temperature_description(), celsius(),
 		celsius(), range_description(), measurement_point_name(), sensor_id(),
 		wooper:state() ) -> boolean().
@@ -3410,7 +3427,7 @@ vet_temperature( Temp, TempDesc, _Min, _Max, _RangeDesc, BinPointName, SensorId,
 
 	?error_fmt( "For temperature measurement point ~ts of ~ts, "
 		"the ~ts temperature is reported as '~p', which is not a float; "
-		"so this value is to be ignored.",
+		"this value is thus ignored.",
 		[ BinPointName, sensor_id_to_string( SensorId ), TempDesc, Temp ] ),
 
 	false;
@@ -3451,8 +3468,8 @@ vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _BinPointName,
 -spec vet_fan_speed( rpm(), bin_string(), measurement_point_name(), sensor_id(),
 					 wooper:state() ) -> boolean().
 vet_fan_speed( Speed, _Desc, _PointNameBin, _SensorId, _State )
-		when is_float( Speed ) ->
-		% Useless: andalso Speed >= 0.0 ->
+									when is_float( Speed ) ->
+									% Useless: andalso Speed >= 0.0 ->
 	true;
 
 vet_fan_speed( _Speed, _Desc, _PointNameBin, _SensorId, _State )  ->
