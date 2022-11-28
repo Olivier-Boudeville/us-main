@@ -389,6 +389,35 @@ The following services are planned (some day) for addition:
 
 
 
+.. _`configuration`:
+
+.. _`US-Main configuration file`:
+
+-------------------
+Configuring US-Main
+-------------------
+
+.. Note:: We discuss configuration before installation, as the settings of interest shall be defined prior to deployment, notably so that adequate permissions can be set on the installation, according to the user under which US-Main is intended to run.
+
+
+
+The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
+
+So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (possibly located in ``/etc/xdg/universal-server/`` or ``~/.config/universal-server/``), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
+
+Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
+
+.. code:: erlang
+
+ {us_main_config_filename, "us-main-for-tests.config"}.
+
+
+This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
+
+
+For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to resources.
+
+
 
 .. _`installation`:
 
@@ -400,15 +429,21 @@ As mentioned, the single mandatory prerequisite of the `Universal Server <https:
 
 We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines), and building the Universal Server from sources, thanks to GNU ``make``.
 
-.. We recommend, for all Erlang-related software, to rely on rebar3.
-One may prefer to rely on rebar3; then, if wanting to be able to operate on the source code of the dependencies, appropriate symbolic links  may be defined in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant Git clones  (typically sibling ones).
+The Universal Server ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
+
+
+
+Automated Installation & Deployment
+===================================
+
+This is actually the simplest, safest, most used/recommended procedure: just run the `deploy-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/deploy-us-main-native-build.sh>`_ script (possibly with its ``--no-launch`` option if wanting just to have it ready) and hope for the best!
 
 
 
 Using Cutting-Edge GIT
 ======================
 
-This is the installation method that we use and recommend; the Universal Server ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
+This is more or less a manual, more limited version of the previous deployment script.
 
 Once Erlang is available, it should be just a matter of executing:
 
@@ -463,6 +498,17 @@ Once Erlang is available, it should be just a matter of executing:
 
 
 
+Rebar3-based Build
+==================
+
+.. We recommend, for all Erlang-related software, to rely on rebar3.
+
+One may prefer relying on rebar3, even if it is by far the less frequent approach taken here.
+
+If wanting to be able to operate on the source code of the dependencies, appropriate symbolic links may be defined in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant Git clones (typically sibling ones).
+
+
+
 :raw-html:`<a name="otp"></a>`
 
 .. _`otp-build`:
@@ -480,30 +526,6 @@ For more details, one may have a look at:
 
 - `rebar.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar.config.template>`_, the general rebar configuration file used when generating the Universal Server OTP application and release (implying the automatic management of Myriad and WOOPER)
 - `rebar-for-hex.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar-for-hex.config.template>`_, to generate a corresponding Hex package for Universal Server (whose structure and conventions is quite different from the previous OTP elements)
-
-
-
-
-.. _`configuration`:
-
-.. _`US-Main configuration file`:
-
--------------------
-Configuring US-Main
--------------------
-
-The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
-
-So the base information of the user-specified ``us.config`` file, found in the US Configuration directory, will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
-
-Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
-
-.. code:: erlang
-
- {us_main_config_filename, "us-main-for-tests.config"}.
-
-
-This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
 
 
