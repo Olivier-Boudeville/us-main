@@ -23,7 +23,7 @@ title() ->
 body() ->
 	#container_12{
 		body = [
-			#grid_8{ alpha=true, prefix=2, suffix=2, omega=true,
+			#grid_16{ alpha=true, prefix=2, suffix=2, omega=true,
 					 body=inner_body() }
 		]
 	}.
@@ -45,13 +45,11 @@ inner_body() ->
 	CharCount = 30,
 
 	[
-		#h1{ text=title() },
-		#p{},
-		"\n"
-		"        Please authenticate to access this US-Main server.\n"
-		"        ",
-	 [
-	  #p{},
+	  "<div style=\"text-align:center\">",
+	  #h1{ text=title() },
+	  "\n"
+	  "        Please authenticate in order to access this server.\n"
+	  "        ",
 	  #label{ text="Your login is your email address:" },
 	  #textbox{ id=login_text_box, size=CharCount, next=password_text_box },
 	  #p{},
@@ -63,9 +61,17 @@ inner_body() ->
 	  % Not relevant: disabled=true
 	  #button{ id=authenticate_button, text="Authenticate",
 			   postback=check_auth,
-			   enter_clicks=[ login_text_box, password_text_box ] }
-	 ]
-	].
+			   enter_clicks=[ login_text_box, password_text_box ] },
+
+	  #flash{},
+
+	  % To wait for delayed auth:
+	  #spinner{},
+
+	  % Points to the current URL, to switch to mobile for example:
+	  #qr{ size=200 },
+
+	  "</div>" ].
 
 
 
@@ -91,7 +97,6 @@ event( check_auth ) ->
 
 	wf:console_log_fmt( "Connection attempt with login '~ts' and "
 		"password '~ts'.", [ SubmittedLogin, SubmittedPassword ] ),
-
 
 	case get_password_for( SubmittedLogin ) of
 
@@ -129,8 +134,8 @@ auth_failed() ->
 	% Already a form of defense, as preventing any brute-force attacker
 	% to close too quickly their socket:
 	%
-	timer:sleep( 800 ),
-	wf:flash("Authentication denied.").
+	timer:sleep( 1000 ),
+	wf:flash( "Authentication denied." ).
 	%wf:replace( authenticate_button, #panel{
 	%	body="Authentication denied",
 	%	actions=#effect{ effect=highlight } } )
