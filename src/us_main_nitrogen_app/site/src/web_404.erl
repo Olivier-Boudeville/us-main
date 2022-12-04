@@ -27,7 +27,8 @@ body() ->
 
 inner_body() ->
 	[
-	  #h1{ text="Requested page not found" },
+	  #h1{ text=wf:f( "Requested page '~ts' not found",
+					  [ wf:path() ] ) },
 	  #p{},
 	  "I could not find the document you wanted, sorry.\n",
 	  #br{},
@@ -35,7 +36,12 @@ inner_body() ->
 	  #br{},
 
 	  #panel{ class=effects_target, body=[
-		#button { text="Go back to main page", postback=continue } ] }
+		"You can either ",
+		#link{ text="go back to previous page",
+			   url="javascript:history.back();"},
+		" or ",
+		#link{ text="go to the main page", postback=continue },
+		"." ] }
 	].
 
 
