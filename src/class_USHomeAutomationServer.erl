@@ -27,7 +27,7 @@
 
 
 -define( class_description, "US server in charge of the providing house "
-		 "automation services, based on Enocean, thanks to Ceylan-Oceanic " ).
+		 "automation services, based on Enocean, thanks to Ceylan-Oceanic" ).
 
 
 % Determines what are the direct mother classes of this class (if any):
@@ -36,7 +36,6 @@
 
 % For settings regarding name registration:
 -include("us_main_defines.hrl").
-
 
 
 % Design notes:
@@ -74,9 +73,8 @@
 -export_type([ house_automation_server_pid/0 ]).
 
 
-% Shorthands:
 
-%-type count() :: basic_utils:count().
+% Shorthands:
 
 -type ustring() :: text_utils:ustring().
 
@@ -87,6 +85,7 @@
 -type oceanic_server_pid() :: oceanic:oceanic_server_pid().
 
 -type device_event() :: oceanic:device_event().
+
 
 
 % The class-specific attributes:
@@ -361,7 +360,7 @@ to_string( State ) ->
 			"not relying on an Oceanic server";
 
 
-		 OcSrvPid ->
+		OcSrvPid ->
 			text_utils:format( "relying on its Oceanic server ~w",
 							   [ OcSrvPid ] )
 
