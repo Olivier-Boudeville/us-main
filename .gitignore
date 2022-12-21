@@ -8,7 +8,10 @@ declared-types-in-*.txt
 .eunit
 erl_crash.dump
 doc/index.html
+
 doc/mathjax
+doc/universal-server-technical-manual-english.html
+doc/universal-server-technical-manual-english.rst
 
 # For Emacs temporary files:
 *.#*
