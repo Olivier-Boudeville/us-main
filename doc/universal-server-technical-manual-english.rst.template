@@ -233,11 +233,12 @@ It can be done with the following configuration entry:
 
  {sensor_monitoring, [
 
-	% Here shall be specified a list of
-	% {sensor_id(), 'all_points' | [ measurement_point_name() ]} pairs
-	% in order to mute bogus sensors / measurement points:
+	% Under that key shall be specified a list of
+	% {sensor_id(), 'all_points' | [user_specified_point()]} pairs
+	% in order to mute the sensors / measurement points that are known to be
+	% bogus:
 	%
-	{muted_measurement_points, [
+	{muted_measurements, [
 		{{nct6792, isa, "0a20"}, ["AUXTIN1"]},
 		{{acpitz, acpi, "0"}, all_points}
 							   ]}
@@ -316,9 +317,9 @@ A typical contact line could then be:
 
 .. code:: erlang
 
- { 1, "James", "Bond", "007", "MI6 Agent 007", {17,5,1971},
+ {1, "James", "Bond", "007", "MI6 Agent 007", {17,5,1971},
   "+44 9 81 47 25 40", "+44 6 26 83 37 22", "james.bond@mi6.uk.org",
-  undefined, undefined, [administrator, secret_agent] }.
+  undefined, undefined, [administrator, secret_agent]}.
 
 
 See also our `test contact ETF file <https://github.com/Olivier-Boudeville/us-main/blob/master/test/test_contact_directory.etf>`_ as a full example thereof.
