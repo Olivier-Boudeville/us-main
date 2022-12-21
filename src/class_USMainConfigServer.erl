@@ -58,11 +58,22 @@
 -type general_main_settings() :: #general_main_settings{}.
 
 
+-type read_muted_sensor_measurements() :: list().
+% A list expected to contain muted sensor measurement points, typically as read
+% from the sensor monitoring section of the US-Main configuration.
+%
+% Expected to be specified in the form [user_muted_sensor_measurements()]:
+% UserMutedMeasurements = [
+%   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
+%   { { acpitz, acpi, "0" }, all_points }
+%                         ].
+
+
 % For default_us_main_config_server_registration_name:
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0 ]).
+-export_type([ general_main_settings/0, read_muted_sensor_measurements/0 ]).
 
 
 
@@ -76,13 +87,18 @@
 -define( us_main_config_server_registration_name_key,
 		 us_main_config_server_registration_name ).
 
-
--define( us_main_sensor_key, sensor_monitoring ).
 -define( us_main_app_base_dir_key, us_main_app_base_dir ).
 -define( us_main_log_dir_key, us_main_log_dir ).
 
 
--define( us_main_muted_points_key, muted_measurement_points ).
+% Entries for sensor monitoring:
+
+-define( us_main_sensor_key, sensor_monitoring ).
+
+% For measurement points known to report bogus values:
+-define( us_main_muted_sensor_measurements, muted_measurements ).
+
+% Designates all (measurement) points of a given sensor:
 -define( us_main_all_points, all_points ).
 
 -define( us_main_contact_files_key, us_contact_files ).
@@ -128,9 +144,6 @@
 % A table holding US-Main configuration information.
 
 
-% To silence attribute-only types:
--export_type([  ]).
-
 
 % Shorthands:
 
@@ -145,6 +158,11 @@
 -type application_run_context() :: otp_utils:application_run_context().
 
 -type server_pid() :: class_UniversalServer:server_pid().
+
+%-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
+
+%-type contact_directory_pid() ::
+%		class_USContactDirectory:contact_directory_pid().
 
 
 
@@ -167,6 +185,16 @@
 
 	{ us_main_supervisor_pid, supervisor_pid(),
 	  "the PID of the OTP supervisor of US-Main, as defined in us_main_sup" },
+
+	{ contact_directory_pid, maybe( contact_directory_pid() ),
+	  "the PID (if any) of the US-Main server managing the contact directory" },
+
+	{ sensor_manager_pid, maybe( sensor_manager_pid() ),
+	  "the PID (if any) of the US-Main server managing the local sensors" },
+
+	{ muted_sensor_measurements, read_muted_sensor_measurements(),
+	  "A list expected to contain muted sensor measurement points; "
+	  "to be vetted by the sensor manager when it will request it" },
 
 	{ config_base_directory, bin_directory_path(),
 	  "the base directory where all US configuration is to be found "
@@ -380,6 +408,14 @@ getContactSettings( State ) ->
 
 
 
+% @doc Returns suitable sensor settings (typically for the sensor manager).
+-spec getSensorSettings( wooper:state() ) ->
+			const_request_return( read_muted_sensor_measurements() ).
+getSensorSettings( State ) ->
+	wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
+
+
+
 % @doc Callback triggered whenever a linked process exits.
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 						basic_utils:exit_reason() ) -> const_oneway_return().
@@ -478,10 +514,12 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 					   [ MainCfgFilePath ] );
 
 		false ->
+
 			% Possibly user/group permission issue:
 			?error_fmt( "No US-Main configuration file found or accessible "
 				"(ex: symbolic link to an inaccessible file); tried '~ts'.",
 				[ MainCfgFilePath ] ),
+
 			throw( { us_main_config_file_not_found,
 					 text_utils:binary_to_string( MainCfgFilePath ) } )
 
@@ -502,12 +540,16 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	ContactState = manage_contacts( MainCfgTable, LogState ),
 
+	SensorState = manage_sensors( MainCfgTable, ContactState ),
+
+	FinalState = SensorState,
+
 	LicitKeys = ?known_config_keys,
 
 	case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
 
 		[] ->
-			ContactState;
+			FinalState;
 
 		UnexpectedKeys ->
 
@@ -811,12 +853,8 @@ manage_log_directory( ConfigTable, State ) ->
 
 	end,
 
-	case file_utils:is_existing_directory( LogDir ) of
-
-		true ->
-			ok;
-
-		false ->
+	file_utils:is_existing_directory( LogDir ) orelse
+		begin
 
 			%throw( { non_existing_base_us_web_log_directory, LogDir } )
 
@@ -829,7 +867,7 @@ manage_log_directory( ConfigTable, State ) ->
 			file_utils:create_directory_if_not_existing( LogDir,
 														 create_parents )
 
-	end,
+		end,
 
 	% Enforce security in all cases ("chmod 700"); if it fails here, the
 	% combined path/user configuration must be incorrect; however we might not
@@ -840,20 +878,16 @@ manage_log_directory( ConfigTable, State ) ->
 	%
 	CurrentUserId = system_utils:get_user_id(),
 
-	case file_utils:get_owner_of( LogDir ) of
-
-		CurrentUserId ->
+	% If not owned, does nothing:
+	CurrentUserId =:= file_utils:get_owner_of( LogDir ) andalso
+		begin
 
 			Perms = [ owner_read, owner_write, owner_execute,
 					  group_read, group_write, group_execute ],
 
-			file_utils:change_permissions( LogDir, Perms );
+			file_utils:change_permissions( LogDir, Perms )
 
-		% Not owned, do nothing:
-		_OtherId ->
-			ok
-
-	end,
+		end,
 
 	BinLogDir = text_utils:ensure_binary( LogDir ),
 
@@ -892,9 +926,77 @@ manage_contacts( ConfigTable, State ) ->
 
 	end,
 
-	% Not specifically checked:
+	% Not specifically checked at this level, will be done by the contact
+	% manager:
+	%
 	setAttribute( State, contact_files, ContactFiles ).
 
+
+
+% @doc Manages any user settings regarding sensors.
+-spec manage_sensors( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_sensors( ConfigTable, State ) ->
+
+	MutedMeasurements = case table:lookup_entry( ?us_main_sensor_key,
+												 ConfigTable ) of
+
+		key_not_found ->
+			?info( "No user settings regarding sensors." ),
+			[];
+
+
+		{ value, SensorSettings } when is_list( SensorSettings ) ->
+
+			{ MutMeasurements, ShrunkSensorSettings } =
+				list_table:extract_entry_with_default(
+					?us_main_muted_sensor_measurements, _DefPoints=[],
+					SensorSettings ),
+
+			%?debug_fmt( "Muted sensor measurement points read as:~n ~p",
+			%            [ MutMeasurements ] ),
+
+			is_list( MutMeasurements ) orelse
+				begin
+
+					?error_fmt( "Invalid muted sensor measurement points "
+						"specified (must be a list): ~p",
+						[ MutMeasurements ] ),
+
+					throw( { invalid_muted_sensor_measurement_points,
+						MutMeasurements, ?us_main_muted_sensor_measurements } )
+
+				end,
+
+			ShrunkSensorSettings =:= [] orelse
+				begin
+
+					?error_fmt( "Unexpected extra sensor settings: ~p.",
+								[ ShrunkSensorSettings ] ),
+
+					throw( { extra_sensor_settings, ShrunkSensorSettings,
+							 ?us_main_muted_sensor_measurements } )
+
+				end,
+
+			% Kept verbatim, will be vetted by the sensor manager:
+			MutMeasurements;
+
+
+		{ value, InvalidSensorSettings }  ->
+
+			?error_fmt( "Read invalid user settings regarding sensors: '~p'.",
+						[ InvalidSensorSettings ] ),
+
+			throw( { invalid_us_sensor_settings, InvalidSensorSettings,
+					 ?us_main_sensor_key } )
+
+	end,
+
+	% Not specifically checked at this level, will be done by the sensor
+	% manager:
+	%
+	setAttribute( State, muted_sensor_measurements, MutedMeasurements ).
 
 
 
