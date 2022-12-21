@@ -111,8 +111,15 @@ if [ -z "${remote_vm_cookie}" ]; then
 
 else
 
+	if [ ! "$(echo "${remote_vm_cookie}" | wc -w)" = "1" ]; then
+
+		echo " Error, invalid remote VM cookie obtained ('${remote_vm_cookie}'). Multiple 'remote_vm_cookie' configuration keys defined?" 1>&2
+
+		exit 57
+
+	fi
+
 	#echo "Using cookie defined for the remote US-Main host (remote_vm_cookie): ${remote_vm_cookie}."
-	:
 
 fi
 
