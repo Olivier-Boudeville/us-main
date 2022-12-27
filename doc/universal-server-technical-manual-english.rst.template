@@ -39,7 +39,7 @@ Technical Manual of the ``Universal Server``
 :Dedication: Users and maintainers of the ``Universal Server``.
 :Abstract:
 
-	The `Universal Server <http://us-main.esperide.org/>`_, part of the umbrella project `of the same name <https://github.com/Olivier-Boudeville/Universal-Server>`_, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of house automation.
+	The `Universal Server <http://us-main.esperide.org/>`_, part of the umbrella project `of the same name <https://github.com/Olivier-Boudeville/Universal-Server>`_, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of home automation.
 
 	We present here a short overview of these services, to introduce them to newcomers.
 
@@ -108,10 +108,48 @@ Facilities Provided by this US-Main Layer
 These are mainly administration services.
 
 
-House Automation
-================
+Home Automation
+===============
 
-This is done thanks to the `Ceylan-Oceanic <http://oceanic.esperide.org>`_ library.
+The US-Main server offers house automation services based on the `Enocean protocol <https://en.wikipedia.org/wiki/EnOcean>`_ and associated devices (sensors and actuators).
+
+These services are implemented thanks to our `Ceylan-Oceanic <http://oceanic.esperide.org>`_ library; please refer to it for a better understanding of EURIDs, base identifiers, telegrams and so on.
+
+
+
+Presence Simulator
+------------------
+
+The goal is to give to any observer from outside the impression that a building is occupied, typically by switching light(s) on and off as if people were inhabiting such a premise.
+
+For that US-Main will control an (Enocean) smart plug (itself able to toggle a well-chosen, low-consumption lamp), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) ``time()`` (hence ``{Hour,Minute,Second}``), or the ``dawn`` and ``dusk`` symbolic deadlines (atoms), which are to be computed each day based on the longitude and the latitude specified by the user for the target location.
+
+By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a presence simulated (the general principle is to switch on a lamp during the busy hours of the day only if no natural light can be expected):
+
+- from ``TMorningStart = 7:30 AM`` to ``TMorningStop``, where ``TMorningStop`` is the soonest deadline between 8:30 AM and dawn (of course no actuator triggered when ``TMorningStop`` is sooner than ``TMorningStart``)
+- from ``TEveningStart`` to ``TEveningStop = 11:45 PM``, where ``TEveningStart`` is the latest deadline between 7:00 PM and dusk (of course no actuator triggered when ``TEveningStop`` is sooner than ``TEveningStart``)
+
+
+
+Alarm System
+------------
+
+The principle is to monitor a set of (Enocean) sensors (typically opening detectors for doors, windows, etc.), and to report whenever a problem is detected.
+
+The US-Main must be first told when the alarm system shall be active; this is typically when no one is at home, which can be notified to US-Main either by executing a script (e.g. ``leaving-home.sh``, in charge also for example of locking all running computers) or by pushing an (Enocean) foot switch located at the front door. Then, after a configurable delay, the alarm system will be enabled.
+
+All sensors are then monitored, any opening being reported.
+
+Other events will be reported, whether or not the alarm system is active:
+
+- when an undeclared sensor is first seen
+- if a known sensor vanishes (e.g. it has been destroyed, or it ran out of power)
+- if a jamming attempt is detected
+
+
+When any abnormal event occurs, US-Main logs it and may typically sends to the user notifications, by SMS and/or by e-mail.
+
+
 
 
 Monitoring of Host Sensors

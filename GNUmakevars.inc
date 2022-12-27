@@ -51,7 +51,7 @@ endif
 ifeq ($(ENABLE_DEBUG),true)
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_house_automation
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
 endif
 
 # Defining check flags:

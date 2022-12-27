@@ -128,13 +128,13 @@ init( _Args=[ AppRunContext ] ) ->
 	% Fourth, a bridge in charge of the (US-Main, local) sensor manager:
 	SensorManagerSpec = get_sensor_manager_bridge_spec( ExecTarget ),
 
-	% Fifth, a bridge in charge of the (Oceanic-based, local) house automation
+	% Fifth, a bridge in charge of the (Oceanic-based, local) home automation
 	% server, acting as an Enocean gateway:
 	%
-	HouseAutomationServerSpec = get_house_automation_bridge_spec( ExecTarget ),
+	HomeAutomationServerSpec = get_home_automation_bridge_spec( ExecTarget ),
 
 	ChildSpecs = [ ConfigServerSpec, ContactDirectorySpec, CommGatewaySpec,
-				   SensorManagerSpec, HouseAutomationServerSpec ],
+				   SensorManagerSpec, HomeAutomationServerSpec ],
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
 	%   "returning supervisor settings ~p and child specs ~p.",
@@ -231,14 +231,14 @@ get_sensor_manager_bridge_spec( ExecTarget ) ->
 
 
 
-% @doc Returns the bridge spec for the house automation gateway (a server
+% @doc Returns the bridge spec for the home automation gateway (a server
 % integrating Oceanic):
 %
--spec get_house_automation_bridge_spec( execution_target() ) -> child_spec().
-get_house_automation_bridge_spec( ExecTarget ) ->
+-spec get_home_automation_bridge_spec( execution_target() ) -> child_spec().
+get_home_automation_bridge_spec( ExecTarget ) ->
 
 	% Refer to get_config_bridge_spec/1 for comments:
-	#{ id => us_house_automation_server,
+	#{ id => us_home_automation_server,
 
 	   start => { _Mod=class_USHomeAutomationServer, _Fun=start_link,
 				  _Args=[] },

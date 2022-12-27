@@ -55,11 +55,11 @@
 
 
 
--define( us_main_house_automation_server_registration_name,
-		 us_main_house_automation_server ).
+-define( us_main_home_automation_server_registration_name,
+		 us_main_home_automation_server ).
 
 % Local, as one instance of such server per host may run:
--define( us_main_house_automation_server_registration_scope, local_only ).
+-define( us_main_home_automation_server_registration_scope, local_only ).
 
 
 

@@ -245,7 +245,7 @@ fans), and of reporting any abnormal situation" ).
 % At least currently, they mostly apply to temperature sensors.
 %
 % Corresponds to the legit settings expected as
-% class_USMainConfigServer:read_muted_sensor_measurements(); may be for example:
+% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
 % [{nct6792, isa, "0a20"}, ["AUXTIN1"]},
 %  {acpitz, acpi, "0"}, all_points}].
 
@@ -267,7 +267,7 @@ fans), and of reporting any abnormal situation" ).
 % At least currently, they mostly apply to temperature sensors.
 %
 % Corresponds to the legit settings expected as
-% class_USMainConfigServer:read_muted_sensor_measurements(); may be for example:
+% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
 % ```
 % [{nct6792, isa, <<"0a20">>}, [<<"AUXTIN1">>]},
 %  {acpitz, acpi, <<"0">>}, all_points}]
@@ -673,8 +673,8 @@ fans), and of reporting any abnormal situation" ).
 %-type scheduler_pid() :: class_USScheduler:scheduler_pid().
 %-type task_id() :: class_USScheduler:task_id().
 
--type read_muted_sensor_measurements() ::
-		class_USMainConfigServer:read_muted_sensor_measurements().
+-type user_muted_sensor_points() ::
+		class_USMainConfigServer:user_muted_sensor_points().
 
 
 % The class-specific attributes:
@@ -1150,6 +1150,8 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	% Blocking; beware of not creating deadlocks that way:
 	UsMainCfgSrvPid ! { getSensorSettings, [], self() },
 
+	CfgState = setAttribute( State, us_config_server_pid, UsMainCfgSrvPid ),
+
 	ReadMutedMeasurements = receive
 
 		% Already checked by the US-Main configuration server to be a list:
@@ -1159,24 +1161,24 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	end,
 
 	MutedMeasurements =
-		vet_muted_sensor_measurements( ReadMutedMeasurements, State ),
+		vet_muted_sensor_points( ReadMutedMeasurements, CfgState ),
 
 	parse_initial_sensors( map_hashtable:enumerate( DecodedMap ),
-		_SensorTable=table:new(), MutedMeasurements, State ).
+		_SensorTable=table:new(), MutedMeasurements, CfgState ).
 
 
 
 % @doc Vets the user-configured measurements to be muted.
--spec vet_muted_sensor_measurements( read_muted_sensor_measurements(),
+-spec vet_muted_sensor_points( user_muted_sensor_points(),
 							  wooper:state() ) -> muted_sensor_measurements().
-vet_muted_sensor_measurements( ReadMutedMeasurements, State ) ->
-	vet_muted_sensor_measurements( ReadMutedMeasurements, _Acc=[], State ).
+vet_muted_sensor_points( ReadMutedMeasurements, State ) ->
+	vet_muted_sensor_points( ReadMutedMeasurements, _Acc=[], State ).
 
-vet_muted_sensor_measurements( _ReadMutedMeasurements=[], Acc, _State ) ->
+vet_muted_sensor_points( _ReadMutedMeasurements=[], Acc, _State ) ->
 	% No order matters:
 	Acc;
 
-vet_muted_sensor_measurements( _ReadMutedMeasurements=[
+vet_muted_sensor_points( _ReadMutedMeasurements=[
 		{ ReadSensorId={ SensorType, SensorInterface, SensorNumber },
 		  UserPoints } | T ] , Acc, State ) ->
 
@@ -1222,10 +1224,10 @@ vet_muted_sensor_measurements( _ReadMutedMeasurements=[
 
 	NewAcc = [ { SensorId, Points } | Acc ],
 
-	vet_muted_sensor_measurements( T, NewAcc, State );
+	vet_muted_sensor_points( T, NewAcc, State );
 
 
-vet_muted_sensor_measurements( _ReadMutedMeasurements=[ Other | _T ] , _Acc,
+vet_muted_sensor_points( _ReadMutedMeasurements=[ Other | _T ] , _Acc,
 							   State ) ->
 
 	?error_fmt( "Invalid user-specified sensor measurements to be muted "
@@ -1375,7 +1377,7 @@ categorise_sensor( RawSensorType="pch_" ++ _ ) ->
 categorise_sensor( RawSensorType="BAT" ++ _Number ) ->
 	{ text_utils:string_to_atom( RawSensorType ), battery };
 
-% Probably a APU:
+% Probably an APU:
 categorise_sensor( _RawSensorType="radeon" ) ->
 	% No real gpu-specific information found in JSON yet:
 	{ radeon, cpu };
@@ -1798,11 +1800,14 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 						false ->
 
-							% Happens very often; like to be disabled soon:
-							%?error_fmt( "Invalid value associated to "
-							%   "temperature attribute '~ts' (got '~p'); "
-							%   "skipping that information.",
-							%   [ AttrName, AttrValue ] ),
+							% Happens very often and duplicates a more general
+							% trace:
+							%
+							cond_utils:if_defined( us_main_debug_sensors,
+								?error_fmt( "Invalid value associated to "
+									"temperature attribute '~ts' (got '~p'); "
+									"skipping that information.",
+									[ AttrName, AttrValue ] ) ),
 
 							TempData#temperature_data{
 								input_attribute=AttrNameBin }
@@ -3408,6 +3413,21 @@ filter_motherboard_json( _BasicTriples=[
 	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
 							 OtherAcc );
 
+
+% Other motherboard CPU temperature index:
+filter_motherboard_json( _BasicTriples=[
+		{ _Name="CPU" ++ Num, BinPointName, V } | T ], TempAcc,
+						 FanAcc, IntrusionAcc, OtherAcc ) ->
+
+	Desc = integrate_any_number( "motherboard CPU temperature sensor",
+								 Num ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
+							 OtherAcc );
+
+
 % Temperature sensor for the Platform Control Hub (PCH) chipset:
 filter_motherboard_json( _BasicTriples=[
 		{ _Name="PCH_CHIP_CPU_MAX_TEMP" ++ Num, BinPointName, V } | T ],
@@ -3482,6 +3502,20 @@ filter_motherboard_json( _BasicTriples=[
 	JSONTriple = { BinPointName, Desc, V },
 
 	filter_motherboard_json( T, TempAcc, [ JSONTriple | FanAcc ], IntrusionAcc,
+							 OtherAcc );
+
+
+% Motherboard-level GPU temperature index (typically for a laptop):
+filter_motherboard_json( _BasicTriples=[
+		{ _Name="GPU" ++ Num, BinPointName, V } | T ], TempAcc,
+						 FanAcc, IntrusionAcc, OtherAcc ) ->
+
+	Desc = integrate_any_number( "motherboard-level GPU temperature sensor",
+								 Num ),
+
+	JSONTriple = { BinPointName, Desc, V },
+
+	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
 							 OtherAcc );
 
 

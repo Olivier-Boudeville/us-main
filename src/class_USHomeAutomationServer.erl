@@ -20,13 +20,13 @@
 % Creation date: Wednesday, November 23, 2022.
 
 
-% @doc US server in charge of the <b>providing house automation services</b>,
+% @doc US server in charge of the <b>providing home automation services</b>,
 % based on Enocean, thanks to Ceylan-Oceanic.
 %
 -module(class_USHomeAutomationServer).
 
 
--define( class_description, "US server in charge of the providing house "
+-define( class_description, "US server in charge of the providing home "
 		 "automation services, based on Enocean, thanks to Ceylan-Oceanic" ).
 
 
@@ -50,7 +50,7 @@
 % Implementation notes:
 
 
-% This house automation server is designed to be able to integrate to an OTP
+% This home automation server is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
 % defined in this module. See https://wooper.esperide.org/#otp-guidelines for
 % further information.
@@ -67,14 +67,106 @@
 -define( bridge_name, ?MODULE ).
 
 
--type house_automation_server_pid() :: class_USServer:server_pid().
+-type home_automation_server_pid() :: class_USServer:server_pid().
+
+-type presence_simulation_setting() :: #presence_simulation_setting{}.
+% Setting of a given instance of presence simulation.
 
 
--export_type([ house_automation_server_pid/0 ]).
+-type presence_simulation_settings() ::
+	{ 'default', MaybeTargetActuatorEurid :: maybe( eurid() ) }
+  | [ presence_simulation_setting() ].
+% All settings for a whole presence simulation service.
+
+
+-type presence_milestone() ::
+	time()  % A time in the day
+  | 'dawn'  % First light of the day
+  | 'dusk'. % Last light of the day
+% Describes a start/stop logical moment to simulate presence.
+
+
+-type presence_slot() :: { presence_milestone(), presence_milestone() }.
+% A time slot during which a presence shall be simulated.
+
+
+-type presence_program() :: [ { presence_milestone(), presence_milestone() } ]
+						  | 'always_on'
+						  | 'always_off'.
+% A intra-day general program regarding the presence to simulate.
+
+
+-type celestial_times() :: { Dawn :: time(), Dusk :: time() }.
+% The time this day for dawn and dusk, at a given location.
+
+
+-export_type([ home_automation_server_pid/0, presence_simulator_settings/0,
+			   presence_milestone/0, presence_slot/0, celestial_times/0 ]).
+
+
+
+
+
+% Local types:
+
+
+% Internal information regarding an instance of presence simulation:
+-record( presence_simulation, {
+
+	% Tells whether this presence simulation is enabled:
+	%
+	% (for example when somebody is at home, it may be disabled)
+	%
+	enabled = true :: boolean(),
+
+	% Tells whether the presence simulation is currently activated (avoids
+	% sending unnecessary orders):
+	%
+	activated :: boolean(),
+
+
+	% The specific EURID (if any) to be used to identify the source of the
+	% emitted (Enocean) telegrams; expected to have been already learnt by the
+	% target actuator(s):
+	%
+	source_eurid :: eurid(),
+
+	% The EURID of the target actuator (typically a smart plug controlling a
+	% lamp):
+	%
+	% (possibly a broadcast address)
+	%
+	target_eurid :: eurid(),
+
+
+	% A chronologically-ordered intra-day (from midnight to midnight) list of
+	% presence slots:
+	%
+	slots :: presence_slots(),
+
+
+	% The press/release telegrams to be emitted to switch the target actuator
+	% (typically a smart plug) on:
+	%
+	activation_telegrams :: { Press :: telegram(), Release :: telegram() },
+
+	% The press/release telegrams to be emitted to switch the target actuator
+	% (typically a smart plug) off:
+	%
+	deactivation_telegrams :: { Press :: telegram(), Release :: telegram() },
+
+	% The identifier (if any) of the currently-pending scheduling task declared
+	% to manage that presence:
+	%
+	task_id :: maybe( task_id() )
+
+ } ).
 
 
 
 % Shorthands:
+
+-type user_data() :: basic_utils:user_data().
 
 -type ustring() :: text_utils:ustring().
 
@@ -82,9 +174,17 @@
 
 -type bytes_per_second() :: system_utils:bytes_per_second().
 
--type oceanic_server_pid() :: oceanic:oceanic_server_pid().
+-type time() :: time_utils:time().
 
+-type scheduler_pid() :: class_USScheduler:scheduler_pid().
+
+-type position() :: unit_utils:position().
+
+-type oceanic_server_pid() :: oceanic:oceanic_server_pid().
 -type device_event() :: oceanic:device_event().
+-type eurid_string() :: oceanic:eurid_strin().
+-type eurid() :: oceanic:eurid().
+-type telegram() :: oceanic:eurid().
 
 
 
@@ -94,6 +194,30 @@
 	{ oc_srv_pid, maybe( oceanic_server_pid() ),
 	  "the PID of the Oceanic server (if any can exist) used by this server" },
 
+	{ oc_base_id, maybe( eurid() ), "the base identifier (if any) of "
+	  "the local Enocean gateway to use, as determined by Oceanic" },
+
+	{ us_config_server_pid, server_pid(),
+	  "the PID of the overall US configuration server" },
+
+	% Typically for the presence simulator:
+	{ scheduler_pid, maybe( scheduler_pid() ),
+	  "the PID of the scheduler (if any) used by this server" },
+
+	% Better defined separately from presence_simulations, as the program shall
+	% remain whereas presence simulation may be regularly enabled/disabled:
+	%
+	{ presence_simulation_enabled, boolean(),
+	  "tells whether the presence simulation service is currently enabled" },
+
+	{ presence_simulations, table maybe( [ presence_simulation() ] ) },
+
+	{ server_location, maybe( position() ),
+	  "the (geographic) location, as a position, of the US-Main server" },
+
+	{ celestial_times, maybe( celestial_times() ),
+	  "any precomputed dawn/dusk time, for the current day" },
+
 	{ comm_gateway_pid, gateway_pid(),
 	  "the PID of the US communication gateway used to send user "
 	  "notifications" } ] ).
@@ -101,7 +225,7 @@
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.US-Main.HouseAutomation" ).
+-define( trace_emitter_categorization, "US.US-Main.HomeAutomation" ).
 
 
 
@@ -115,14 +239,42 @@
 
 
 
+% Implementation notes:
+
+
+% Regarding presence simulation:
+%
+% The presence milestones of a slot may overlap (typically because the time of
+% dusk and dawn varies in the course of the year); anyway the presence will be
+% simulated in all cases with no interruption.
+%
+% A robust mode of operation has been retained, with which states are enforced
+% (e.g smart plug is on) rather than transitions (e.g. toggling smart plug).
+
+
+% Regarding the computation of the time in the day of dawn and dusk:
+%
+% The duration of a given day depends on the date and latitude of the location
+% of interest; the actual moments for dawn and dusk depend also on longitude.
+%
+% More information (in French):
+% - https://www.astrolabe-science.fr/duree-du-jour-et-latitude/
+
+
+% Regarding the Enocean actuators:
+%
+% We suppose that these devices already learnt the USB gateway being used by
+% Oceanic. This server will act upon these actuators as a double-rocker switch
+% (e.g. not two single-contact buttons), whose on button is button_ao, and whose
+% off button is button_ai.
 
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
-% process allowing to interface this house automation server with an OTP
+% process allowing to interface this home automation server with an OTP
 % supervision tree.
 
 
-% @doc Starts and links a supervision bridge for the house automation system.
+% @doc Starts and links a supervision bridge for the home automation system.
 %
 % Note: typically spawned as a supervised child of the US-Main root supervisor
 % (see us_main_sup:init/1), hence generally triggered by the application
@@ -133,7 +285,7 @@ start_link() ->
 
 	% Apparently not displayed in a release context, yet executed:
 	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the house automation system." ),
+						"the home automation system." ),
 
 	supervisor_bridge:start_link( { local, ?bridge_name },
 		_Module=?MODULE, _InitArgs=[] ).
@@ -148,85 +300,475 @@ start_link() ->
 init( _Args=[] ) ->
 
 	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
-						   "the house automation system.", [ self() ] ),
+						   "the home automation system.", [ self() ] ),
 
 	% Not specifically synchronous:
-	HouseAutomSrvPid = ?MODULE:new_link(),
+	HomeAutomSrvPid = ?MODULE:new_link(),
 
-	{ ok, HouseAutomSrvPid, _InitialBridgeState=HouseAutomSrvPid }.
+	{ ok, HomeAutomSrvPid, _InitialBridgeState=HomeAutomSrvPid }.
 
 
 
 % @doc Callback to terminate this supervisor bridge.
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
-terminate( Reason, _BridgeState=HouseAutomSrvPid )
-								when is_pid( HouseAutomSrvPid ) ->
+terminate( Reason, _BridgeState=HomeAutomSrvPid )
+								when is_pid( HomeAutomSrvPid ) ->
 
 	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
-		"the house automation system (reason: ~w, "
-		"house automation server: ~w).", [ Reason, HouseAutomSrvPid ] ),
+		"the home automation system (reason: ~w, "
+		"home automation server: ~w).", [ Reason, HomeAutomSrvPid ] ),
 
 	% Synchronicity needed, otherwise a potential race condition exists, leading
 	% this process to be killed by its OTP supervisor instead of being normally
 	% stopped:
 	%
-	wooper:delete_synchronously_instance( HouseAutomSrvPid ),
+	wooper:delete_synchronously_instance( HomeAutomSrvPid ),
 
-	trace_bridge:debug_fmt( "US-Main house automation server ~w terminated.",
-						   [ HouseAutomSrvPid ] ).
-
-
+	trace_bridge:debug_fmt( "US-Main home automation server ~w terminated.",
+						   [ HomeAutomSrvPid ] ).
 
 
-% Actual implementation of the house automation server.
 
 
-% @doc Constructs an house automation server, based on the default, local TTY
-% allocated to the USB Enocean gateway.
+% Actual implementation of the home automation server.
+
+
+% @doc Constructs an home automation server, based on the default, local TTY
+% allocated to the USB Enocean gateway, whose base identifier will be used as
+% source EURID for telegram sendings, and not providing a presence simulator.
 %
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 	construct( State, oceanic:get_default_tty_path() ).
 
 
-% @doc Constructs an house automation server, based on the specified local TTY
-% allocated to the USB Enocean gateway.
+% @doc Constructs an home automation server, based on the specified local TTY
+% allocated to the USB Enocean gateway, whose base identifier will be used as
+% source EURID for telegram sendings, and not providing a presence simulator.
 %
 -spec construct( wooper:state(), device_path() ) -> wooper:state().
 construct( State, TtyPath ) ->
+	construct( State, TtyPath, _MaybePresenceSimSettings=undefined ).
 
-	ServerTraceName = "House automation server",
+
+% @doc Constructs an home automation server, based on the specified local TTY
+% allocated to the USB Enocean gateway.
+%
+% Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
+% performed, specified either as a complete list of presence settings, or only
+% through the EURID of the target actuator(s), in which case a default presence
+% policy will apply; the source used for the sent telegrams will be the base
+% identifier of the gateway.
+%
+-spec construct( wooper:state(), device_path(),
+				 maybe( presence_simulation_settings() | eurid_string() ) ) ->
+										wooper:state().
+construct( State, TtyPath, MaybePresenceSimSettings ) ->
+	construct( State, TtyPath, MaybePresenceSimSettings,
+			   _MaybeSourceEuridStr=undefined ).
+
+
+% @doc Constructs an home automation server, based on the specified local TTY
+% allocated to the USB Enocean gateway.
+%
+% Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
+% performed, specified either as a complete list of presence settings, or only
+% through the EURID of the target actuator(s), in which case a default presence
+% policy will apply; the source used for the sent telegrams will be the
+% specified one (if any), otherwise the base identifier of the gateway.
+%
+-spec construct( wooper:state(), device_path(),
+	maybe( presence_simulation_settings() | eurid_string() ),
+	maybe( eurid_string() ) ) -> wooper:state().
+construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
+
+	ServerTraceName = "Home automation server",
 
 	% First the direct mother classes, then this class-specific actions:
 	SrvState = class_USServer:construct( State,
 		?trace_categorize(ServerTraceName),
-		?us_main_house_automation_server_registration_name,
-		?us_main_house_automation_server_registration_scope ),
+		?us_main_home_automation_server_registration_name,
+		?us_main_home_automation_server_registration_scope ),
 
 	% Do not start Oceanic if it is bound to fail:
-	MaybeOcSrvPid = case oceanic:is_available( TtyPath ) of
+	{ MaybeOcSrvPid, MaybeSrcEurid } = case oceanic:is_available( TtyPath ) of
 
 		{ true, _SerialRootDir } ->
-			oceanic:start_link( TtyPath, _EventListenerPid=self() );
+			OcPid = oceanic:start_link( TtyPath, _EventListenerPid=self() ),
+			SourceId = case MaybeSourceEuridStr of
+
+				undefined ->
+					% Then go for the BaseId:
+					oceanic:get_oceanic_eurid( OcPid );
+
+				SourceId ->
+					oceanic:string_to_eurid( SourceIdStr )
+
+			end,
+			{ OcPid, SourceId };
 
 		{ false, ReasonStr, ErrorTerm } ->
+			% No house automation can be done then:
 			?send_warning_fmt( SrvState,
 				"The Oceanic support will not be available. ~ts~n"
 				"(error term: ~p).", [ ReasonStr, ErrorTerm ] ),
-			undefined
+			{ undefined, undefined }
 
 	end,
+
+	UsMainCfgSrvPid = class_USMainConfigServer:get_us_main_config_server(),
+
+	% Common to all home-automation services; beware to blocking calls:
+	UsMainCfgSrvPid ! { getHomeAutomationSettings, [], self() },
+
+	SchedPid = class_USScheduler:get_main_scheduler(),
+
+	% Interleaved:
+	MaybeSrvLoc = receive
+
+		{ wooper_result, _MaybeUserSrvLoc=undefined } ->
+			undefined;
+
+		% Already checked as floats by the configuration server:
+		{ wooper_result, UserSrvLoc={ Lat, Long } } ->
+			( Lat > 90.0 orelse Lat < -90.0 ) andalso
+				throw( { invalid_latitude, Lat } ),
+
+			( Long > 180.0 orelse Long < -180.0 ) andalso
+				throw( { invalid_longitude, Long } ),
+
+			UserSrvLoc
+
+	end,
+
+	MaybePscSims = init_presence_simulation( MaybePresenceSimSettings,
+		MaybeOcSrvPid, MaybeSrcEurid, SchedPid, SrvState ),
+
+	% Later:
+	%AlarmState = init_alarm( MaybeOcSrvPid, PresenceState ),
+	AlarmState = PresenceState,
 
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
-	SetState = setAttributes( SrvState, [
+	InitalPscEnabled = MaybePscSims =/= undefined,
+
+	SetState = setAttributes( AlarmState, [
 		{ oc_srv_pid, MaybeOcSrvPid },
+		{ oc_base_id, MaybeBaseId },
+		{ us_config_server_pid, UsMainCfgSrvPid },
+		{ scheduler_pid, SchedPid },
+		{ presence_simulation_enabled, InitalPscEnabled },
+		{ presence_simulations, MaybePscSims },
+		{ server_location, MaybeSrvLoc },
+		{ celestial_times, undefined },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
 
-	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
+	ApplyState = apply_presence_simulation( SetState ),
 
-	SetState.
+	?send_notice( ApplyState, "Constructed: " ++ to_string( ApplyState ) ),
+
+	ApplyState.
+
+
+
+% (helper)
+init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
+						  MaybeSrcEurid, State ) ->
+	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
+							  MaybeSrcEurid, _Acc=[], State ).
+
+
+
+% (helper)
+%
+% No presence simulation wanted:
+init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
+						  _MaybeSrcEurid, _Acc, State ) ->
+	undefined;
+
+init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
+						  _MaybeSrcEurid, _Acc, State ) ->
+
+	?error_fmt( "No Oceanic support available, the requested presence "
+		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
+
+	throw( { no_presence_simulation, no_oceanic } );
+
+
+% Not expected to happen, as set with OcSrvPid:
+init_presence_simulation( _PresenceSimSettings, _OcSrvPid,
+		_MaybeSrcEurid=undefined, _Acc, State ) ->
+
+	?error_fmt( "No source EURID available, the requested presence "
+		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
+
+	throw( { no_presence_simulation, no_source_eurid } );
+
+
+% Default settings:
+init_presence_simulation(
+		_PresenceSimSettings={ default, MaybeTargetActuatorEuridStr },
+		OcSrvPid, SrcEurid, Acc, State ) ->
+
+	% Principle: no useless lighting during the expected presence slots, which
+	% are:
+	%  - in the morning: from 7:30 AM to 8:30 AM
+	%  - in the evening: from 7:00 PM to 11:45 PM
+
+	TMorningStart = { 7, 30, 0 },
+	TMorningStop = { 8, 30, 0 },
+
+	TEveningStart = { 19, 00, 00 },
+	TEveningStop = { 23, 45, 00 },
+
+	Slots = [ { TMorningStart, TMorningStop },
+			  { TEveningStart, TEveningStop } ],
+
+	DefaultSettings = #presence_simulation_setting{
+		source_eurid=SrcEurid,
+		target_eurid=MaybeTargetActuatorEuridStr,
+		intra_day_slots=Slots,
+		smart_lighting=true },
+
+	% Branch then to the general rule:
+	init_presence_simulation( _PresenceSimSettings=[ DefaultSettings ],
+							  OcSrvPid, SrcEurid, Acc, State );
+
+
+init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEurid,
+						  Acc, _State ) ->
+	% No order matters:
+	Acc;
+
+% Main clause:
+init_presence_simulation( _PresenceSimSettings=[
+		#presence_simulation_setting{
+			source_eurid=MaybeUserSrcEuridStr,
+			target_eurid=MaybeTargetActuatorEuridStr,
+			presence_program=Program,
+			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEurid, Acc,
+						  State ) ->
+
+	ActualSrcEurid = case MaybeUserSrcEuridStr of
+
+		undefined ->
+			SrcEurid;
+
+		UserSrcEuridStr ->
+			oceanic:string_to_eurid( UserSrcEuridStr )
+
+	end,
+
+	ActualTargetEurid = case MaybeTargetActuatorEuridStr of
+
+		undefined ->
+			oceanic:get_broadcast_eurid();
+
+		TargetActuatorEuridStr ->
+			oceanic:string_to_eurid( TargetActuatorEuridStr )
+
+	end,
+
+
+	% We check the program, not taking into account here dawn/dusk as they
+	% change each day:
+	%
+	VettedSlots = vet_program( Program ),
+
+	% We have also to forge the Enocean telegrams necessary for switching on/off
+	% the actuator(s), with following conventions (learnt double-rocker, whose
+	% top button is "on"):
+
+	SwitchOnButton = button_ao,
+
+	OnPressTelegram = oceanic:encode_double_rocker_switch_telegram(
+		ActualSrcEurid, ActualTargetEurid, SwitchOnButton, pressed ),
+
+	OnReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
+		ActualSrcEurid, ActualTargetEurid, SwitchOnButton, released ),
+
+
+	SwitchOffButton = button_ai,
+
+	OffPressTelegram = oceanic:encode_double_rocker_switch_telegram(
+		ActualSrcEurid, ActualTargetEurid, SwitchOffButton, pressed ),
+
+	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
+		ActualSrcEurid, ActualTargetEurid, SwitchOffButton, released ),
+
+	PscSim = #presence_simulation{
+		enabled=true,
+		activated=false,
+		source_eurid=ActualSrcEurid,
+		target_eurid=ActualTargetEurid,
+		slots=VettedSlots,
+		activation_telegrams={ OnPressTelegram, OnReleaseTelegram },
+		deactivation_telegrams={ OffPressTelegram, OffReleaseTelegram } },
+
+	init_presence_simulation( T, OcSrvPid, SrcEurid, [ PscSim | Acc ], State );
+
+
+init_presence_simulation( _PresenceSimSettings=[ Other | _T ], _OcSrvPid,
+						  _SrcEurid, _Acc, _State ) ->
+	throw( { invalid_presence_setting, Other } );
+
+
+init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEurid,
+						  _Acc, _State ) ->
+	throw( { invalid_presence_settings, Other } ).
+
+
+
+% @doc Vets the specified user program.
+-spec vet_program( user_data() ) -> presence_program().
+vet_program( _PresenceProgram=always_on ) ->
+	Midnight = { 0, 0, 0 },
+	[ { Midnight, Midnight } ];
+
+vet_program( _PresenceProgram=always_off ) ->
+	[];
+
+vet_program( PresenceProgram ) ->
+	vet_program( PresenceProgram, _MaybeLastStop=undefined, _Acc=[] ).
+
+
+
+% (helper)
+vet_program( _PresenceProgram=[], _MaybeLastStop, Acc ) ->
+	lists:reverse( Acc );
+
+
+vet_program( _PresenceProgram=[ Slot={ StartMilestone, StopMilestone } | T ],
+			 MaybeLastStop, Acc ) ->
+
+	time_utils:is_time( StartMilestone )
+		orelse throw( { invalid_slot_start_milestone, StartMilestone } ),
+
+	time_utils:is_time( StopMilestone )
+		orelse throw( { invalid_slot_stop_milestone, StopMilestone } ),
+
+	StartMilestone < StopMilestone orelse
+		throw( { inconsistent_slot_milestones, StartMilestone,
+				 StopMilestone } ),
+
+	% Term order tells undefined is lower than all tuples:
+	MaybeLastStop =:= undefined orelse
+		( MaybeLastStop < StartMilestone orelse
+		  throw( { interleaved_slots, Slot, MaybeLastStop} ) ),
+
+	vet_program( T, StopMilestone, [ Slot | Acc ] );
+
+vet_program( Other, _MaybeLastStop, _Acc ) ->
+	throw( { invalid_presence_program, Other } ).
+
+
+
+
+
+% @doc Applies, from the current moment, the intra-day presence program.
+-spec apply_presence_simulation( wooper:state() ) -> wooper:state().
+apply_presence_simulation( State ) ->
+	case ?getAttr(presence_simulation_enabled) of
+
+		true ->
+			case ?getAttr(presence_simulations) of
+
+				undefined ->
+					State;
+
+				[] ->
+					State;
+
+				PscSims ->
+					update_presence_simulations( PscSims,
+						_NowTime=erlang:time(), ?getAttr(celestial_times),
+						_Acc=[], State )
+
+			end;
+
+		false ->
+			State
+
+	end.
+
+
+
+% @doc Updates, in turn and if necessary, the specified presence simulations.
+-spec update_presence_simulations( [ presence_simulation() ], time(),
+		maybe( celestial_times() ), [ presence_simulation() ],
+		wooper:state() ) -> wooper:state().
+update_presence_simulations( _PscSims=[], _NowTime, _MaybeCelestialTimes, Acc,
+							 State ) ->
+	% Order does not matter:
+	setAttribute( State, presence_simulations, Acc );
+
+update_presence_simulations( _PscSims=[
+		PscSim=#presence_simulation{ enabled=false } | T ], NowTime,
+							 MaybeCelestialTimes, Acc, State ) ->
+	% Nothing done if disabled:
+	update_presence_simulations( T, NowTime, MaybeCelestialTimes,
+								 [ PscSim | Acc ], State );
+
+% Thus enabled:
+update_presence_simulations( _PscSims=[
+		PscSim=#presence_simulation{ activated=IsActivated,
+									 slots=Slots } | T ],
+							 NowTime, MaybeCelestialTimes, Acc, State ) ->
+
+	LightNeeded = case in_slot( NowTime, Slots ) of
+
+		true ->
+			CelestialTimes = get_celestial_times( MaybeCelestialTimes
+			LightingNeeded = case
+
+
+
+	% Stops earlier if dawn happens soon enough:
+	TMorningStop = erlang:min( TMorningFixedStop, DawnTime ),
+
+
+
+	% Delays if dusk happens late enough:
+	TEveningStart = erlang:max( TEveningFixedStart, DuskTime ),
+
+
+	DefSlots =
+		[ { TMorningStart, TMorningStop }, { TEveningStart, TEveningStop } ],
+
+
+	init_presence_simulation( T, OcSrvPid, SrcEurid, MaybeSrvLoc,
+						  Acc, State ) ->
+		MaybeBaseId, MaybeSrvLoc, State ).
+
+
+% Computes the actual dawn/dusk times.
+%
+% (helper)
+resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
+
+	DefaultDawnTime = { 8, 15, 0 },
+	DefaultDuskTime = { 19, 15, 0 },
+
+	?warning_fmt( "No server location specified, logical milestones cannot be "
+		"determined; using default deadlines: ~ts for dawn, ~ts for dusk. ",
+		[ time_utils:time_to_string( DefaultDawnTime ),
+		  time_utils:time_to_string( DefaultDuskTime ) ] ),
+
+	{ DefaultDawnTime, DefaultDuskTime };
+
+resolve_logical_milestones( SrvLoc={ Lat, Long }, State ) ->
+	% Temporary:
+	DawnTime = { 8, 0, 0 },
+	DuskTime = { 19, 0, 0 },
+
+	?debug_fmt( "For the specified server location (~ts), "
+		"computed following deadlines: ~ts for dawn and ~ts for dusk. ",
+		[ unit_utils:position_to_string( SrvLoc ),
+		  time_utils:time_to_string( DawnTime ),
+		  time_utils:time_to_string( DuskTime ) ] ),
+
+	{ DawnTime, Dusk }.
 
 
 
@@ -266,7 +808,7 @@ onEnoceanEvent( State, Event, OcSrvPid ) when is_tuple( Event ) ->
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
-	cond_utils:if_defined( us_main_debug_house_automation,
+	cond_utils:if_defined( us_main_debug_home_automation,
 		?debug_fmt( "Received following device event from Oceanic "
 			"server ~w: ~ts",
 			[ OcSrvPid, oceanic:device_event_to_string( Event ) ] ) ),
@@ -333,20 +875,42 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 % @doc Returns the PID of the supposedly already-launched home automation
 % server; waits for it if needed.
 %
--spec get_house_automation_server() ->
-			static_return( house_automation_server_pid() ).
-get_house_automation_server() ->
+-spec get_home_automation_server() ->
+			static_return( home_automation_server_pid() ).
+get_home_automation_server() ->
 
 	OcSrvPid = naming_utils:wait_for_registration_of(
-		?us_main_house_automation_server_registration_name,
+		?us_main_home_automation_server_registration_name,
 		naming_utils:registration_to_look_up_scope(
-			?us_main_house_automation_server_registration_scope ) ),
+			?us_main_home_automation_server_registration_scope ) ),
 
 	wooper:return_static( OcSrvPid ).
 
 
 
 % Helper section.
+
+
+% @doc Returns a textual description of the specified presence simulation
+% internal record.
+%
+-spec presence_simulation_to_string( presence_simulation() ) -> ustring().
+presence_simulation_to_string( #presence_simulation{
+		source_eurid=SourceEurid,
+		target_eurid=TargetEurid,
+		slots=Slots,
+		activation_telegram={ OnPressTelegram, OnReleaseTelegram },
+		deactivation_telegram={ OffPressTelegram, OffReleaseTelegram } } ) ->
+	text_utils:format( "presence simulation from EURID ~ts to EURID ~ts "
+		"during following slots: ~p "
+		"(activation telegrams: '~ts' (press) and '~ts' (release); "
+		"deactivation ones: '~ts' and '~ts')",
+		[ oceanic:eurid_to_string( SourceEurid ),
+		  oceanic:eurid_to_string( TargetEurid ), Slots,
+		  oceanic:telegram_to_string( OnPressTelegram ),
+		  oceanic:telegram_to_string( OnReleaseTelegram ),
+		  oceanic:telegram_to_string( OffPressTelegram ),
+		  oceanic:telegram_to_string( OffReleaseTelegram ) ] ).
 
 
 
@@ -359,13 +923,101 @@ to_string( State ) ->
 		undefined ->
 			"not relying on an Oceanic server";
 
-
 		OcSrvPid ->
-			text_utils:format( "relying on its Oceanic server ~w",
-							   [ OcSrvPid ] )
+			text_utils:format( "relying on its Oceanic server ~w "
+				"(base identifier being EURID ~ts)",
+				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_base_id) ) ] )
 
 	end,
 
-	text_utils:format( "US house automation server ~ts "
-		"and using the communication gateway ~w",
-		[ OcSrvStr, ?getAttr(comm_gateway_pid) ] ).
+	LocStr = case ?getAttr(server_location) of
+
+		undefined ->
+			"with no location defined";
+
+		{ Lat, Long } ->
+			text_utils:format( "located at latitude ~ts degrees and "
+							   "longitude ~ts degrees", [ Lat, Long ] )
+
+	end,
+
+	PscStr = case ?getAttr(presence_simulation_enabled) of
+
+		true ->
+			"enabled, with " ++ case ?getAttr(presence_simulations) of
+				[] ->
+					"no presence defined";
+
+				[ PscSim ] ->
+					"a single presence defined: "
+						++ presence_simulation_to_string( PscSim );
+
+				PscSims ->
+					text_utils:format( "~B presences defined: ~ts",
+						[ length( PscSims ), text_utils:strings_to_string(
+							[ presence_simulation_to_string( PS )
+								|| PS <-PscSims ] ) ] )
+
+			end;
+
+		false ->
+			"disabled"
+
+	end,
+
+	text_utils:format( "US home automation server ~ts, using the US-Main "
+		"configuration server ~w, the scheduler ~w and the communication "
+		"gateway ~w, ~ts; the presence simulator is currently ~ts",
+		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
+		  ?getAttr(comm_gateway_pid), LocStr, PscStr ] ).
+
+
+
+% @doc Returns a textual description of the specified presence simulation.
+-spec presence_simulation_to_string( presence_simulation() ) -> ustring().
+presence_simulation_to_string( #presence_simulation{
+		enabled=IsEnabled,
+		activated=IsActivated,
+		source_eurid=SourceEurid,
+		target_eurid=TargetEurid,
+		slots=Slots,
+		activation_telegrams={ PressOn, ReleaseOn },
+		deactivation_telegrams={ PressOff, ReleaseOff } } ) ->
+
+	SlotStr = case Slots of
+
+		[] ->
+			"yet with no slot defined";
+
+		[ SingleSlot ] ->
+			text_utils:format( "with a single slot defined: ~ts",
+							   [ slot_to_string( SingleSlot ) ] );
+
+		_ ->
+			text_utils:format( "with ~B slots defined: ~ts",
+				[ length( Slots ), text_utils:strings_to_listed_string(
+					[ slot_to_string( S ) || S <- Slots ] ) ] )
+
+	end,
+
+	text_utils:format( "~ts presence, whose source EURID is ~ts, "
+		"target EURID is ~ts (activation telegrams are ~ts for pressed, "
+		 "~ts for released, deactivation telegrams are ~ts for pressed, "
+		 "~ts for released), during ~ts",
+		[ case IsEnabled of
+				true -> "enabled";
+				false -> "disabled"
+		  end ++ "and " ++ case IsActivated of
+				true -> "activated";
+				false -> "non-activated"
+		  end, SourceEurid, TargetEurid, PressOn, ReleaseOn,
+		  PressOff, ReleaseOff, SlotStr ] ).
+
+
+
+% @doc Returns a textual description of the specified presence slot.
+-spec slot_to_string( slot() ) -> ustring().
+slot_to_string( _Slot={ StartTime, StopTime } ) ->
+	text_utils:format( "from ~ts to ~ts", [
+		time_utils:time_to_string( StartTime ),
+		time_utils:time_to_string( StopTime ) ] ).

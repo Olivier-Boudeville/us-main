@@ -58,7 +58,7 @@
 -type general_main_settings() :: #general_main_settings{}.
 
 
--type read_muted_sensor_measurements() :: list().
+-type user_muted_sensor_points() :: list().
 % A list expected to contain muted sensor measurement points, typically as read
 % from the sensor monitoring section of the US-Main configuration.
 %
@@ -68,12 +68,16 @@
 %   { { acpitz, acpi, "0" }, all_points }
 %                         ].
 
+-type user_server_location() :: { float(), float() }.
+% Checked more precisely as a position() in the home automation server.
+
 
 % For default_us_main_config_server_registration_name:
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0, read_muted_sensor_measurements/0 ]).
+-export_type([ general_main_settings/0, user_muted_sensor_points/0,
+			   user_server_location/0 ]).
 
 
 
@@ -101,13 +105,19 @@
 % Designates all (measurement) points of a given sensor:
 -define( us_main_all_points, all_points ).
 
+
 -define( us_main_contact_files_key, us_contact_files ).
+
+
+-define( us_main_server_location_key, server_location ).
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
 -define( known_config_keys,
 		 [ ?us_main_sensor_key, ?us_main_app_base_dir_key,
-		   ?us_main_log_dir_key, ?us_main_contact_files_key ] ).
+		   ?us_main_location_key,
+		   ?us_main_log_dir_key, ?us_main_contact_files_key,
+		   ?us_main_server_location_key ] ).
 
 
 % The last-resort environment variable:
@@ -161,6 +171,8 @@
 
 %-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
 
+%-type position() :: unit_utils:position().
+
 %-type contact_directory_pid() ::
 %		class_USContactDirectory:contact_directory_pid().
 
@@ -192,9 +204,12 @@
 	{ sensor_manager_pid, maybe( sensor_manager_pid() ),
 	  "the PID (if any) of the US-Main server managing the local sensors" },
 
-	{ muted_sensor_measurements, read_muted_sensor_measurements(),
+	{ muted_sensor_measurements, user_muted_sensor_points(),
 	  "A list expected to contain muted sensor measurement points; "
 	  "to be vetted by the sensor manager when it will request it" },
+
+	{ server_location, maybe( user_server_location() ),
+	  "the user-specified location of this US-Main server" },
 
 	{ config_base_directory, bin_directory_path(),
 	  "the base directory where all US configuration is to be found "
@@ -395,24 +410,34 @@ getMainConfigSettings( State ) ->
 
 
 
+% @doc Returns suitable sensor settings (typically for the sensor manager).
+-spec getSensorSettings( wooper:state() ) ->
+			const_request_return( user_muted_sensor_points() ).
+getSensorSettings( State ) ->
+	wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
+
+
+
+% @doc Returns suitable home automation settings (typically for the home
+% automation server).
+%
+-spec getHomeAutomationSettings( wooper:state() ) ->
+			const_request_return( maybe( user_server_location() ) ).
+getHomeAutomationSettings( State ) ->
+	wooper:const_return_result( ?getAttr(server_location) ).
+
+
+
 % @doc Returns suitable contact settings (typically for the contact directory).
 -spec getContactSettings( wooper:state() ) ->
-			const_request_return( { bin_directory_path(), execution_context(),
-									[ bin_file_path() ] } ).
+	const_request_return(
+		{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
 getContactSettings( State ) ->
 
 	ContactSettings = { ?getAttr(config_base_directory),
 						?getAttr(execution_context), ?getAttr(contact_files) },
 
 	wooper:const_return_result( ContactSettings ).
-
-
-
-% @doc Returns suitable sensor settings (typically for the sensor manager).
--spec getSensorSettings( wooper:state() ) ->
-			const_request_return( read_muted_sensor_measurements() ).
-getSensorSettings( State ) ->
-	wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
 
 
 
@@ -542,7 +567,9 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	SensorState = manage_sensors( MainCfgTable, ContactState ),
 
-	FinalState = SensorState,
+	AutomatState = manage_home_automation( MainCfgTable, SensorState ),
+
+	FinalState = AutomatState,
 
 	LicitKeys = ?known_config_keys,
 
@@ -997,6 +1024,40 @@ manage_sensors( ConfigTable, State ) ->
 	% manager:
 	%
 	setAttribute( State, muted_sensor_measurements, MutedMeasurements ).
+
+
+
+% @doc Manages any user settings regarding home automation.
+-spec manage_home_automation( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_home_automation( ConfigTable, State ) ->
+
+	% First checking:
+	MaybePosition = case table:lookup_entry( ?us_main_server_location_key,
+											 ConfigTable ) of
+
+		key_not_found ->
+			?info( "No user settings regarding home automation." ),
+			undefined;
+
+
+		{ value, { { latitude, Lat }, { longitude, Long } } } ->
+			is_float( Lat ) orelse
+				throw( { invalid_latitude, Lat,
+						 ?us_main_server_location_key } ),
+
+			is_float( Long ) orelse
+				throw( { invalid_longitude, Long,
+						 ?us_main_server_location_key } ),
+
+			{ Lat, Long }
+
+	end,
+
+	% Not specifically checked at this level, will be done by the home
+	% automation server:
+	%
+	setAttribute( State, server_location, MaybePosition ).
 
 
 
