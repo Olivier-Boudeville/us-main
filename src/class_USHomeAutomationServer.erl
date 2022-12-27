@@ -46,10 +46,6 @@
 
 
 
-
-% Implementation notes:
-
-
 % This home automation server is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
 % defined in this module. See https://wooper.esperide.org/#otp-guidelines for
@@ -110,8 +106,15 @@
 % Local types:
 
 
+-type presence_sim_id() :: count().
+% Internal identifier of a presence simulation.
+
+
 % Internal information regarding an instance of presence simulation:
 -record( presence_simulation, {
+
+	% The identifier of this presence simulation:
+	id :: presence_sim_id(),
 
 	% Tells whether this presence simulation is enabled:
 	%
@@ -139,10 +142,11 @@
 	target_eurid :: eurid(),
 
 
-	% A chronologically-ordered intra-day (from midnight to midnight) list of
+	% The program of this presence simulation, generally a
+	% chronologically-ordered intra-day (from midnight to midnight) list of
 	% presence slots:
 	%
-	slots :: presence_slots(),
+	program :: presence_program(),
 
 
 	% The press/release telegrams to be emitted to switch the target actuator
@@ -164,8 +168,17 @@
 
 
 
+-type presence_table() :: table( presence_sim_id(), presence_simulation() )
+% A table keeping track of the known presence simulations.
+
+
+-type presence_action() :: 'start' | 'stop'.
+% Tells whether a presence simulation shall be started or stopped.
+
+
 % Shorthands:
 
+-type count() :: basic_utils:count().
 -type user_data() :: basic_utils:user_data().
 
 -type ustring() :: text_utils:ustring().
@@ -201,16 +214,20 @@
 	  "the PID of the overall US configuration server" },
 
 	% Typically for the presence simulator:
-	{ scheduler_pid, maybe( scheduler_pid() ),
-	  "the PID of the scheduler (if any) used by this server" },
+	{ scheduler_pid, scheduler_pid(),
+	  "the PID of the scheduler used by this server" },
 
-	% Better defined separately from presence_simulations, as the program shall
-	% remain whereas presence simulation may be regularly enabled/disabled:
+	% Better defined separately from presence_table, as the program shall remain
+	% whereas presence simulation may be regularly enabled/disabled:
 	%
 	{ presence_simulation_enabled, boolean(),
 	  "tells whether the presence simulation service is currently enabled" },
 
-	{ presence_simulations, table maybe( [ presence_simulation() ] ) },
+	{ presence_table, presence_table(),
+	  "referential of the presence simulations" },
+
+	{ next_presence_id, presence_sim_id(),
+	  "the next presence identifier that will be assigned" },
 
 	{ server_location, maybe( position() ),
 	  "the (geographic) location, as a position, of the US-Main server" },
@@ -261,6 +278,11 @@
 % - https://www.astrolabe-science.fr/duree-du-jour-et-latitude/
 
 
+% Regarding scheduling:
+%
+% It is planned from the current event to (only) the next.
+
+
 % Regarding the Enocean actuators:
 %
 % We suppose that these devices already learnt the USB gateway being used by
@@ -269,9 +291,13 @@
 % off button is button_ai.
 
 
+
+
+
 % Implementation of the supervisor_bridge behaviour, for the intermediate
 % process allowing to interface this home automation server with an OTP
 % supervision tree.
+
 
 
 % @doc Starts and links a supervision bridge for the home automation system.
@@ -441,8 +467,9 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	MaybePscSims = init_presence_simulation( MaybePresenceSimSettings,
-		MaybeOcSrvPid, MaybeSrcEurid, SchedPid, SrvState ),
+	{ InitPscTable, NextPscId } = init_presence_simulation(
+		MaybePresenceSimSettings, MaybeOcSrvPid, MaybeSrcEurid, SchedPid,
+		SrvState ),
 
 	% Later:
 	%AlarmState = init_alarm( MaybeOcSrvPid, PresenceState ),
@@ -459,7 +486,8 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ us_config_server_pid, UsMainCfgSrvPid },
 		{ scheduler_pid, SchedPid },
 		{ presence_simulation_enabled, InitalPscEnabled },
-		{ presence_simulations, MaybePscSims },
+		{ presence_table, InitPscTable },
+		{ next_presence_id, NextPscId },
 		{ server_location, MaybeSrvLoc },
 		{ celestial_times, undefined },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
@@ -475,20 +503,23 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 % (helper)
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 						  MaybeSrcEurid, State ) ->
+
 	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
-							  MaybeSrcEurid, _Acc=[], State ).
+		MaybeSrcEurid, _PscTable=table:new(), _NextPscId=1, State ).
 
 
 
+% @doc Initialises the overall presence simulation.
+%
 % (helper)
 %
 % No presence simulation wanted:
 init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
-						  _MaybeSrcEurid, _Acc, State ) ->
-	undefined;
+						  _MaybeSrcEurid, EmptyPscTable, InitPscId, _State ) ->
+	{ EmptyPscTable, InitPscId };
 
 init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
-						  _MaybeSrcEurid, _Acc, State ) ->
+		_MaybeSrcEurid, _PscTable, _NextPscId, State ) ->
 
 	?error_fmt( "No Oceanic support available, the requested presence "
 		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
@@ -498,7 +529,7 @@ init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
 
 % Not expected to happen, as set with OcSrvPid:
 init_presence_simulation( _PresenceSimSettings, _OcSrvPid,
-		_MaybeSrcEurid=undefined, _Acc, State ) ->
+		_MaybeSrcEurid=undefined, _PscTable, _NextPscId, State ) ->
 
 	?error_fmt( "No source EURID available, the requested presence "
 		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
@@ -506,10 +537,10 @@ init_presence_simulation( _PresenceSimSettings, _OcSrvPid,
 	throw( { no_presence_simulation, no_source_eurid } );
 
 
-% Default settings:
+% Default settings, just switching to the actual clause:
 init_presence_simulation(
 		_PresenceSimSettings={ default, MaybeTargetActuatorEuridStr },
-		OcSrvPid, SrcEurid, Acc, State ) ->
+		OcSrvPid, SrcEurid, PscTable, NextPscId, State ) ->
 
 	% Principle: no useless lighting during the expected presence slots, which
 	% are:
@@ -528,18 +559,18 @@ init_presence_simulation(
 	DefaultSettings = #presence_simulation_setting{
 		source_eurid=SrcEurid,
 		target_eurid=MaybeTargetActuatorEuridStr,
-		intra_day_slots=Slots,
+		presence_program=Slots,
 		smart_lighting=true },
 
 	% Branch then to the general rule:
 	init_presence_simulation( _PresenceSimSettings=[ DefaultSettings ],
-							  OcSrvPid, SrcEurid, Acc, State );
+							  OcSrvPid, SrcEurid, PscTable, NextPscId, State );
 
 
+% The "actual" clauses:
 init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEurid,
-						  Acc, _State ) ->
-	% No order matters:
-	Acc;
+						  PscTable, NextPscId, _State ) ->
+	{ PscTable, NextPscId };
 
 % Main clause:
 init_presence_simulation( _PresenceSimSettings=[
@@ -547,8 +578,8 @@ init_presence_simulation( _PresenceSimSettings=[
 			source_eurid=MaybeUserSrcEuridStr,
 			target_eurid=MaybeTargetActuatorEuridStr,
 			presence_program=Program,
-			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEurid, Acc,
-						  State ) ->
+			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEurid, PscTable,
+						  NextPscId ) ->
 
 	ActualSrcEurid = case MaybeUserSrcEuridStr of
 
@@ -598,6 +629,7 @@ init_presence_simulation( _PresenceSimSettings=[
 		ActualSrcEurid, ActualTargetEurid, SwitchOffButton, released ),
 
 	PscSim = #presence_simulation{
+		id=NextPscId,
 		enabled=true,
 		activated=false,
 		source_eurid=ActualSrcEurid,
@@ -606,16 +638,19 @@ init_presence_simulation( _PresenceSimSettings=[
 		activation_telegrams={ OnPressTelegram, OnReleaseTelegram },
 		deactivation_telegrams={ OffPressTelegram, OffReleaseTelegram } },
 
-	init_presence_simulation( T, OcSrvPid, SrcEurid, [ PscSim | Acc ], State );
+	NewPscTable = table:add_new_entry( _K=NextPscId, PscSim, PscTable ),
+
+	init_presence_simulation( T, OcSrvPid, SrcEurid, NewPscTable, NextPscId+1,
+							  State );
 
 
 init_presence_simulation( _PresenceSimSettings=[ Other | _T ], _OcSrvPid,
-						  _SrcEurid, _Acc, _State ) ->
+						  _SrcEurid, _PscTable, _NextPscId, _State ) ->
 	throw( { invalid_presence_setting, Other } );
 
 
 init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEurid,
-						  _Acc, _State ) ->
+						  _PscTable, _NextPscId, _State ) ->
 	throw( { invalid_presence_settings, Other } ).
 
 
@@ -665,17 +700,18 @@ vet_program( Other, _MaybeLastStop, _Acc ) ->
 
 
 
-
 % @doc Applies, from the current moment, the intra-day presence program.
+%
+% Defined for reuse (at creation or afterwards, if toggling this service as a
+% whole, updating presence simulations, etc.).
+%
 -spec apply_presence_simulation( wooper:state() ) -> wooper:state().
 apply_presence_simulation( State ) ->
 	case ?getAttr(presence_simulation_enabled) of
 
 		true ->
-			case ?getAttr(presence_simulations) of
-
-				undefined ->
-					State;
+			PscTable = ?getAttr(presence_table),
+			case table:values( PscTable ) of
 
 				[] ->
 					State;
@@ -683,7 +719,7 @@ apply_presence_simulation( State ) ->
 				PscSims ->
 					update_presence_simulations( PscSims,
 						_NowTime=erlang:time(), ?getAttr(celestial_times),
-						_Acc=[], State )
+						_EmptyTable=table:new(), State )
 
 			end;
 
@@ -696,25 +732,78 @@ apply_presence_simulation( State ) ->
 
 % @doc Updates, in turn and if necessary, the specified presence simulations.
 -spec update_presence_simulations( [ presence_simulation() ], time(),
-		maybe( celestial_times() ), [ presence_simulation() ],
-		wooper:state() ) -> wooper:state().
-update_presence_simulations( _PscSims=[], _NowTime, _MaybeCelestialTimes, Acc,
-							 State ) ->
-	% Order does not matter:
-	setAttribute( State, presence_simulations, Acc );
+		maybe( celestial_times() ), presence_table(), wooper:state() ) ->
+					wooper:state().
+update_presence_simulations( _PscSims=[], _NowTime, _MaybeCelestialTimes,
+							 PscTable, State ) ->
+	setAttribute( State, presence_table, PscTable );
 
 update_presence_simulations( _PscSims=[
-		PscSim=#presence_simulation{ enabled=false } | T ], NowTime,
-							 MaybeCelestialTimes, Acc, State ) ->
+		PscSim=#presence_simulation{ id=Id,
+									 enabled=false } | T ], NowTime,
+							 MaybeCelestialTimes, PscTable, State ) ->
 	% Nothing done if disabled:
+	NewPscTable = table:add_new_entry( _K=Id, PscSim, PscTable ),
+
 	update_presence_simulations( T, NowTime, MaybeCelestialTimes,
-								 [ PscSim | Acc ], State );
+								 NewPscTable, State );
 
 % Thus enabled:
-update_presence_simulations( _PscSims=[
-		PscSim=#presence_simulation{ activated=IsActivated,
-									 slots=Slots } | T ],
-							 NowTime, MaybeCelestialTimes, Acc, State ) ->
+update_presence_simulations(
+		_PscSims=[ PscSim=#presence_simulation{ id=Id } | T ], NowTime,
+		MaybeCelestialTimes, PscTable, State ) ->
+
+	{ StartedPscSim, CelestialTimes } = start_presence_simulation( PscSim,
+		NowTime, MaybeCelestialTimes, State ),
+
+	NewPscTable = table:add_new_entry( _K=Id, StartedPscSim, PscTable ),
+
+	update_presence_simulations( T, NowTime, CelestialTimes, NewPscTable,
+								 State ).
+
+
+
+% @doc Starts the specified presence simulation, either at creation or when
+% enabling it (at any moment).
+%
+-spec start_presence_simulation( presence_simulation(), time(),
+	maybe( celestial_times() ), wooper:state() ) ->
+		{ presence_simulation(), maybe( celestial_times() ) }.
+start_presence_simulation( PscSim=#presence_simulation{
+		enabled=false }, _NowTime, _MaybeCelestialTimes, _State ) ->
+	throw( { not_enabled, PscSim } );
+
+% From here, 'enabled' expected to be true:
+start_presence_simulation( PscSim=#presence_simulation{
+		activated=true }, _NowTime, _MaybeCelestialTimes, _State ) ->
+	throw( { already_activated, PscSim } );
+
+% From here, 'enabled' expected to be true, 'activated' to be false.
+% Nothing to be done:
+start_presence_simulation( PscSim=#presence_simulation{
+		slots=[], task_id=undefined }, NowTime, MaybeCelestialTimes, State ) ->
+	{ PscSim, MaybeCelestialTimes };
+
+% Main clause:
+start_presence_simulation( PscSim=#presence_simulation{
+		slots=Slots,
+		task_id=undefined }, NowTime, MaybeCelestialTimes, State ) ->
+
+	case next_slot( NowTime, Slots ) of
+
+		{ DoStart, NextEvent } ->
+
+	SchedPid = ?getAttr(scheduler),
+
+	SchedPid !
+
+	TaskId =
+
+	PscSim#presence_simulation{ activated=true,
+								task_id=TaskId };
+
+
+
 
 	LightNeeded = case in_slot( NowTime, Slots ) of
 
@@ -737,9 +826,31 @@ update_presence_simulations( _PscSims=[
 		[ { TMorningStart, TMorningStop }, { TEveningStart, TEveningStop } ],
 
 
-	init_presence_simulation( T, OcSrvPid, SrcEurid, MaybeSrvLoc,
-						  Acc, State ) ->
-		MaybeBaseId, MaybeSrvLoc, State ).
+% Here task_id is not 'undefined':
+start_presence_simulation( PscSim, _NowTime, _MaybeCelestialTimes, _State ) ->
+	throw( { already_scheduled, PscSim } ).
+
+
+
+% @doc Returns whether a presence shall be immediately started or stopped, and
+% at what timestamp (if any) the next (opposite) action is to happen.
+%
+-spec next_slot( time(), [ presence_slot() ] ) ->
+								{ maybe( presence_action() ), timestamp() }.
+next_slot( NowTime, Slots ) ->
+	next_slot( NowTime, Slots, Slots ).
+
+
+% (helper)
+next_slot( _NowTime, _Slots=[], OriginalSlots ) ->
+
+next_slot( _NowTime, _Slots=[] ) ->
+
+next_slot( NowTime, Slots ) ->
+
+next_slot( NowTime, Slots ) ->
+
+next_slot( NowTime, Slots ) ->
 
 
 % Computes the actual dawn/dusk times.
@@ -843,6 +954,14 @@ onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
 
 
 
+% @doc Called (typically by the scheduler) whenever a presence simulation shall
+% be started.
+%
+-spec onPresenceSimulationToStart( wooper:state(), presence_sim_id() ) ->
+											oneway_return().
+onPresenceSimulationToStart( State, PscSimId ) ->
+
+
 % @doc Callback triggered, if this server enabled the trapping of exits,
 % whenever a linked process terminates.
 %
@@ -944,7 +1063,9 @@ to_string( State ) ->
 	PscStr = case ?getAttr(presence_simulation_enabled) of
 
 		true ->
-			"enabled, with " ++ case ?getAttr(presence_simulations) of
+			PscSims = table:values( ?getAttr(presence_simulations) ),
+			"enabled, with " ++ case PscSims of
+
 				[] ->
 					"no presence defined";
 
@@ -976,6 +1097,7 @@ to_string( State ) ->
 % @doc Returns a textual description of the specified presence simulation.
 -spec presence_simulation_to_string( presence_simulation() ) -> ustring().
 presence_simulation_to_string( #presence_simulation{
+		id=Id,
 		enabled=IsEnabled,
 		activated=IsActivated,
 		source_eurid=SourceEurid,
@@ -1000,7 +1122,7 @@ presence_simulation_to_string( #presence_simulation{
 
 	end,
 
-	text_utils:format( "~ts presence, whose source EURID is ~ts, "
+	text_utils:format( "~ts presence of id #~B, whose source EURID is ~ts, "
 		"target EURID is ~ts (activation telegrams are ~ts for pressed, "
 		 "~ts for released, deactivation telegrams are ~ts for pressed, "
 		 "~ts for released), during ~ts",
@@ -1010,7 +1132,7 @@ presence_simulation_to_string( #presence_simulation{
 		  end ++ "and " ++ case IsActivated of
 				true -> "activated";
 				false -> "non-activated"
-		  end, SourceEurid, TargetEurid, PressOn, ReleaseOn,
+		  end, Id, SourceEurid, TargetEurid, PressOn, ReleaseOn,
 		  PressOff, ReleaseOff, SlotStr ] ).
 
 
