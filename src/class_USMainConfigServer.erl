@@ -106,18 +106,16 @@
 -define( us_main_all_points, all_points ).
 
 
--define( us_main_contact_files_key, us_contact_files ).
-
-
 -define( us_main_server_location_key, server_location ).
+
+-define( us_main_contact_files_key, us_contact_files ).
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
 -define( known_config_keys,
 		 [ ?us_main_sensor_key, ?us_main_app_base_dir_key,
-		   ?us_main_location_key,
-		   ?us_main_log_dir_key, ?us_main_contact_files_key,
-		   ?us_main_server_location_key ] ).
+		   ?us_main_log_dir_key, ?us_main_server_location_key,
+		   ?us_main_contact_files_key ] ).
 
 
 % The last-resort environment variable:
