@@ -43,12 +43,13 @@
 
 	% A chronologically-ordered intra-day (from midnight to midnight) time
 	% slots, or a constant policy, during which a presence shall be simulated.
+	%
 	presence_program :: class_USHomeAutomationServer:presence_program(),
 
 
 	% Tells whether lighting shall be switched off during a presence slot when
-	% the light of day should apply (provided that the position of the server is
-	% known):
+	% the light of day should be available (provided that the position of the
+	% server is known):
 	%
 	smart_lighting = true :: boolean()
 
