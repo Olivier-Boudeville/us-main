@@ -566,6 +566,6 @@ div.banner a, div.banner em { border-top: 1px groove #EEEEEE; text-indent: 10px;
 div.banner a:first-child { border-top: none; }
 div.banner em { color: #FFFFFF; font-weight: bold; } /* head of column */
 
-div.banner a:link { color: #EEEEEE; text-decoration: none; }
-div.banner a:visited { color: #CCCCCC; text-decoration: none; }
+div.banner a:link { color: #FFFFFF; text-decoration: none; }
+div.banner a:visited { color: #DDDDDD; text-decoration: none; }
 div.banner a:hover { color: #000000; background: #FFFFFF; }

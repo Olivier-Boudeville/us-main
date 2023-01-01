@@ -23,7 +23,7 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2022 Olivier Boudeville</p>
+<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2023 Olivier Boudeville</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Contact:</th><td class="field-body"><p class="first">about (dash) universal-server (at) esperide (dot) com</p>
@@ -32,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Saturday, September 10, 2022</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Sunday, January 1, 2023</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.8</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.10</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -44,7 +44,7 @@
 <tr class="field"><th class="field-name">Dedication:</th><td class="field-body"><p class="first">Users and maintainers of the <tt class="docutils literal">Universal Server</tt>.</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Abstract:</th><td class="field-body"><p class="first">The <a class="reference external" href="http://us-main.esperide.org/">Universal Server</a>, part of the umbrella project <a class="reference external" href="https://github.com/Olivier-Boudeville/Universal-Server">of the same name</a>, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of house automation.</p>
+<tr class="field"><th class="field-name">Abstract:</th><td class="field-body"><p class="first">The <a class="reference external" href="http://us-main.esperide.org/">Universal Server</a>, part of the umbrella project <a class="reference external" href="https://github.com/Olivier-Boudeville/Universal-Server">of the same name</a>, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of home automation.</p>
 <p class="last">We present here a short overview of these services, to introduce them to newcomers.</p>
 </td>
 </tr>
@@ -58,33 +58,41 @@
 <ul class="simple">
 <li><a class="reference internal" href="#overview" id="toc-entry-1">Overview</a></li>
 <li><a class="reference internal" href="#layer-stack" id="toc-entry-2">Layer Stack</a></li>
-<li><a class="reference internal" href="#configuration" id="toc-entry-3">Configuration</a></li>
-<li><a class="reference internal" href="#facilities-provided-by-this-us-main-layer" id="toc-entry-4">Facilities Provided by this US-Main Layer</a><ul>
-<li><a class="reference internal" href="#monitoring-of-host-sensors" id="toc-entry-5">Monitoring of Host Sensors</a><ul>
-<li><a class="reference internal" href="#preparing-the-setup" id="toc-entry-6">Preparing the Setup</a></li>
-<li><a class="reference internal" href="#mode-of-operation-of-the-sensor-manager" id="toc-entry-7">Mode of Operation of the Sensor Manager</a></li>
+<li><a class="reference internal" href="#facilities-provided-by-this-us-main-layer" id="toc-entry-3">Facilities Provided by this US-Main Layer</a><ul>
+<li><a class="reference internal" href="#home-automation" id="toc-entry-4">Home Automation</a><ul>
+<li><a class="reference internal" href="#presence-simulator" id="toc-entry-5">Presence Simulator</a></li>
+<li><a class="reference internal" href="#alarm-system" id="toc-entry-6">Alarm System</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#contact-directory-1" id="toc-entry-8">Contact Directory</a><ul>
-<li><a class="reference internal" href="#contact-file-format" id="toc-entry-9">Contact File Format</a></li>
-<li><a class="reference internal" href="#contact-file-location" id="toc-entry-10">Contact File Location</a></li>
+<li><a class="reference internal" href="#monitoring-of-host-sensors" id="toc-entry-7">Monitoring of Host Sensors</a><ul>
+<li><a class="reference internal" href="#preparing-the-setup" id="toc-entry-8">Preparing the Setup</a></li>
+<li><a class="reference internal" href="#mode-of-operation-of-the-sensor-manager" id="toc-entry-9">Mode of Operation of the Sensor Manager</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#communication-gateway-1" id="toc-entry-11">Communication Gateway</a></li>
-<li><a class="reference internal" href="#network-support-monitoring" id="toc-entry-12">Network Support Monitoring</a></li>
-<li><a class="reference internal" href="#remote-monitoring-of-online-services" id="toc-entry-13">Remote Monitoring of Online Services</a></li>
-<li><a class="reference internal" href="#next-services" id="toc-entry-14">Next Services</a></li>
+<li><a class="reference internal" href="#contact-directory-1" id="toc-entry-10">Contact Directory</a><ul>
+<li><a class="reference internal" href="#contact-file-format" id="toc-entry-11">Contact File Format</a></li>
+<li><a class="reference internal" href="#contact-file-location" id="toc-entry-12">Contact File Location</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#licence" id="toc-entry-15">Licence</a></li>
-<li><a class="reference internal" href="#current-stable-version-download" id="toc-entry-16">Current Stable Version &amp; Download</a><ul>
-<li><a class="reference internal" href="#using-cutting-edge-git" id="toc-entry-17">Using Cutting-Edge GIT</a></li>
-<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="toc-entry-18">Using OTP-Related Build/Runtime Conventions</a></li>
+<li><a class="reference internal" href="#communication-gateway-1" id="toc-entry-13">Communication Gateway</a></li>
+<li><a class="reference internal" href="#network-support-monitoring" id="toc-entry-14">Network Support Monitoring</a></li>
+<li><a class="reference internal" href="#remote-monitoring-of-online-services" id="toc-entry-15">Remote Monitoring of Online Services</a></li>
+<li><a class="reference internal" href="#next-services" id="toc-entry-16">Next Services</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#support" id="toc-entry-19">Support</a></li>
-<li><a class="reference internal" href="#please-react" id="toc-entry-20">Please React!</a></li>
-<li><a class="reference internal" href="#ending-word" id="toc-entry-21">Ending Word</a></li>
+<li><a class="reference internal" href="#configuring-us-main" id="toc-entry-17">Configuring US-Main</a></li>
+<li><a class="reference internal" href="#installing-us-main-current-stable-version-download" id="toc-entry-18">Installing US-Main: Current Stable Version &amp; Download</a><ul>
+<li><a class="reference internal" href="#automated-installation-deployment" id="toc-entry-19">Automated Installation &amp; Deployment</a></li>
+<li><a class="reference internal" href="#using-cutting-edge-git" id="toc-entry-20">Using Cutting-Edge GIT</a></li>
+<li><a class="reference internal" href="#rebar3-based-build" id="toc-entry-21">Rebar3-based Build</a></li>
+<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="toc-entry-22">Using OTP-Related Build/Runtime Conventions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#launching-us-main" id="toc-entry-23">Launching US-Main</a></li>
+<li><a class="reference internal" href="#support" id="toc-entry-24">Support</a></li>
+<li><a class="reference internal" href="#licence" id="toc-entry-25">Licence</a></li>
+<li><a class="reference internal" href="#please-react" id="toc-entry-26">Please React!</a></li>
+<li><a class="reference internal" href="#ending-word" id="toc-entry-27">Ending Word</a></li>
 </ul>
 </div>
 <p></p>
@@ -98,11 +106,12 @@
 <h1><a class="toc-backref" href="#toc-entry-2">Layer Stack</a></h1>
 <p>From the highest level to the lowest, as summarised <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">here</a>, a software stack involving the Universal Server usually is like:</p>
 <ul class="simple">
-<li>the <em>Universal Server</em> services themselves (i.e. this <a class="reference external" href="http://us.esperide.org/">us-main</a> layer)</li>
+<li>the <em>Universal Server</em> services themselves (i.e. this <a class="reference external" href="http://us.esperide.org/">US-Main</a> layer)</li>
 <li>[optional] the <em>Universal Webserver</em>, i.e. <a class="reference external" href="http://us-web.esperide.org/">US-Web</a> (for web interaction)</li>
 <li><a class="reference external" href="http://us-common.esperide.org/">US-Common</a> (for US base facilities)</li>
 <li>[optional] <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a> (for 3G connectivity, notably SMS sending, relying on the Gammu library)</li>
-<li>[optional] <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a> (prerequisite of Ceylan-Mobile for a bridge from Erlang to the C language)</li>
+<li>[optional] <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a> (prerequisite of Ceylan-Mobile, for a bridge from Erlang to the C language)</li>
+<li><a class="reference external" href="http://oceanic.esperide.org">Ceylan-Oceanic</a> (for the support of home automation, through the integration of Enocean devices and actuators; relies on <a class="reference external" href="https://github.com/Olivier-Boudeville/erlang-serial">our fork of erlang-serial</a>)</li>
 <li><a class="reference external" href="http://traces.esperide.org">Ceylan-Traces</a> (for advanced runtime traces)</li>
 <li><a class="reference external" href="http://wooper.esperide.org">Ceylan-WOOPER</a> (for OOP)</li>
 <li><a class="reference external" href="http://myriad.esperide.org">Ceylan-Myriad</a> (as an Erlang toolbox)</li>
@@ -112,21 +121,39 @@
 <p>The shorthand for <tt class="docutils literal">Universal Server</tt> is <tt class="docutils literal">us</tt>.</p>
 <p></p>
 </div>
-<div class="section" id="configuration">
-<span id="us-main-configuration-file"></span><h1><a class="toc-backref" href="#toc-entry-3">Configuration</a></h1>
-<p>The US-Main server is part of our &quot;Universal Server&quot; infrastructure, and as such relies on the <a class="reference external" href="https://us-common.esperide.org/#configuration">base US-Common configuration settings</a>.</p>
-<p>So the base information of the user-specified <tt class="docutils literal">us.config</tt> file, found in the US Configuration directory, will apply (see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config">this example thereof</a>).</p>
-<p>Notably, in this file, a <tt class="docutils literal">us_main_config_filename</tt> entry can be specified in order to designate the US-Main configuration file that shall be used; for example:</p>
-<pre class="code erlang literal-block">
-<span class="p">{</span><span class="n">us_main_config_filename</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;us-main-for-tests.config&quot;</span><span class="p">}.</span>
-</pre>
-<p>This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main scripts</a>, notably in order to start, stop, or monitor a designated US-Main server.</p>
-</div>
 <div class="section" id="facilities-provided-by-this-us-main-layer">
-<h1><a class="toc-backref" href="#toc-entry-4">Facilities Provided by this US-Main Layer</a></h1>
-<p>These are mainly per-host administration services.</p>
+<h1><a class="toc-backref" href="#toc-entry-3">Facilities Provided by this US-Main Layer</a></h1>
+<p>These are mainly administration services.</p>
+<div class="section" id="home-automation">
+<h2><a class="toc-backref" href="#toc-entry-4">Home Automation</a></h2>
+<p>The US-Main server offers house automation services based on the <a class="reference external" href="https://en.wikipedia.org/wiki/EnOcean">Enocean protocol</a> and associated devices (sensors and actuators).</p>
+<p>These services are implemented thanks to our <a class="reference external" href="http://oceanic.esperide.org">Ceylan-Oceanic</a> library; please refer to it for a better understanding of EURIDs, base identifiers, telegrams and so on.</p>
+<div class="section" id="presence-simulator">
+<h3><a class="toc-backref" href="#toc-entry-5">Presence Simulator</a></h3>
+<p>The goal is to give to any observer from outside the impression that a building is occupied, typically by switching light(s) on and off as if people were inhabiting such a premise.</p>
+<p>For that US-Main will control an (Enocean) smart plug (itself able to toggle a well-chosen, low-consumption lamp), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) <tt class="docutils literal">time()</tt> (hence <tt class="docutils literal">{Hour,Minute,Second}</tt>), or the <tt class="docutils literal">dawn</tt> and <tt class="docutils literal">dusk</tt> symbolic deadlines (atoms), which are to be computed each day based on the longitude and the latitude specified by the user for the target location.</p>
+<p>By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a presence simulated (the general principle is to switch on a lamp during the busy hours of the day only if no natural light can be expected):</p>
+<ul class="simple">
+<li>from <tt class="docutils literal">TMorningStart = 7:30 AM</tt> to <tt class="docutils literal">TMorningStop</tt>, where <tt class="docutils literal">TMorningStop</tt> is the soonest deadline between 8:30 AM and dawn (of course no actuator triggered when <tt class="docutils literal">TMorningStop</tt> is sooner than <tt class="docutils literal">TMorningStart</tt>)</li>
+<li>from <tt class="docutils literal">TEveningStart</tt> to <tt class="docutils literal">TEveningStop = 11:45 PM</tt>, where <tt class="docutils literal">TEveningStart</tt> is the latest deadline between 7:00 PM and dusk (of course no actuator triggered when <tt class="docutils literal">TEveningStop</tt> is sooner than <tt class="docutils literal">TEveningStart</tt>)</li>
+</ul>
+</div>
+<div class="section" id="alarm-system">
+<h3><a class="toc-backref" href="#toc-entry-6">Alarm System</a></h3>
+<p>The principle is to monitor a set of (Enocean) sensors (typically opening detectors for doors, windows, etc.), and to report whenever a problem is detected.</p>
+<p>The US-Main must be first told when the alarm system shall be active; this is typically when no one is at home, which can be notified to US-Main either by executing a script (e.g. <tt class="docutils literal"><span class="pre">leaving-home.sh</span></tt>, in charge also for example of locking all running computers) or by pushing an (Enocean) foot switch located at the front door. Then, after a configurable delay, the alarm system will be enabled.</p>
+<p>All sensors are then monitored, any opening being reported.</p>
+<p>Other events will be reported, whether or not the alarm system is active:</p>
+<ul class="simple">
+<li>when an undeclared sensor is first seen</li>
+<li>if a known sensor vanishes (e.g. it has been destroyed, or it ran out of power)</li>
+<li>if a jamming attempt is detected</li>
+</ul>
+<p>When any abnormal event occurs, US-Main logs it and may typically sends to the user notifications, by SMS and/or by e-mail.</p>
+</div>
+</div>
 <div class="section" id="monitoring-of-host-sensors">
-<h2><a class="toc-backref" href="#toc-entry-5">Monitoring of Host Sensors</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-7">Monitoring of Host Sensors</a></h2>
 <p>The objective here is to track the various (and numerous) sensors of interest that most modern computers include; should abnormal feedback be detected, it is to be automatically reported thanks to the <a class="reference internal" href="#communication-gateway">communication gateway</a> service.</p>
 <p>The <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl">US Sensor Manager</a> tracks automatically many <strong>hardware sensors</strong>; at start-up it detects the main available ones, regarding:</p>
 <ul class="simple">
@@ -137,7 +164,7 @@
 <p>(other sensors like batteries, network or USB interfaces, etc. are at least currently ignored, as their measurements are mostly voltage levels)</p>
 <p>From then, the sensor manager periodically monitors the various measurement points exhibited by such sensors: it does its best to filter bogus values, to detect abnormal changes and to report to the user any related issue.</p>
 <div class="section" id="preparing-the-setup">
-<h3><a class="toc-backref" href="#toc-entry-6">Preparing the Setup</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-8">Preparing the Setup</a></h3>
 <p>The monitoring done by this server relies on the <tt class="docutils literal">sensors</tt> executable
 (typically <tt class="docutils literal">/usr/bin/sensors</tt>, obtained generally from a package of the same
 name and relying on <a class="reference external" href="https://github.com/lm-sensors/lm-sensors">lm-sensors</a>). One may install the <tt class="docutils literal"><span class="pre">i2c-tools</span></tt>
@@ -146,7 +173,7 @@ package as well for DIMM information (see R2 below).</p>
 <p>Sensor configuration is typically stored in <tt class="docutils literal">/etc/sensors3.conf</tt>, and must exist prior to running the US-Main server.</p>
 </div>
 <div class="section" id="mode-of-operation-of-the-sensor-manager">
-<h3><a class="toc-backref" href="#toc-entry-7">Mode of Operation of the Sensor Manager</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-9">Mode of Operation of the Sensor Manager</a></h3>
 <p>Once the sensor manager is started, <strong>temperatures</strong> are periodically tracked (i.e. the currently reported one, plus minimum, maximum, and average since start) and compared to thresholds (any critical temperature as reported by the chips, and also ones set by our sensor manager itself in order to trigger alarms).</p>
 <p>Abnormal temperatures (that is, going above - or even below - relevant thresholds) are then automatically timestamped and reported to the user by the US logic (i.e. notified in traces with appropriate severity, and possibly sent to the user thanks to emails and/or SMS, see the <a class="reference internal" href="#communication-gateway">communication gateway</a> service).</p>
 <p>Similarly, any <strong>fan</strong> that would stop whereas not being PWM <a class="footnote-reference" href="#footnote-1" id="footnote-reference-1">[1]</a>  is reported, and the same applies should an <strong>intrusion</strong> happen.</p>
@@ -202,11 +229,12 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 <pre class="code erlang literal-block">
 <span class="p">{</span><span class="n">sensor_monitoring</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="w">
 
-   </span><span class="c">% Here shall be specified a list of</span><span class="w">
-   </span><span class="c">% {sensor_id(), 'all_points' | [ measurement_point_name() ]} pairs</span><span class="w">
-   </span><span class="c">% in order to mute bogus sensors / measurement points:</span><span class="w">
+   </span><span class="c">% Under that key shall be specified a list of</span><span class="w">
+   </span><span class="c">% {sensor_id(), 'all_points' | [user_specified_point()]} pairs</span><span class="w">
+   </span><span class="c">% in order to mute the sensors / measurement points that are known to be</span><span class="w">
+   </span><span class="c">% bogus:</span><span class="w">
    </span><span class="c">%</span><span class="w">
-   </span><span class="p">{</span><span class="n">muted_measurement_points</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="w">
+   </span><span class="p">{</span><span class="n">muted_measurements</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="w">
        </span><span class="p">{{</span><span class="n">nct6792</span><span class="p">,</span><span class="w"> </span><span class="n">isa</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0a20&quot;</span><span class="p">},</span><span class="w"> </span><span class="p">[</span><span class="s">&quot;AUXTIN1&quot;</span><span class="p">]},</span><span class="w">
        </span><span class="p">{{</span><span class="n">acpitz</span><span class="p">,</span><span class="w"> </span><span class="n">acpi</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;0&quot;</span><span class="p">},</span><span class="w"> </span><span class="n">all_points</span><span class="p">}</span><span class="w">
                               </span><span class="p">]}</span><span class="w">
@@ -237,10 +265,10 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 </div>
 </div>
 <div class="section" id="contact-directory-1">
-<span id="contact-directory"></span><h2><a class="toc-backref" href="#toc-entry-8">Contact Directory</a></h2>
+<span id="contact-directory"></span><h2><a class="toc-backref" href="#toc-entry-10">Contact Directory</a></h2>
 <p>The US Contact Directory server allows US-Main to track information regarding US contacts, for various purposes, including for the US <a class="reference internal" href="#communication-gateway">communication gateway</a>.</p>
 <div class="section" id="contact-file-format">
-<h3><a class="toc-backref" href="#toc-entry-9">Contact File Format</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-11">Contact File Format</a></h3>
 <p>Contact files are <a class="reference external" href="https://myriad.esperide.org/#etf">ETF files</a> that contain a range of information about persons and organisations of interest.</p>
 <p>Each non-commented line of these files shall be of the following format:</p>
 <pre class="code erlang literal-block">
@@ -255,26 +283,26 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 </pre>
 <p>A typical contact line could then be:</p>
 <pre class="code erlang literal-block">
-<span class="p">{</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;James&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Bond&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;007&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;MI6 Agent 007&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">17</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">1971</span><span class="p">},</span><span class="w">
+<span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;James&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Bond&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;007&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;MI6 Agent 007&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="mi">17</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">1971</span><span class="p">},</span><span class="w">
  </span><span class="s">&quot;+44 9 81 47 25 40&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;+44 6 26 83 37 22&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;james.bond&#64;mi6.uk.org&quot;</span><span class="p">,</span><span class="w">
- </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">administrator</span><span class="p">,</span><span class="w"> </span><span class="n">secret_agent</span><span class="p">]</span><span class="w"> </span><span class="p">}.</span>
+ </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">administrator</span><span class="p">,</span><span class="w"> </span><span class="n">secret_agent</span><span class="p">]}.</span>
 </pre>
 <p>See also our <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/test/test_contact_directory.etf">test contact ETF file</a> as a full example thereof.</p>
 </div>
 <div class="section" id="contact-file-location">
-<h3><a class="toc-backref" href="#toc-entry-10">Contact File Location</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-12">Contact File Location</a></h3>
 <p>The path to a contact file can be either specified as an absolute one, or as a relative one - in which case it will be deemed relative to the US configuration directory.</p>
 <p>They may be mere symlinks pointing to contact files kept in VCS in other locations.</p>
 </div>
 </div>
 <div class="section" id="communication-gateway-1">
-<span id="communication-gateway"></span><h2><a class="toc-backref" href="#toc-entry-11">Communication Gateway</a></h2>
+<span id="communication-gateway"></span><h2><a class="toc-backref" href="#toc-entry-13">Communication Gateway</a></h2>
 <p>The purpose of the US Communication Gateway is to enable (possibly two-way) exchanges with the US users.</p>
 <p>Such communication is not to happen frow a web-based medium (see <a class="reference external" href="http://us-web.esperide.org">US-Web</a> for that), but through alternate modes such as SMS (relying then on <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a>) and/or e-mails (relying then on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl">the corresponding services of Ceylan-Myriad</a>).</p>
 <p>For that, the correspondance between a US role (ex: <tt class="docutils literal">administrator</tt>) and actual user information is established thanks to the <a class="reference internal" href="#contact-directory">contact directory</a> service.</p>
 </div>
 <div class="section" id="network-support-monitoring">
-<span id="network-infrastructure-tracker"></span><h2><a class="toc-backref" href="#toc-entry-12">Network Support Monitoring</a></h2>
+<span id="network-infrastructure-tracker"></span><h2><a class="toc-backref" href="#toc-entry-14">Network Support Monitoring</a></h2>
 <p>This service allows to ensure that the local host (on which US-Main is running) enjoys a functional <strong>network support</strong>, in terms of:</p>
 <ul class="simple">
 <li>ICMP probes (ping)</li>
@@ -283,10 +311,9 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 </ul>
 <p>This is checked by ensuring periodically that a set of target hosts, specified as direct IP addresses and/or DNS names, can indeed be interacted with through the network.</p>
 <p>Of course any issue (typically outage of a given network service) is then reported by appropriate means (i.e. by SMS rather than by email then).</p>
-<p>Extra</p>
 </div>
 <div class="section" id="remote-monitoring-of-online-services">
-<span id="monitoring-of-online-services"></span><h2><a class="toc-backref" href="#toc-entry-13">Remote Monitoring of Online Services</a></h2>
+<span id="monitoring-of-online-services"></span><h2><a class="toc-backref" href="#toc-entry-15">Remote Monitoring of Online Services</a></h2>
 <p>The purpose here is to monitor online services (typically websites) provided by networked peers.</p>
 <p>Each service is tracked based on a set of information:</p>
 <ul class="simple">
@@ -296,29 +323,41 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 </ul>
 </div>
 <div class="section" id="next-services">
-<h2><a class="toc-backref" href="#toc-entry-14">Next Services</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-16">Next Services</a></h2>
 <p>The following services are planned (some day) for addition:</p>
 <ul class="simple">
 <li>UPS (<a class="reference external" href="https://en.wikipedia.org/wiki/Uninterruptible_power_supply">Uninterruptible Power Supply</a>) monitoring, to be notified whenever a related event happens (typically a power failure from the electrical grid)</li>
 </ul>
 </div>
 </div>
-<div class="section" id="licence">
-<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-15">Licence</a></h1>
-<p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
-<p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
-<p>We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.</p>
+<div class="section" id="configuring-us-main">
+<span id="us-main-configuration-file"></span><span id="configuration"></span><h1><a class="toc-backref" href="#toc-entry-17">Configuring US-Main</a></h1>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">We discuss configuration before installation, as the settings of interest shall be defined prior to deployment, notably so that adequate permissions can be set on the installation, according to the user under which US-Main is intended to run.</p>
 </div>
-<div class="section" id="current-stable-version-download">
-<h1><a class="toc-backref" href="#toc-entry-16">Current Stable Version &amp; Download</a></h1>
+<p>The US-Main server is part of our &quot;Universal Server&quot; infrastructure, and as such relies on the <a class="reference external" href="https://us-common.esperide.org/#configuration">base US-Common configuration settings</a>.</p>
+<p>So the base information of the user-specified <tt class="docutils literal">us.config</tt> file, found in the US Configuration directory (possibly located in <tt class="docutils literal"><span class="pre">/etc/xdg/universal-server/</span></tt> or <tt class="docutils literal"><span class="pre">~/.config/universal-server/</span></tt>), will apply (see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config">this example thereof</a>).</p>
+<p>Notably, in this file, a <tt class="docutils literal">us_main_config_filename</tt> entry can be specified in order to designate the US-Main configuration file that shall be used; for example:</p>
+<pre class="code erlang literal-block">
+<span class="p">{</span><span class="n">us_main_config_filename</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;us-main-for-tests.config&quot;</span><span class="p">}.</span>
+</pre>
+<p>This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main scripts</a>, notably in order to start, stop, or monitor a designated US-Main server.</p>
+<p>For operational use, we recommend to create a US-Main specific user (to be set in the <tt class="docutils literal">us_username</tt> entry of one's <tt class="docutils literal">us.config</tt> file), in order to compartmentalise the accesses to resources.</p>
+</div>
+<div class="section" id="installing-us-main-current-stable-version-download">
+<span id="installation"></span><h1><a class="toc-backref" href="#toc-entry-18">Installing US-Main: Current Stable Version &amp; Download</a></h1>
 <p>As mentioned, the single mandatory prerequisite of the <a class="reference external" href="https://github.com/Olivier-Boudeville/UniversalServer">Universal Server</a> is <a class="reference external" href="http://us-common.esperide.org/">US-Common</a>, which relies on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Traces">Ceylan-Traces</a>, which implies in turn <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-WOOPER">Ceylan-WOOPER</a>, then <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad">Ceylan-Myriad</a> and <a class="reference external" href="http://erlang.org">Erlang</a>.</p>
 <p>We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding <a class="reference external" href="http://myriad.esperide.org#prerequisites">Myriad prerequisite section</a>  for more precise guidelines), and building the Universal Server from sources, thanks to GNU <tt class="docutils literal">make</tt>.</p>
-<p>We recommend, for all Erlang-related software, to rely on rebar3.</p>
-<p>One wanting to be able to operate on the source code of these dependencies may define appropriate symbolic links in a <tt class="docutils literal">_checkouts</tt> directory created at the root of <tt class="docutils literal"><span class="pre">us-main</span></tt>, these links pointing to relevant GIT clones.</p>
+<p>The Universal Server <tt class="docutils literal">master</tt> branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.</p>
+<div class="section" id="automated-installation-deployment">
+<h2><a class="toc-backref" href="#toc-entry-19">Automated Installation &amp; Deployment</a></h2>
+<p>This is actually the simplest, safest, most used/recommended procedure: just run the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/deploy-us-main-native-build.sh">deploy-us-main-native-build.sh</a> script (possibly with its <tt class="docutils literal"><span class="pre">--no-launch</span></tt> option if wanting just to have it ready) and hope for the best!</p>
+</div>
 <div class="section" id="using-cutting-edge-git">
-<h2><a class="toc-backref" href="#toc-entry-17">Using Cutting-Edge GIT</a></h2>
-<p>This is the installation method that we use and recommend; the Universal Server <tt class="docutils literal">master</tt> branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.</p>
-<p>Once Erlang, Cowboy and possibly Awstats are available, it should be just a matter of executing:</p>
+<h2><a class="toc-backref" href="#toc-entry-20">Using Cutting-Edge GIT</a></h2>
+<p>This is more or less a manual, more limited version of the previous deployment script.</p>
+<p>Once Erlang is available, it should be just a matter of executing:</p>
 <pre class="code bash literal-block">
 $ git clone https://github.com/Olivier-Boudeville/Ceylan-Myriad myriad
 $ <span class="nb">cd</span> myriad <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
@@ -329,7 +368,16 @@ $ <span class="nb">cd</span> wooper <span class="o">&amp;&amp;</span> make all <
 $ git clone https://github.com/Olivier-Boudeville/Ceylan-Traces traces
 $ <span class="nb">cd</span> traces <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
 
+
 <span class="c1"># Possibly:
+</span>$ git clone https://github.com/Olivier-Boudeville/erlang-serial
+$ <span class="nb">cd</span> erlang-serial <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nv">DESTDIR</span><span class="o">=</span>. make install <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+
+$ git clone https://github.com/Olivier-Boudeville/Ceylan-Oceanic oceanic
+$ <span class="nb">cd</span> oceanic <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+
+
+<span class="c1"># Also possibly:
 </span>$ git clone https://github.com/Olivier-Boudeville/Ceylan-Seaplus seaplus
 $ <span class="nb">cd</span> seaplus <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
 
@@ -338,18 +386,22 @@ $ <span class="nb">cd</span> mobile <span class="o">&amp;&amp;</span> make all <
 
 
 $ git clone https://github.com/Olivier-Boudeville/us-common
-$ <span class="nb">cd</span> us-common <span class="o">&amp;&amp;</span> make all
+$ <span class="nb">cd</span> us-common <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
 
 $ git clone https://github.com/Olivier-Boudeville/us-main
-$ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all
+$ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
 </pre>
+</div>
+<div class="section" id="rebar3-based-build">
+<h2><a class="toc-backref" href="#toc-entry-21">Rebar3-based Build</a></h2>
+<p>One may prefer relying on rebar3, even if it is by far the less frequent approach taken here.</p>
+<p>If wanting to be able to operate on the source code of the dependencies, appropriate symbolic links may be defined in a <tt class="docutils literal">_checkouts</tt> directory created at the root of <tt class="docutils literal"><span class="pre">us-main</span></tt>, these links pointing to relevant Git clones (typically sibling ones).</p>
 <p><span class="raw-html"><a name="otp"></a></span></p>
 </div>
 <div class="section" id="using-otp-related-build-runtime-conventions">
-<span id="otp-build"></span><h2><a class="toc-backref" href="#toc-entry-18">Using OTP-Related Build/Runtime Conventions</a></h2>
+<span id="otp-build"></span><h2><a class="toc-backref" href="#toc-entry-22">Using OTP-Related Build/Runtime Conventions</a></h2>
 <p>As discussed in these sections of <a class="reference external" href="http://myriad.esperide.org/myriad.html#otp">Myriad</a>, <a class="reference external" href="http://wooper.esperide.org/index.html#otp">WOOPER</a>, <a class="reference external" href="http://traces.esperide.org/index.html#otp">Traces</a> and <a class="reference external" href="http://us-common.esperide.org/index.html#otp">US-Common</a>, we added the (optional) possibility of generating a Universal Server <em>OTP application</em> out of the build tree, ready to result directly in an <em>(OTP) release</em>. For that we rely on <a class="reference external" href="https://www.rebar3.org/">rebar3</a>, <a class="reference external" href="https://github.com/erlware/relx">relx</a> and <a class="reference external" href="https://hex.pm/">hex</a>.</p>
 <p>Then we benefit from a standalone, complete Universal Server.</p>
-<p>As for Myriad, WOOPER, Traces and US-Common, most versions of the Universal Server are also published as <a class="reference external" href="https://hex.pm/packages/us_main">Hex packages</a>.</p>
 <p>For more details, one may have a look at:</p>
 <ul class="simple">
 <li><a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar.config.template">rebar.config.template</a>, the general rebar configuration file used when generating the Universal Server OTP application and release (implying the automatic management of Myriad and WOOPER)</li>
@@ -357,16 +409,49 @@ $ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all
 </ul>
 </div>
 </div>
+<div class="section" id="launching-us-main">
+<span id="execution"></span><h1><a class="toc-backref" href="#toc-entry-23">Launching US-Main</a></h1>
+<p>We recommend running US-Main thanks to a native build (rather than as a release), and using for that the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh">start-us-main-native-build.sh</a> script, either directly (for testing) or through systemd (for actual use).</p>
+<p>In this last case, first a symbolic link pointing to this script shall be typically created in the <tt class="docutils literal">/usr/local/bin</tt> directory of the host of interest. Then the server is to be triggered based on <tt class="docutils literal"><span class="pre">/etc/systemd/system/us-main-as-native-build.service</span></tt> (see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service">us-main-as-native-build.service</a>).</p>
+<p>For example:</p>
+<pre class="code bash literal-block">
+$ systemctl start us-main-as-native-build
+$ journalctl --pager-end --unit<span class="o">=</span>us-main-as-native-build.service
+$ systemctl <span class="nb">enable</span> us-main-as-native-build
+</pre>
+<p>Then one may run <tt class="docutils literal"><span class="pre">monitor-us-main.sh</span></tt> to browse its traces live at any time.</p>
+<p>Like notified in the start-up message:</p>
+<pre class="literal-block">
+-- Starting US-Main natively-built application as user 'stallone' (EPMD port: 4506)...
+       Executing application us_main_app.beam as a service (second form)
+Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-up is successful indeed.
+
+ **************************************************************
+ ** Node 'us_main' ready and running as a daemon.
+ ** Use 'to_erl /tmp/launch-erl-1103261' to connect to that node.
+ ** (then type CTRL-D to exit without killing the node)
+ **************************************************************
+ (authbind success reported)
+</pre>
+<p>one may use <tt class="docutils literal">to_erl</tt> to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means <em>killing</em> that node; prefer CTRL-D (once).</p>
+<p>For further information one may refer to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main shell scripts</a>, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).</p>
+</div>
 <div class="section" id="support">
-<h1><a class="toc-backref" href="#toc-entry-19">Support</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-24">Support</a></h1>
 <p>Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">project interface</a> (typically <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/issues">issues</a>) or directly at the email address mentioned at the beginning of this document.</p>
 </div>
+<div class="section" id="licence">
+<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-25">Licence</a></h1>
+<p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
+<p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
+<p>We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.</p>
+</div>
 <div class="section" id="please-react">
-<h1><a class="toc-backref" href="#toc-entry-20">Please React!</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-26">Please React!</a></h1>
 <p>If you have information more detailed or more recent than those presented in this document, if you noticed errors, neglects or points insufficiently discussed, drop us a line! (for that, follow the <a class="reference internal" href="#support">Support</a> guidelines).</p>
 </div>
 <div class="section" id="ending-word">
-<h1><a class="toc-backref" href="#toc-entry-21">Ending Word</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-27">Ending Word</a></h1>
 <p>Have fun with the Universal Server!</p>
 <p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-small"></img></center></span>
 </p>

@@ -96,6 +96,21 @@
 <p><tt>supervisor_pid() = <a href="otp_utils.html#type-supervisor_pid">otp_utils:supervisor_pid()</a></tt></p>
 
 
+<h3 class="typedecl"><a name="type-user_muted_sensor_points">user_muted_sensor_points()</a></h3>
+<p><tt>user_muted_sensor_points() = list()</tt></p>
+<p><p> A list expected to contain muted sensor measurement points, typically as read 
+from the sensor monitoring section of the US-Main configuration.</p>
+
+ Expected to be specified in the form [user_muted_sensor_measurements()]:
+ UserMutedMeasurements = [
+   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
+   { { acpitz, acpi, "0" }, all_points }
+                         ].</p>
+
+<h3 class="typedecl"><a name="type-user_server_location">user_server_location()</a></h3>
+<p><tt>user_server_location() = {float(), float()}</tt></p>
+<p> Checked more precisely as a position() in the home automation server.</p>
+
 <h2><a name="index">Function Index</a></h2>
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#addKeyValueToAttribute-4">addKeyValueToAttribute/4</a></td><td></td></tr>
 <tr><td valign="top"><a href="#addToAttribute-3">addToAttribute/3</a></td><td></td></tr>

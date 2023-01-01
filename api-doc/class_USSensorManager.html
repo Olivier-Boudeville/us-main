@@ -24,7 +24,7 @@
 
 <h3 class="typedecl"><a name="type-atom_sensor_type">atom_sensor_type()</a></h3>
 <p><tt>atom_sensor_type() = atom()</tt></p>
-<p> Atom-based version of a raw sensor type (ex: 'coretemp').</p>
+<p> Atom-based version of a raw sensor type (e.g. 'coretemp').</p>
 
 <h3 class="typedecl"><a name="type-attribute_entry">attribute_entry()</a></h3>
 <p><tt>attribute_entry() = {<a href="#type-attribute_name">attribute_name()</a>, <a href="#type-attribute_value">attribute_value()</a>}</tt></p>
@@ -76,7 +76,7 @@
 
 <h3 class="typedecl"><a name="type-raw_sensor_id">raw_sensor_id()</a></h3>
 <p><tt>raw_sensor_id() = <a href="#type-bin_string">bin_string()</a></tt></p>
-<p> Full identifier of a sensor, directly as read from JSON; ex:
+<p> Full identifier of a sensor, directly as read from JSON; e.g.
  <code>&lt;&lt;"coretemp-isa-0000"&gt;&gt;</code>, <code>&lt;&lt;"nct6792-isa-0a20"&gt;&gt;</code>, <code>&lt;&lt;"nvme-pci-0200"&gt;&gt;</code>,
  <code>&lt;&lt;"radeon-pci-0008"&gt;&gt;</code>, etc.; structure is
  <code>&lt;&lt;"RawSensorType-SensorInterface-SensorNumber"&gt;&gt;</code>.</p>
@@ -84,7 +84,7 @@
 <h3 class="typedecl"><a name="type-raw_sensor_type">raw_sensor_type()</a></h3>
 <p><tt>raw_sensor_type() = <a href="#type-ustring">ustring()</a></tt></p>
 <p> The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
- "radeon", etc.; many exist as they correspond to different chips (ex:
+ "radeon", etc.; many exist as they correspond to different chips (e.g.
  "nct6792") on motherboards.</p>
 
 <h3 class="typedecl"><a name="type-request_name">request_name()</a></h3>
@@ -113,8 +113,8 @@
 
 <h3 class="typedecl"><a name="type-sensor_id">sensor_id()</a></h3>
 <p><tt>sensor_id() = {<a href="#type-atom_sensor_type">atom_sensor_type()</a>, <a href="#type-sensor_interface">sensor_interface()</a>, <a href="#type-sensor_number">sensor_number()</a>}</tt></p>
-<p> Full identifier of a sensor, directly deriving from a raw one.
- Ex: <code>{coretemp, isa, &lt;&lt;"0a20"&gt;&gt;}</code>.</p>
+<p> Full internal identifier of a sensor, directly deriving from a raw one.
+ For example <code>{coretemp, isa, &lt;&lt;"0a20"&gt;&gt;}</code>.</p>
 
 <h3 class="typedecl"><a name="type-sensor_interface">sensor_interface()</a></h3>
 <p><tt>sensor_interface() = isa | acpi | pci | virtual | unknown | atom()</tt></p>
@@ -123,12 +123,45 @@
 <h3 class="typedecl"><a name="type-sensor_number">sensor_number()</a></h3>
 <p><tt>sensor_number() = <a href="#type-bin_string">bin_string()</a></tt></p>
 <p> Kept as a (binary) string (even if is an hexadecimal value), for clarity.
- Ex: <code>&lt;&lt;"0a20"&gt;&gt;</code>.</p>
+ For example <code>&lt;&lt;"0a20"&gt;&gt;</code>.</p>
 
 <h3 class="typedecl"><a name="type-temp_alert_state">temp_alert_state()</a></h3>
 <p><tt>temp_alert_state() = critical_high | alarm_high | nominal | alarm_low | critical_low</tt></p>
 <p> The temperature-related alert state of a measurement point. Allows to report
  issues once, rather than repeatedly.</p>
+
+<h3 class="typedecl"><a name="type-user_muted_points">user_muted_points()</a></h3>
+<p><tt>user_muted_points() = [<a href="#type-user_specified_point">user_specified_point()</a>] | all_points</tt></p>
+<p><p> of a given sensor 
+User specification of measurement points to be muted for a given sensor (they 
+shall not be taken into account typically because they are known to report 
+bogus values).</p>
+
+ At least currently, they mostly apply to temperature sensors.</p>
+
+<h3 class="typedecl"><a name="type-user_muted_sensor_measurements">user_muted_sensor_measurements()</a></h3>
+<p><tt>user_muted_sensor_measurements() = [{<a href="#type-user_muted_sensor_spec">user_muted_sensor_spec()</a>, <a href="#type-user_muted_points">user_muted_points()</a>}]</tt></p>
+<p><p> User specification of sensor measurements to be muted.</p>
+
+ <p>At least currently, they mostly apply to temperature sensors.</p>
+
+ Corresponds to the legit settings expected as
+ class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+ [{nct6792, isa, "0a20"}, ["AUXTIN1"]},
+  {acpitz, acpi, "0"}, all_points}].</p>
+
+<h3 class="typedecl"><a name="type-user_muted_sensor_spec">user_muted_sensor_spec()</a></h3>
+<p><tt>user_muted_sensor_spec() = {<a href="#type-atom_sensor_type">atom_sensor_type()</a>, <a href="#type-sensor_interface">sensor_interface()</a>, <a href="#type-user_sensor_number">user_sensor_number()</a>}</tt></p>
+<p> User specification of a sensor whose measurements may be muted.
+ For example {nct6792, isa, "0a20"}.</p>
+
+<h3 class="typedecl"><a name="type-user_sensor_number">user_sensor_number()</a></h3>
+<p><tt>user_sensor_number() = <a href="#type-ustring">ustring()</a></tt></p>
+<p> For example "0a20", in {nct6792, isa, "0a20"}.</p>
+
+<h3 class="typedecl"><a name="type-user_specified_point">user_specified_point()</a></h3>
+<p><tt>user_specified_point() = <a href="#type-ustring">ustring()</a></tt></p>
+<p> A measurement point specified in the configuration (e.g. "AUXTIN1").</p>
 
 <h3 class="typedecl"><a name="type-ustring">ustring()</a></h3>
 <p><tt>ustring() = <a href="text_utils.html#type-ustring">text_utils:ustring()</a></tt></p>
