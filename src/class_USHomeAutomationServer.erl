@@ -496,7 +496,9 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 			{ OcPid, SourceId, BaseId };
 
 		{ false, ReasonStr, ErrorTerm } ->
-			% No house automation can be done then:
+			% No house automation can be done then (newline needed, otherwise
+			% bad formatting):
+			%
 			?send_warning_fmt( SrvState,
 				"The Oceanic support will not be available. ~ts~n"
 				"(error term: ~p).", [ ReasonStr, ErrorTerm ] ),
@@ -580,7 +582,7 @@ init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 % No presence simulation wanted:
 init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
 						  _MaybeSrcEurid, EmptyPscTable, InitPscId, _State ) ->
-	{ EmptyPscTable, InitPscId };
+	{ EmptyPscTable, InitPscId, _MaybeMidTaskId=undefined };
 
 init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
 		_MaybeSrcEurid, _PscTable, _NextPscId, State ) ->
@@ -1810,8 +1812,9 @@ to_string( State ) ->
 			"with no location defined";
 
 		{ Lat, Long } ->
-			text_utils:format( "located at latitude ~ts degrees and "
-							   "longitude ~ts degrees", [ Lat, Long ] )
+			% Degrees as raw floats rather than wtih °, minutes and al:
+			text_utils:format( "located at latitude ~f degrees and "
+				"longitude ~f degrees", [ Lat, Long ] )
 
 	end,
 
