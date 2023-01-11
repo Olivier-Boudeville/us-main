@@ -168,6 +168,16 @@ US_MAIN_BEAM_DIRS = $(US_MAIN_BEAM_DIR)
 USE_JSON = true
 
 
+
+# This is the US-Main specific EPMD port, different from the default Myriad one
+# and from the one of our other applications, so that we can act upon the
+# US-Main EPMD without interfering with others (see also the 'launch-epmd' make
+# target):
+#
+EPMD_PORT := 4507
+
+
+
 ifndef EDOC_OPTS
 	EDOC_OPTS = '[{dir,"$(API_DOC_ROOT)"}, {def,{vsn,"$(PROJECT_VERSION)"}}, {preprocess,true}, {includes,["$(LAYER_TOP)/include", "$(US_COMMON_TOP)/.."]}, {overview, "$(LAYER_TOP)/overview.edoc"}]'
 endif
