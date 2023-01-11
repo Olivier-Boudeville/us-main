@@ -82,9 +82,9 @@ help-us-main:
 
 
 register-version-in-header:
-	@if [ -z "$(VERSION_FILE)" ] ; then \
-	echo "Error, no version file defined." 1>&2 ; exit 52 ; else \
-	$(MAKE) register-us-main ; fi
+	@if [ -z "$(VERSION_FILE)" ]; then \
+	echo "Error, no version file defined." 1>&2; exit 52; else \
+	$(MAKE) register-us-main; fi
 
 
 register-us-main:
@@ -93,7 +93,7 @@ register-us-main:
 
 # Useful to extract internal layout for re-use in upper layers:
 list-beam-dirs:
-	@for d in $(US_MAIN_BEAM_DIRS) ; do echo $$(readlink -f $$d) ; done
+	@for d in $(US_MAIN_BEAM_DIRS); do echo $$(readlink -f $$d); done
 
 
 add-prerequisite-plts: link-plt
@@ -101,7 +101,7 @@ add-prerequisite-plts: link-plt
 
 # As upper layers may rely on the 'us_main' naming:
 link-plt:
-	@if [ ! "$(PLT_FILE)" = "$(US_MAIN_PLT_FILE)" ]; then ln -s --force $(PLT_FILE) $(US_MAIN_PLT_FILE) ; fi
+	@if [ ! "$(PLT_FILE)" = "$(US_MAIN_PLT_FILE)" ]; then ln -s --force $(PLT_FILE) $(US_MAIN_PLT_FILE); fi
 
 
 stats:
@@ -121,14 +121,14 @@ compile: rebar3-create-app-file
 
 # Ensures a relevant development release is available.
 ensure-dev-release:
-	@if [ ! -f "$(US_DEFAULT_REL_EXEC)" ] ; then \
-	echo "No $(US_DEFAULT_REL_EXEC) found, building a development release." ; $(MAKE) -s release-dev ; fi
+	@if [ ! -f "$(US_DEFAULT_REL_EXEC)" ]; then \
+	echo "No $(US_DEFAULT_REL_EXEC) found, building a development release."; $(MAKE) -s release-dev; fi
 
 
 # Ensures a relevant production release is available.
 ensure-prod-release:
-	@if [ ! -f "$(US_DEFAULT_REL_EXEC)" ] ; then \
-	echo "No $(US_DEFAULT_REL_EXEC) found, building a production release." ; $(MAKE) -s release-prod ; fi
+	@if [ ! -f "$(US_DEFAULT_REL_EXEC)" ]; then \
+	echo "No $(US_DEFAULT_REL_EXEC) found, building a production release."; $(MAKE) -s release-prod; fi
 
 
 
@@ -205,9 +205,9 @@ upgrade-us-common:
 #
 start: kill clean-logs compile
 	@echo "Starting the us_main release (EPMD port: $(EPMD_PORT)):"
-	@#export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main daemon &
-	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main start &
-	@sleep 1 ; $(MAKE) -s log
+	@#export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main daemon &
+	@export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main start &
+	@sleep 1; $(MAKE) -s log
 
 
 debug:
@@ -224,14 +224,14 @@ start-as-release:
 
 debug-as-release: ensure-dev-release
 	@echo " Running us_main for debug as a release (EPMD port: $(EPMD_PORT))"
-	@killall java 2>/dev/null ; export ERL_EPMD_PORT=$(EPMD_PORT) ; $(MAKE) -s start || $(MAKE) -s log
+	@killall java 2>/dev/null; export ERL_EPMD_PORT=$(EPMD_PORT); $(MAKE) -s start || $(MAKE) -s log
 
 
 
 # A rule such as the following would be bound to fail because of a non-matching
 # cookie:
 #
-#	-@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main status
+#	-@export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main status
 status:
 	@echo "Status of the us_main release (EPMD port: $(EPMD_PORT)):"
 	@$(US_MAIN_TOP)/priv/bin/get-us-main-status.sh
@@ -240,14 +240,14 @@ status:
 # A rule such as the following would be bound to fail because of a non-matching
 # cookie:
 #
-#  @export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed" ; $(MAKE) -s log )
+#  @export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed"; $(MAKE) -s log )
 #
 # Note: will probably not work due to the VM cookie having been changed; use
 # 'stop-brutal' instead, if run with 'start' or 'debug':
 #
 stop:
 	@echo "Stopping us_main release (EPMD port: $(EPMD_PORT)):"
-	@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || $(MAKE) -s log
+	@export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || $(MAKE) -s log
 
 
 # Useful typically if the runtime cookie was changed:
@@ -257,14 +257,14 @@ stop-brutal: kill
 # A rule such as the following would be bound to fail because of a non-matching
 # cookie:
 #
-#	-@export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop
+#	-@export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop
 #
 # Note: only applies when the target instance has been started as a release.
 #
 # A rule such as the following would be bound to fail because of a non-matching
 # cookie:
 #
-#  @export ERL_EPMD_PORT=$(EPMD_PORT) ; $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed" ; $(MAKE) -s log )
+#  @export ERL_EPMD_PORT=$(EPMD_PORT); $(US_MAIN_DEFAULT_REL_DIR)/bin/us_main stop || ( echo "Stop failed"; $(MAKE) -s log )
 #
 stop-as-release:
 	@echo "Stopping the us_main release (EPMD port: $(EPMD_PORT)):"
@@ -340,7 +340,7 @@ test-ci:
 # (now in _checkouts/)
 #
 #links:
-#	@cd ../ ; for p in myriad wooper traces us_common; do ln -s $$p ; done
+#	@cd .. && for p in myriad wooper traces us_common; do ln -s $$p; done
 
 
 clean-local: clean-log
