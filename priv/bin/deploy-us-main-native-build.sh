@@ -60,6 +60,8 @@ The prerequisites expected to be already installed are:
  - the 'sensors' package
 
 If any Enocean USB dongle is to be used, a corresponding TTY entry shall have been created (refer to the documentation of Ceylan-Oceanic for further guidance) prior to running US-Main.
+
+If not using the '${no_launch_opt}' option, please ensure that no prior US-Main instance is running (otherwise the start of the new one will fail). Consider running, as root, our 'kill-us-main.sh' script for that.
 "
 
 # Commented: - rebar3 (see http://myriad.esperide.org/#getting-rebar3), for dependencies that are not ours
@@ -155,16 +157,16 @@ if [ ! -x "${erlc}" ]; then
 fi
 
 
-#rebar3="$(which rebar3 2>/dev/null)"
+rebar3="$(which rebar3 2>/dev/null)"
 
 # No version checked either:
-#if [ ! -x "${rebar3}" ]; then
-#
-#	echo "  Error, rebar3 not found. Consider installing it first, one may refer to http://myriad.esperide.org/#getting-rebar3." 1>&2
-#
-#	exit 11
-#
-#fi
+if [ ! -x "${rebar3}" ]; then
+
+	echo "  Error, rebar3 not found. Consider installing it first, one may refer to http://myriad.esperide.org/#getting-rebar3." 1>&2
+
+	exit 11
+
+fi
 
 
 make="$(which make 2>/dev/null)"
@@ -238,6 +240,15 @@ if [ $do_clone -eq 0 ]; then
 
 	echo "Getting the relevant repositories (as $(id -un)):"
 
+
+	echo " - cloning jsx"
+
+	if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
+
+		echo " Error, unable to obtain jsx." 1>&2
+		exit 35
+
+	fi
 
 
 	echo " - cloning US-Main"
@@ -412,6 +423,22 @@ if [ ${do_build} -eq 0 ]; then
 	fi
 	cd ..
 
+	echo " - building Ceylan-Seaplus"
+	cd seaplus && ${make} ${ceylan_opts} all 1>/dev/null
+	if [ ! $? -eq 0 ]; then
+		echo " Error, the build of Ceylan-Seaplus failed." 1>&2
+		exit 75
+	fi
+	cd ..
+
+	echo " - building Ceylan-Mobile"
+	cd mobile && ${make} ${ceylan_opts} all 1>/dev/null
+	if [ ! $? -eq 0 ]; then
+		echo " Error, the build of Ceylan-Mobile failed." 1>&2
+		exit 80
+	fi
+	cd ..
+
 
 	# US-Common does not introduce third-party dependencies, so going again for
 	# our native build, which thus uses Myriad's, WOOPER's and Traces' sibling
@@ -421,18 +448,27 @@ if [ ${do_build} -eq 0 ]; then
 	cd us_common && ${make} all ${ceylan_opts} 1>/dev/null
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of US-Common failed." 1>&2
-		exit 70
+		exit 85
 	fi
 	cd ..
 
+	# BEAMs then to be found in jsx/_build/default/lib/jsx/ebin:
+	echo " - building jsx"
+	cd jsx && ${rebar3} compile 1>/dev/null
+	if [ ! $? -eq 0 ]; then
+		echo " Error, the build of jsx failed." 1>&2
+		exit 90
+	fi
+
+	cd ..
 
 	echo " - building US-Main"
-	cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && cd ..
+	cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../seaplus && ln -s ../../mobile && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && ln -s ../../jsx && cd ..
 
 	# Our build; uses Ceylan's sibling trees:
 	if ! ${make} all ${ceylan_opts} 1>/dev/null; then
 		echo " Error, the build of US-Main failed." 1>&2
-		exit 75
+		exit 95
 	fi
 
 	# Post-install: fixing permissions and all.
