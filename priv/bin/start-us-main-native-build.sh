@@ -67,6 +67,20 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
 fi
 
+maybe_us_config_dir="$1"
+
+if [ -n "${maybe_us_config_dir}" ]; then
+
+	if [ ! -d "${maybe_us_config_dir}" ]; then
+
+		echo "  Error, the specified US configuration directory, '${maybe_us_config_dir}', does not exist." 1>&2
+
+		exit 20
+
+	fi
+
+fi
+
 
 #echo "Starting US-Main, to run as a native build with following user: $(id)"
 
@@ -101,8 +115,9 @@ us_launch_type="native"
 #echo "Sourcing '${us_main_common_script}'."
 . "${us_main_common_script}" #1>/dev/null
 
+
 # We expect a pre-installed US configuration file to exist:
-read_us_config_file "$1" #1>/dev/null
+read_us_config_file "${maybe_us_config_dir}" #1>/dev/null
 
 read_us_main_config_file #1>/dev/null
 
@@ -113,22 +128,29 @@ prepare_us_main_launch
 cd src || exit
 
 
-# Note that a former instance of EPMD may wrongly report that a node with the
-# target name is still running (whereas no Erlang VM is even running). Apart
-# from killing this EPMD instance (jeopardising any other running Erlang
-# application), no solution exists apparently (names cannot be unregistered from
-# EPMD, as we do not launch it with -relaxed_command_check).
+#echo "epmd_make_opt=${epmd_make_opt}"
+
+# Launching explicitly a properly-condigured EPMD for US-Main (preferably from
+# the current weakly-privileged user):
+#
+# (note that a former instance of EPMD may wrongly report that a node with the
+# target name is still running, whereas no Erlang VM even exists)
+#
+make -s launch-epmd ${epmd_make_opt}
+
 
 echo
-echo " -- Starting US-Main natively-built application as user '${us_main_username}' (EPMD port: ${erl_epmd_port})..."
+echo " -- Starting US-Main natively-built application as user '${us_main_username}' (EPMD port: ${erl_epmd_port}, whereas log directory is '${us_main_vm_log_dir}')..."
 
 
 # Previously the '--deep' authbind option was used; apparently the minimal depth
 # is 6:
 
-#echo /bin/sudo -u ${us_main_username} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_opt} ${authbind} --depth 6 make us_main_exec_service
+#echo Starting US-Main: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${maybe_us_config_dir}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service
 
-/bin/sudo -u ${us_main_username} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_opt} ${authbind} --depth 6 make -s us_main_exec_service
+# XDG_CONFIG_DIRS defined, so that the US server can find it as well:
+
+/bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${maybe_us_config_dir}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service
 
 res=$?
 
@@ -137,7 +159,7 @@ res=$?
 
 if [ ${res} -eq 0 ]; then
 
-	# Unfortunately may still be a failure (ex: if a VM with the same name was
+	# Unfortunately may still be a failure (e.g. if a VM with the same name was
 	# already running, start failed, not to be reported as a success)
 
 	echo "  (authbind success reported)"
@@ -145,16 +167,16 @@ if [ ${res} -eq 0 ]; then
 	# If wanting to check or have more details:
 	inspect_us_main_log
 
-	# Better diagnosis than the previous res code:
-	# (only renamed once construction is mostly finished)
-	#
-	trace_file="${us_main_vm_log_dir}/us_main.traces"
-
 	# Not wanting to diagnose too soon, otherwise we might return a failure code
 	# and trigger the brutal killing by systemd of an otherwise working us_main:
 	#
 	sleep 4
 
+	# Better diagnosis than the previous res code:
+	#
+	# (only renamed once construction is mostly finished; trace_file supposedly
+	# inherited from us-main-common.sh)
+	#
 	if [ -f "${trace_file}" ]; then
 
 		echo "  (success assumed, as '${trace_file}' found)"
@@ -162,10 +184,9 @@ if [ ${res} -eq 0 ]; then
 
 	else
 
-		# For some unknown reason, if the start fails (ex: because a main root
-		# does not exist), this script will exit quickly, as expected, yet
-		# 'systemctl start' will wait for a long time (most probably because of
-		# a time-out).
+		# For some unknown reason, if the start fails, this script will exit
+		# quickly, as expected, yet 'systemctl start' will wait for a long time
+		# (most probably because of a time-out).
 		#
 		echo "  (failure assumed, as '${trace_file}' not found)"
 		exit 100
