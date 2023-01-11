@@ -17,7 +17,7 @@
 % with this program. If not, see <http://www.gnu.org/licenses/>.
 %
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
-% Creation date: Wednesday, June 16, 2021
+% Creation date: Wednesday, June 16, 2021.
 
 
 % @doc The <b>main entry point</b> of the US-Main (Universal Server) active OTP
