@@ -20,11 +20,11 @@ Type=forking
 # US-Main.
 
 # To inspect the outputs, use:
-# journalctl --pager-end --unit=us-main-as-native-build.service
+# journalctl --pager-end --unit=us-main-native-build.service
 #
-ExecStart=/usr/local/bin/start-us-main-as-native-build.sh
+ExecStart=/usr/local/bin/start-us-main-native-build.sh
 
-ExecStop=/usr/local/bin/stop-us-main-as-native-build.sh
+ExecStop=/usr/local/bin/stop-us-main-native-build.sh
 
 [Install]
 WantedBy=multi-user.target
