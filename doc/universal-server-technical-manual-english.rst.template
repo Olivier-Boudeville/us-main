@@ -86,6 +86,7 @@ From the highest level to the lowest, as summarised `here <https://github.com/Ol
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
 - [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending, relying on the Gammu library)
 - [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile, for a bridge from Erlang to the C language)
+- `jsx <https://github.com/talentdeficit/jsx>`_ (to parse JSON sensor outputs)
 - `Ceylan-Oceanic <http://oceanic.esperide.org>`_ (for the support of home automation, through the integration of Enocean devices and actuators; relies on `our fork of erlang-serial <https://github.com/Olivier-Boudeville/erlang-serial>`_)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
@@ -172,11 +173,8 @@ From then, the sensor manager periodically monitors the various measurement poin
 Preparing the Setup
 -------------------
 
-The monitoring done by this server relies on the ``sensors`` executable
-(typically ``/usr/bin/sensors``, obtained generally from a package of the same
-name and relying on `lm-sensors
-<https://github.com/lm-sensors/lm-sensors>`_). One may install the ``i2c-tools``
-package as well for DIMM information (see R2 below).
+The monitoring done by this server relies on the ``sensors`` executable (typically ``/usr/bin/sensors``, obtained generally from a package of the same
+name and relying on `lm-sensors <https://github.com/lm-sensors/lm-sensors>`_). One may install the ``i2c-tools`` package as well for DIMM information (see R2 below).
 
 The ``sensors-detect`` script must have been run once by root beforehand (select then only the default, safer options, by hitting Enter repeatedly or simply use its ``--auto`` option), in order to configure sensors.
 
