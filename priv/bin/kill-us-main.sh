@@ -19,6 +19,17 @@ ${usage}" 1>&2
 fi
 
 
+epmd="$(which epmd 2>/dev/null)"
+
+if [ ! -x "${epmd}" ]; then
+
+	echo "  Error, no EPMD executable found." 1>&2
+
+	exit 8
+
+fi
+
+
 # Of course using stop-us-main-{native-build,release}.sh shall be preferred, as
 # we kill (not terminate properly) any US-Main instance(s).
 #
@@ -140,7 +151,7 @@ else
 fi
 
 
-if ! epmd -stop us_main; then
+if ! ${epmd} -stop us_main; then
 
 	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
 
@@ -151,5 +162,6 @@ fi
 
 sleep 1
 
-# At least this script:
-echo "Resulting US-Main found: $(ps -edf | grep us_main | grep -v grep)"
+
+echo "Resulting US-Main processes found: $(ps -edf | grep us_main | grep -v grep)"
+echo "Resulting EPMD entries found: $(${epmd} -names)"
