@@ -452,7 +452,11 @@ Notably, in this file, a ``us_main_config_filename`` entry can be specified in o
 This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
 
-For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to resources.
+For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to resources. For example, provided a ``us-srv`` group has already been created:
+
+.. code:: bash
+
+ $ useradd --create-home --shell /bin/rssh -g us-srv main-srv
 
 
 
@@ -602,6 +606,22 @@ Like notified in the start-up message::
 one may use ``to_erl`` to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means *killing* that node; prefer CTRL-D (once).
 
 For further information one may refer to the `US-Main shell scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).
+
+
+------------------
+Monitoring US-Main
+------------------
+
+If using the default US-Main EPMD port, checking whether an instance is running is as simple as:
+
+.. code:: bash
+
+ $ export ERL_EPMD_PORT=4507 ; epmd -names
+ epmd: up and running on port 4507 with data:
+ name us_main at port 50002
+
+Then executing ``kill-us-main.sh`` will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).
+
 
 
 -------
