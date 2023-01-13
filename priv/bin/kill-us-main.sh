@@ -92,7 +92,7 @@ read_us_main_config_file #1>/dev/null
 
 
 
-echo " Killing brutally (not stopping gracefully) any US-Main instance(s) found."
+echo "Killing brutally (not stopping gracefully) any US-Main instance(s) found."
 
 to_kill="$(ps -edf | grep us_main | grep -v run_erl | grep -v $0 | grep -v grep | grep -v emacs | awk '{ print $2 }')"
 
