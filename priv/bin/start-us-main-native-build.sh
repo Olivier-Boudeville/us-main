@@ -56,7 +56,7 @@ else
 fi
 
 
-usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line, otherwise found through the default US search paths. The US-Main installation itself will be looked up in '${us_main_install_root}'."
+usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line, otherwise found through the default US search paths. The US-Main installation itself will be looked up in '${us_main_install_root}'. This script must be run as root."
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -66,6 +66,21 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 	exit 0
 
 fi
+
+
+if [ ! $(id -u) -eq 0 ]; then
+
+	# As operations as chown will have to be performed:
+	echo "  Error, this script must be run as root.
+${usage}" 1>&2
+	exit 5
+
+fi
+
+
+# XDG_CONFIG_DIRS defined, so that the US server as well can look it up:
+xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
+
 
 maybe_us_config_dir="$1"
 
@@ -78,6 +93,13 @@ if [ -n "${maybe_us_config_dir}" ]; then
 		exit 20
 
 	fi
+
+	# As a 'universal-server/us.config' suffix will be added to each candidate
+	# configuration directory, so we remove the last directorty:
+
+	candidate_dir="$(dirname $(realpath ${maybe_us_config_dir}))"
+
+	xdg_cfg_dirs="${candidate_dir}:${xdg_cfg_dirs}"
 
 fi
 
@@ -136,21 +158,21 @@ cd src || exit
 # (note that a former instance of EPMD may wrongly report that a node with the
 # target name is still running, whereas no Erlang VM even exists)
 #
-make -s launch-epmd ${epmd_make_opt}
+make -s launch-epmd ${epmd_make_opt} || exit
 
 
 echo
 echo " -- Starting US-Main natively-built application as user '${us_main_username}' (EPMD port: ${erl_epmd_port}, whereas log directory is '${us_main_vm_log_dir}')..."
 
 
-# Previously the '--deep' authbind option was used; apparently the minimal depth
-# is 6:
+# Previously the '--deep' authbind option was used; apparently a depth of 6 is
+# sufficient:
 
-#echo Starting US-Main: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${maybe_us_config_dir}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service
+#echo Starting US-Main: /bin/sudo -u ...
 
-# XDG_CONFIG_DIRS defined, so that the US server can find it as well:
+#/bin/sudo -u ${us_main_username} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}"
 
-/bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${maybe_us_config_dir}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service
+/bin/sudo -u ${us_main_username} ${authbind} --depth 6 make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}"
 
 res=$?
 
