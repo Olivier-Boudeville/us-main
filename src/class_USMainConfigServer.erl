@@ -65,8 +65,7 @@
 % Expected to be specified in the form [user_muted_sensor_measurements()]:
 % UserMutedMeasurements = [
 %   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
-%   { { acpitz, acpi, "0" }, all_points }
-%                         ].
+%   { { acpitz, acpi, "0" }, all_points } ].
 
 -type user_server_location() :: { float(), float() }.
 % Checked more precisely as a position() in the home automation server.
@@ -81,7 +80,7 @@
 
 
 
-% The default filename (as a binary string) for the US-Main configuration (ex:
+% The default filename (as a binary string) for the US-Main configuration (e.g.
 % sensors), to be found from the overall US configuration directory:
 %
 -define( default_us_main_cfg_filename, <<"us-main.config">> ).
@@ -90,6 +89,8 @@
 % The default registration name of the US-Main server:
 -define( us_main_config_server_registration_name_key,
 		 us_main_config_server_registration_name ).
+
+-define( us_main_username_key, us_main_username ).
 
 -define( us_main_app_base_dir_key, us_main_app_base_dir ).
 -define( us_main_log_dir_key, us_main_log_dir ).
@@ -112,10 +113,10 @@
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
--define( known_config_keys,
-		 [ ?us_main_sensor_key, ?us_main_app_base_dir_key,
-		   ?us_main_log_dir_key, ?us_main_server_location_key,
-		   ?us_main_contact_files_key ] ).
+-define( known_config_keys, [ ?us_main_config_server_registration_name_key,
+	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
+	?us_main_log_dir_key, ?us_main_server_location_key,
+	?us_main_contact_files_key ] ).
 
 
 % The last-resort environment variable:
@@ -189,9 +190,6 @@
 
 	{ us_config_server_pid, server_pid(),
 	  "the PID of the overall US configuration server" },
-
-	%{ us_main_username, basic_utils:user_name(),
-	%  "the user (if any) who shall launch the US main application" },
 
 	{ us_main_supervisor_pid, supervisor_pid(),
 	  "the PID of the OTP supervisor of US-Main, as defined in us_main_sup" },
@@ -325,7 +323,7 @@ construct( State, SupervisorPid, AppRunContext ) ->
 	% First the direct mother classes, then this class-specific actions:
 	TraceState = class_USServer:construct( State, TraceCateg, _TrapExits=true ),
 
-	% Allows functions provided by lower-level libraries (ex: LEEC) called
+	% Allows functions provided by lower-level libraries (e.g. LEEC) called
 	% directly from this instance process to plug to the same (trace aggregator)
 	% bridge, with the same settings:
 	%
@@ -473,7 +471,7 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 % @doc Loads and applies the relevant configuration settings first from the
 % overall US configuration file, then from the more main/vhost specific one.
 %
-% As a result, the US configuration file is not fully checked as such (ex: no
+% As a result, the US configuration file is not fully checked as such (e.g. no
 % extracting and check that no entry remains), we just select the relevant
 % information from it.
 %
@@ -540,7 +538,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 			% Possibly user/group permission issue:
 			?error_fmt( "No US-Main configuration file found or accessible "
-				"(ex: symbolic link to an inaccessible file); tried '~ts'.",
+				"(e.g. symbolic link to an inaccessible file); tried '~ts'.",
 				[ MainCfgFilePath ] ),
 
 			throw( { us_main_config_file_not_found,
@@ -557,7 +555,9 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	RegState = manage_registrations( MainCfgTable, State ),
 
-	AppState = manage_app_base_directories( MainCfgTable, RegState ),
+	UserState = manage_os_user( MainCfgTable, RegState ),
+
+	AppState = manage_app_base_directories( MainCfgTable, UserState ),
 
 	LogState = manage_log_directory( MainCfgTable, AppState ),
 
@@ -618,6 +618,55 @@ manage_registrations( _ConfigTable, State ) ->
 		% Inherited:
 		{ registration_name, CfgRegName },
 		{ registration_scope, CfgRegScope } ] ).
+
+
+
+% @doc Manages any user-configured specification regarding the (operating-system
+% level) US-Main user.
+%
+-spec manage_os_user( us_main_config_table(), wooper:state() ) ->
+									wooper:state().
+manage_os_user( ConfigTable, State ) ->
+
+	% Mostly used by start/stop/kill scripts:
+	MainUsername = case table:lookup_entry( ?us_main_username_key,
+											ConfigTable ) of
+
+		key_not_found ->
+			ActualUsername = system_utils:get_user_name(),
+			?info_fmt( "No user-configured US-Main operating-system username "
+				"set for this server; runtime-detected: '~ts'.",
+				[ ActualUsername ] ),
+			ActualUsername;
+
+		{ value, Username } when is_list( Username ) ->
+
+			% No overriding expected:
+			basic_utils:check_undefined( ?getAttr(username) ),
+
+			case system_utils:get_user_name() of
+
+				Username ->
+					?info_fmt( "Using user-configured US-Main operating-system "
+						"username '~ts' for this server, which matches "
+						"the current runtime user.", [ Username ] ),
+					Username;
+
+				OtherUsername ->
+					?error_fmt( "The user-configured US-Main operating-system "
+						"username '~ts' for this server does not match "
+						"the current runtime user, '~ts'.",
+						[ Username, OtherUsername ] ),
+					throw( { inconsistent_os_us_main_user, OtherUsername,
+							 Username, ?us_main_username_key } )
+
+			end
+
+	end,
+
+	setAttribute( State, username,
+				  text_utils:string_to_binary( MainUsername ) ).
+
 
 
 
@@ -707,7 +756,7 @@ manage_app_base_directories( ConfigTable, State ) ->
 			case AppRunContext of
 
 				as_otp_release ->
-					% As, if run as a release, it may end with a version (ex:
+					% As, if run as a release, it may end with a version (e.g.
 					% "us_main-0.0.1"), or a "us_main-latest" symlink thereof,
 					% or directly as "us-main":
 					%
@@ -719,7 +768,7 @@ manage_app_base_directories( ConfigTable, State ) ->
 								"directory set to '~ts'.", [ BaseDir ] ),
 							BinBaseDir;
 
-						% For a clone made to a default directory (ex: by CI):
+						% For a clone made to a default directory (e.g. by CI):
 						"us-main" ++ _ ->
 							?info_fmt( "US-Main (release) application base "
 								"directory set to '~ts'.", [ BaseDir ] ),
@@ -896,7 +945,7 @@ manage_log_directory( ConfigTable, State ) ->
 
 	% Enforce security in all cases ("chmod 700"); if it fails here, the
 	% combined path/user configuration must be incorrect; however we might not
-	% be the owner of that directory (ex: if the us-web user is different from
+	% be the owner of that directory (e.g. if the us-main user is different from
 	% the US-Common one).
 	%
 	% So:
