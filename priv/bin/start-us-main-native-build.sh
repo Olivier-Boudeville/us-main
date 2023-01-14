@@ -161,18 +161,28 @@ cd src || exit
 make -s launch-epmd ${epmd_make_opt} || exit
 
 
+if [ -n "${erl_epmd_port}" ]; then
+	epmd_start_msg="configured EPMD port ${erl_epmd_port}"
+else
+	epmd_start_msg="default US-Main port ${default_us_main_epmd_port}"
+fi
+
+
 echo
-echo " -- Starting US-Main natively-built application as user '${us_main_username}' (EPMD port: ${erl_epmd_port}, whereas log directory is '${us_main_vm_log_dir}')..."
+echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, whereas log directory is '${us_main_vm_log_dir}'..."
 
 
-# Previously the '--deep' authbind option was used; apparently a depth of 6 is
-# sufficient:
+# Apparently variables may be indifferently set prior to make, directly in the
+# environment (like 'XDG_CONFIG_DIRS=xxx make TARGET') or as arguments (like
+# 'make TARGET XDG_CONFIG_DIRS=xxx'), even if there are a sudo and an authbind
+# in the equation.
 
-#echo Starting US-Main: /bin/sudo -u ...
+# Previously the '--depth' authbind option was used, and apparently a depth of 6
+# was sufficient - but no interest in taking risks.
 
-#/bin/sudo -u ${us_main_username} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt} ${authbind} --depth 6 make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}"
+#echo Starting US-Main: /bin/sudo -u ${us_main_username} ${authbind} --deep make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}
 
-/bin/sudo -u ${us_main_username} ${authbind} --depth 6 make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs} VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}"
+/bin/sudo -u ${us_main_username} ${authbind} --deep make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}
 
 res=$?
 
