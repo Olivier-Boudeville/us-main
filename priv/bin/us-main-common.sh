@@ -73,12 +73,13 @@ echo "US-Common root found as '${us_common_root}'."
 #
 us_actual_root="${us_main_install_root}"
 
+
 # As depends on it:
 us_common_script="${us_common_root}/priv/bin/us-common.sh"
 
 if [ -f "${us_common_script}" ]; then
 
-	. "${us_common_script}" #1>/dev/null
+	. "${us_common_script}" 1>/dev/null
 
 else
 
@@ -88,7 +89,10 @@ else
 fi
 
 
-
+# Must be kept consistent with the default_us_main_epmd_port define in
+# class_USMainConfigServer.erl; to be used by the various sourcing scripts:
+#
+default_us_main_epmd_port=4507
 
 
 # Sets notably: us_main_config_file, us_main_username, us_main_app_base_dir,
@@ -134,6 +138,35 @@ read_us_main_config_file()
 	#
 	us_main_base_content=$(/bin/cat "${us_main_config_file}" | sed 's|^[[:space:]]*%.*||1')
 
+
+	# The EPMD port (possibly already set at the overall US-level) may be
+	# overridden here in US-Main, so that it does not clash with the one of any
+	# other US-* application (e.g. US-Web).
+
+	us_main_erl_epmd_port=$(echo "${us_main_base_content}" | grep epmd_port | sed 's|^[[:space:]]*{[[:space:]]*epmd_port,[[:space:]]*||1' | sed 's|[[:space:]]*}.$||1')
+
+	if [ -z "${us_main_erl_epmd_port}" ]; then
+
+		#echo "No US-Main level Erlang EPMD port specified."
+
+		# Leaving the defaults that were possibly set at the US overall level.
+		:
+
+	else
+
+		#echo "Using US-Main specified EPMD port, '${us_main_erl_epmd_port}'."
+
+		# For shell-like uses:
+		epmd_opt="ERL_EPMD_PORT=${us_main_erl_epmd_port}"
+
+		# For make uses:
+		epmd_make_opt="EPMD_PORT=${us_main_erl_epmd_port}"
+
+	fi
+
+	#echo "epmd_opt = ${epmd_opt}"
+
+
 	us_main_username=$(echo "${us_main_base_content}" | grep us_main_username | sed 's|^{[[:space:]]*us_main_username,[[:space:]]*"||1' | sed 's|"[[:space:]]*}.$||1')
 
 	if [ -z "${us_main_username}" ]; then
@@ -151,7 +184,7 @@ read_us_main_config_file()
 
 	else
 
-		echo "Using specified main username, '${us_main_username}'."
+		echo "Using specified US-Main username, '${us_main_username}'."
 
 	fi
 
@@ -161,22 +194,29 @@ read_us_main_config_file()
 
 	if [ -z "${us_main_app_base_dir}" ]; then
 
+		#echo "(us_main_app_base_dir not set in '${us_main_config_file}')"
+
 		# Environment variable as last-resort:
 		if [ -z "${US_MAIN_APP_BASE_DIR}" ]; then
 
 			if [ "${us_launch_type}" = "native" ]; then
 
 				# As sourced from us_main directly:
-				us_main_app_base_dir="$(pwd)"
+				us_main_app_base_dir="${us_main_install_root}"
 
 				echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it, in a native context, from the current directory, and trying '${us_main_app_base_dir}'."
 
 			else
 
 				# Wild guess:
-				us_main_app_base_dir=$(/bin/ls -d ${us_app_base_dir}/../../*/us_main 2>/dev/null | xargs realpath)
+				us_main_app_base_dir=$(/bin/ls -d ${us_app_base_dir}/../../*/us_main 2>/dev/null | xargs realpath 2>/dev/null)
 
-				echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it from the release-dependent US application one: trying '${us_main_app_base_dir}'."
+				if [ -z "${us_main_app_base_dir}" ]; then
+					echo "Failed to extrapolate US-Main base directory from the US one ('${us_app_base_dir}')." 1>&2
+					exit 44
+				else
+					echo "No base directory specified for the US-Main application nor US_MAIN_APP_BASE_DIR environment variable set, deriving it from the release-dependent US application one: trying '${us_main_app_base_dir}'."
+				fi
 
 			fi
 
@@ -250,9 +290,8 @@ read_us_main_config_file()
 	# (typically here in production mode, as a standard release, or as a sibling
 	# native directory)
 	#
-	#us_main_vm_log_dir="${us_main_app_base_dir}/log"
-	#echo "Setting us_main_vm_log_dir to ${us_log_dir}."
-	us_main_vm_log_dir="${us_log_dir}"
+	us_main_vm_log_dir="${us_main_app_base_dir}/log"
+	#echo "Setting us_main_vm_log_dir to ${us_main_vm_log_dir}."
 
 	if [ ! -d "${us_main_vm_log_dir}" ]; then
 
@@ -332,6 +371,7 @@ read_us_main_config_file()
 			else
 
 				echo "Rebar3 build tree detected, US-Main application found as '${us_main_exec}'."
+
 			fi
 
 		else
@@ -341,6 +381,45 @@ read_us_main_config_file()
 		fi
 
 	fi
+
+
+	us_main_log_dir=$(echo "${us_main_base_content}" | grep us_main_log_dir | sed 's|^{[[:space:]]*us_main_log_dir,[[:space:]]*"||1' | sed 's|"[[:space:]]*}.$||1')
+
+	if [ -z "${us_main_log_dir}" ]; then
+
+		us_main_log_dir="/var/log/universal-server/us-main"
+		echo "No base directory specified for US-Main logs (no 'us_main_log_dir' entry in the US-Main configuration file '${us_main_config_file}'), trying default log directory '${us_main_log_dir}'."
+
+	else
+
+		# Checks whether absolute:
+		if [[ "${us_main_log_dir:0:1}" == / || "${us_main_log_dir:0:2}" == ~[/a-z] ]]; then
+
+			echo "Using directly specified directory for US-Main logs, '${us_main_log_dir}'."
+
+		else
+
+			# If it is relative, it is relative to the US-Main application base
+			# directory:
+			#
+			us_main_log_dir="${us_main_app_base_dir}/${us_main_log_dir}"
+			echo "Using specified directory for US-Main logs (made absolute), '${us_main_log_dir}'."
+
+		fi
+
+	fi
+
+	if [ ! -d "${us_main_log_dir}" ]; then
+
+		echo "  Error, no US-Main log directory (for non-VM logs) found ('${us_main_log_dir}')." 1>&2
+		exit 160
+
+	fi
+
+	echo "US-Main (main-level) logs expected in the '${us_main_log_dir}' directory."
+
+	# Defined for all script users:
+	trace_file="${us_main_log_dir}/us_main.traces"
 
 }
 
@@ -479,13 +558,16 @@ prepare_us_main_launch()
 	# Not removing the state files of a log analyzer, to keep history.
 
 	# Needed as a sign that any future start succeeded:
-	trace_file="${us_main_vm_log_dir}/us_main.traces"
 	echo "Removing any '${trace_file}' trace file."
 	/bin/rm -f "${trace_file}" 2>/dev/null
 
 	echo "Fixing permissions to ${us_main_username}:${us_groupname} (as $(id -un))."
 
 	# So that the VM can write its logs despite authbind:
+	#
+	# (note that a user can traverse a directory if and only if they have
+	# execute permission on it)
+	#
 	chown ${us_main_username}:${us_groupname} ${us_main_vm_log_dir}
 
 	# Raising the maximum number of opened file descriptors:
@@ -523,7 +605,7 @@ inspect_us_main_log()
 			echo "(no VM log file found, attempt ${attempts}/${max_attempts})"
 		else
 			# Might happen:
-			echo "(VM log file '${us_main_vm_log_file}' not found, attempt ${attempts}/${max_attempts})"
+			echo "(warning: VM log file '${us_main_vm_log_file}' not found, attempt ${attempts}/${max_attempts})"
 		fi
 
 		sleep 1
@@ -540,8 +622,16 @@ inspect_us_main_log()
 
 	if [ -f "${us_main_vm_log_file}" ]; then
 
-		echo "EPMD names output:"
-		epmd -port ${erl_epmd_port} -names
+		if [ -n "${erl_epmd_port}" ]; then
+			echo "EPMD names output (on port ${erl_epmd_port}):"
+			epmd_port_opt="-port ${erl_epmd_port}"
+		else
+			echo "EPMD names output (on default US-Main port ${erl_epmd_port}):"
+			epmd_port_opt="-port ${default_us_main_epmd_port}"
+		fi
+
+		${epmd} ${epmd_port_opt} -names
+
 
 		echo
 		echo "Displaying the end of '${us_main_vm_log_file}':"
