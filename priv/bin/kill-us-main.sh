@@ -113,7 +113,13 @@ if [ -n "${to_kill}" ]; then
 	echo "Following US-Main processes to kill found, as $(id -un): ${to_kill}."
 
 	# The signal 9 *is* necessary in some cases:
-	kill -9 ${to_kill} # 2>/dev/null
+	if ! kill -9 ${to_kill}; then  # 2>/dev/null
+
+		echo "  Error: failed to kill processes of PIDs ${to_kill}." 1>&2
+
+		exit 40
+
+	fi
 
 	# Actually not specifically safer:
 	#for p in ${to_kill}; do
@@ -142,8 +148,6 @@ else
 	# supposing that the instance was properly launched (see the 'launch-epmd'
 	# make target):
 
-	default_us_main_epmd_port=4507
-
 	echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
 
 	export ERL_EPMD_PORT="${default_us_main_epmd_port}"
@@ -151,6 +155,7 @@ else
 fi
 
 
+# Not always working:
 if ! ${epmd} -stop us_main; then
 
 	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
