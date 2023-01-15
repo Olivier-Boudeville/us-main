@@ -80,7 +80,7 @@ cd "${us_main_install_root}" || exit
 
 # Will source in turn us-common.sh:
 us_main_common_script_name="us-main-common.sh"
-us_main_common_script="priv/bin/${us_main_common_script_name}"
+us_main_common_script="${us_main_install_root}/priv/bin/${us_main_common_script_name}"
 
 if [ ! -f "${us_main_common_script}" ]; then
 
