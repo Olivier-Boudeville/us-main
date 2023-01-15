@@ -4,7 +4,7 @@ us_main_remote_access_config_filename="us-main-remote-access.config"
 
 usage="$(basename $0) [US_MAIN_REMOTE_ACCESS_CONFIG_FILE]: monitors the traces emitted by a US-Main instance (possibly running on a remote host), based either on a default '${us_main_remote_access_config_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths.
 
-Example of use: './$(basename $0) us-main-remote-access-for-development.config', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server directory/."
+Example of use: './$(basename $0) us-main-remote-access-for-development.config', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
