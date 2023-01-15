@@ -37,13 +37,13 @@ local_us_main_install_root="${this_script_dir}/../.."
 if [ -d "${local_us_main_install_root}/priv" ]; then
 
 	us_main_install_root="$(realpath ${local_us_main_install_root})"
-	echo "Selecting US-Main development native build in '${us_main_install_root}'."
+	echo "Selecting US-Main development native build in clone-local '${us_main_install_root}'."
 
 else
 
 	# The location enforced by deploy-us-main-native-build.sh:
 	us_main_install_root="/opt/universal-server/us_main-native/us_main"
-	echo "Selecting US-Main native build in standard location '${us_main_install_root}'."
+	echo "Selecting US-Main native build in standard server location '${us_main_install_root}'."
 
 	if [ ! -d "${us_main_install_root}/priv" ]; then
 
@@ -70,7 +70,7 @@ fi
 
 if [ ! $(id -u) -eq 0 ]; then
 
-	# As operations as chown will have to be performed:
+	# As operations like chown will have to be performed:
 	echo "  Error, this script must be run as root.
 ${usage}" 1>&2
 	exit 5
@@ -78,7 +78,9 @@ ${usage}" 1>&2
 fi
 
 
-# XDG_CONFIG_DIRS defined, so that the US server as well can look it up:
+# XDG_CONFIG_DIRS defined, so that the US server as well (not only these
+# scripts) can look it up:
+#
 xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
 
 
@@ -95,7 +97,7 @@ if [ -n "${maybe_us_config_dir}" ]; then
 	fi
 
 	# As a 'universal-server/us.config' suffix will be added to each candidate
-	# configuration directory, so we remove the last directorty:
+	# configuration directory, we remove the last directory:
 
 	candidate_dir="$(dirname $(realpath ${maybe_us_config_dir}))"
 
@@ -169,7 +171,7 @@ fi
 
 
 echo
-echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, whereas log directory is '${us_main_vm_log_dir}'..."
+echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, whereas VM log directory is '${us_main_vm_log_dir}'..."
 
 
 # Apparently variables may be indifferently set prior to make, directly in the
@@ -178,7 +180,7 @@ echo " -- Starting US-Main natively-built application as user '${us_main_usernam
 # in the equation.
 
 # Previously the '--depth' authbind option was used, and apparently a depth of 6
-# was sufficient - but no interest in taking risks.
+# was sufficient; but there is little interest in taking such risks.
 
 #echo Starting US-Main: /bin/sudo -u ${us_main_username} ${authbind} --deep make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}
 
