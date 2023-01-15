@@ -378,9 +378,10 @@ Communication Gateway
 
 The purpose of the US Communication Gateway is to enable (possibly two-way) exchanges with the US users.
 
-Such communication is not to happen frow a web-based medium (see `US-Web <http://us-web.esperide.org>`_ for that), but through alternate modes such as SMS (relying then on `Ceylan-Mobile <http://mobile.esperide.org>`_) and/or e-mails (relying then on `the corresponding services of Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl>`_).
+Such communication is not to happen frow a web-based medium (see `US-Web <http://us-web.esperide.org>`_ for that), but through alternate modes such as SMS (relying then on `Ceylan-Mobile <http://mobile.esperide.org>`_, itself relying on `Ceylan-Seaplus <http://seaplus.esperide.org>`_) and/or e-mails (relying then on `the corresponding services of Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl>`_).
 
 For that, the correspondance between a US role (ex: ``administrator``) and actual user information is established thanks to the `contact directory`_ service.
+
 
 
 
@@ -457,6 +458,13 @@ For operational use, we recommend to create a US-Main specific user (to be set i
 .. code:: bash
 
  $ useradd --create-home --shell /bin/rssh -g us-srv main-srv
+
+
+The `communication gateway`_ will rely on Ceylan-Mobile to send SMS. For that, a suitable 3G device (typically a USB key) will have to be used.
+
+As mentioned `in this section <https://mobile.esperide.org/#managing-dev-ttyusb-entries>`_, proper permissions must apply, so that the user (e.g. ``main-srv``) running US-Main is able to interact with the 3G device (e.g. ``/dev/ttyUSB-my-3G-key``).
+
+So ``gpasswd -a main-srv uucp`` can be executed as root (and possibly ``main-srv`` may run ``newgrp uucp``).
 
 
 
