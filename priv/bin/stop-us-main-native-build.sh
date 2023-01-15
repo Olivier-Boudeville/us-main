@@ -17,9 +17,9 @@
 #   $ journalctl --pager-end --unit=us-main-as-native-build.service
 
 # See also:
+#  - kill-us-main-native-build.sh
+#  - start-us-main-native-build.sh
 #  - deploy-us-main-native-build.sh
-#  - stop-us-main-native-build.sh
-#  - start-universal-server.sh
 
 
 
@@ -89,6 +89,27 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 
+epmd="$(which epmd 2>/dev/null)"
+
+if [ ! -x "${epmd}" ]; then
+
+	echo "  Error, no EPMD executable found." 1>&2
+
+	exit 8
+
+fi
+
+
+if [ $# -gt 1 ]; then
+
+	echo "  Error, extra argument expected.
+${usage}" 1>&2
+
+	exit 10
+
+fi
+
+
 #echo "Stopping US-Main native build, as following user: $(id)"
 
 # We need first to locate the us-main-common.sh script:
@@ -124,19 +145,22 @@ fi
 export us_launch_type="native"
 
 #echo "Sourcing '${us_main_common_script}'."
-. "${us_main_common_script}" 1>/dev/null
+. "${us_main_common_script}" #1>/dev/null
 
 #echo "Reading US configuration file:"
-read_us_config_file $1 1>/dev/null
+read_us_config_file "$1" #1>/dev/null
 
-# Actually we do not need to read the US-Main configuration file here:
+# Now we also need to read the US-Main configuration file here, to fetch any
+# EPMD port there:
+#
 #echo "Reading US-Main configuration file:"
-#read_us_main_config_file #1>/dev/null
+read_us_main_config_file #1>/dev/null
 
+# Not needed:
 #secure_authbind
 
 
-echo " -- Stopping US-Main natively-built application (EPMD port: ${erl_epmd_port})..."
+echo " -- Stopping US-Main natively-built application (EPMD port: ${us_main_erl_epmd_port})..."
 
 
 # We must stop the VM with the right (Erlang) cookie, i.e. the actual runtime
@@ -156,9 +180,10 @@ fi
 cd src/apps
 
 # No sudo or authbind necessary here, no US_* environment variables either:
-#echo make -s us_main_stop_exec EPMD_PORT=${erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
+echo make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
 
-make -s us_main_stop_exec EPMD_PORT=${erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
+make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
+
 res=$?
 
 if [ $res -eq 0 ]; then
@@ -191,10 +216,39 @@ fi
 #/bin/cp -f "${backup_vm_args_file}" "${vm_args_file}"
 
 
-# Will generally not work (-relaxed_command_check not having been used):
-epmd -port ${erl_epmd_port} -stop us_main 1>/dev/null
+# Unfortunately, at least in some cases, EPMD will believe that this just
+# shutdown US-Main instance is still running; as the next epmd command may not
+# work (if -relaxed_command_check was not used at EPMD startup; we nevertheless
+# ensure that it is the case if using our start scripts), the only remaining
+# solution would be to kill this EPMD; yet this may impact other running Erlang
+# applications (see kill-us-main.sh to minimise the harm done), so it is not
+# done here.
 
-# So 'killall epmd' may also be your friend, although it may affect other
-# applications such as the Universal server itself.
+if [ -n "${us_main_erl_epmd_port}" ]; then
 
-exit $res
+	echo "Using user-defined US-Main EPMD port ${us_main_erl_epmd_port}."
+	export ERL_EPMD_PORT="${us_main_erl_epmd_port}"
+
+else
+
+	# Using the default US-Main EPMD port (see the EPMD_PORT make variable),
+	# supposing that the instance was properly launched (see the 'launch-epmd'
+	# make target):
+
+	echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
+
+	export ERL_EPMD_PORT="${default_us_main_epmd_port}"
+
+fi
+
+if ! ${epmd} -stop us_main; then
+
+	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
+
+	exit 25
+
+fi
+
+# kill-us-main.sh may also be your last-resort friend.
+
+exit ${res}
