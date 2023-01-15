@@ -79,20 +79,26 @@
 			   user_server_location/0 ]).
 
 
+% Must be kept consistent with the default_us_main_epmd_port variable in
+% us-main-common.sh:
+%
+-define( default_us_main_epmd_port, 4507 ).
+
 
 % The default filename (as a binary string) for the US-Main configuration (e.g.
 % sensors), to be found from the overall US configuration directory:
 %
 -define( default_us_main_cfg_filename, <<"us-main.config">> ).
 
+-define( us_main_epmd_port_key, epmd_port ).
 
 % The default registration name of the US-Main server:
 -define( us_main_config_server_registration_name_key,
 		 us_main_config_server_registration_name ).
 
 -define( us_main_username_key, us_main_username ).
-
 -define( us_main_app_base_dir_key, us_main_app_base_dir ).
+-define( us_main_data_dir_key, us_main_data_dir ).
 -define( us_main_log_dir_key, us_main_log_dir ).
 
 
@@ -113,14 +119,24 @@
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
--define( known_config_keys, [ ?us_main_config_server_registration_name_key,
+-define( known_config_keys, [ ?us_main_epmd_port_key,
+	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
-	?us_main_log_dir_key, ?us_main_server_location_key,
+	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
 	?us_main_contact_files_key ] ).
 
 
 % The last-resort environment variable:
 -define( us_main_app_env_variable, "US_MAIN_APP_BASE_DIR" ).
+
+% Preferring a default local directory to an absolute one requiring privileges:
+%-define( default_data_base_dir, "/var/local/us-main/data" ).
+-define( default_data_base_dir, "us-main-data" ).
+
+% The subdirectory of the US-Main application directory in the one designated by
+% us_main_data_dir_key:
+%
+-define( app_subdir, "us-main" ).
 
 
 -define( default_log_base_dir, "/var/log/universal-server/us-main" ).
@@ -217,6 +233,9 @@
 
 	{ conf_directory, bin_directory_path(),
 	  "the US-Main internal configuration directory, 'us_main/priv/conf'" },
+
+	{ data_directory, bin_directory_path(),
+	  "the directory where working data is to be stored" },
 
 	{ log_directory, bin_directory_path(), "the directory where (non-VM) US-Main
 	  logs shall be written, notabl traces" },
@@ -553,13 +572,17 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	?debug_fmt( "Read main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
 
-	RegState = manage_registrations( MainCfgTable, State ),
+	EpmdState = manage_epmd_port( MainCfgTable, State ),
+
+	RegState = manage_registrations( MainCfgTable, EpmdState ),
 
 	UserState = manage_os_user( MainCfgTable, RegState ),
 
 	AppState = manage_app_base_directories( MainCfgTable, UserState ),
 
-	LogState = manage_log_directory( MainCfgTable, AppState ),
+	DataState = manage_data_directory( MainCfgTable, AppState ),
+
+	LogState = manage_log_directory( MainCfgTable, DataState ),
 
 	ContactState = manage_contacts( MainCfgTable, LogState ),
 
@@ -592,6 +615,55 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 % Helper section.
+
+
+% @doc Manages any US-Main level user-configured EPMD port.
+%
+% The port may be already set at the US overall level, but it can be overridden
+% on a per-US application basis, as it may be convenient to share one's
+% us.config between multiple applications (e.g. US-Main and US-Web).
+%
+-spec manage_epmd_port( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_epmd_port( ConfigTable, State ) ->
+
+	% No simple, integrated way of checking the actual port currently in use:
+	{ Port, Origin } = case table:lookup_entry( ?us_main_epmd_port_key,
+												ConfigTable ) of
+
+		key_not_found ->
+			% No US-Main EPMD port defined, so its default will apply unless a
+			% port was explicitly set at the US-level:
+			%
+			DefaultUSMainEpmdPort = ?default_us_main_epmd_port,
+
+			?info_fmt( "No user-configured EPMD TCP port for US-Main, "
+				"proposing its default one, ~B.", [ DefaultUSMainEpmdPort  ] ),
+
+			{ DefaultUSMainEpmdPort, as_default };
+
+
+		{ value, UserEPMDPort } when is_integer( UserEPMDPort ) ->
+			?info_fmt( "Supposing already running using the user-defined "
+					   "US-Main EPMD TCP port #~B.", [ UserEPMDPort ] ),
+
+			{ UserEPMDPort, explicit_set };
+
+
+		{ value, InvalidEPMDPort } ->
+			?error_fmt( "Read invalid user-configured US-Main EPMD port: '~p'.",
+						[ InvalidEPMDPort ] ),
+			throw( { invalid_us_main_epmd_port, InvalidEPMDPort,
+					 ?us_main_epmd_port_key } )
+
+	end,
+
+	% For correct information; available by design:
+	?getAttr(us_config_server_pid) !
+		{ notifyEPMDPort, [ Port, Origin, ?MODULE, self() ] },
+
+	% Const:
+	State.
 
 
 
@@ -895,6 +967,81 @@ guess_app_dir( AppRunContext, State ) ->
 
 	GuessingDir.
 
+
+
+% @doc Manages any user-configured data directory to rely on, creating it if
+% necessary.
+%
+-spec manage_data_directory( us_main_config_table(), wooper:state() ) ->
+									wooper:state().
+manage_data_directory( ConfigTable, State ) ->
+
+	BaseDir = case table:lookup_entry( ?us_main_data_dir_key, ConfigTable ) of
+
+		key_not_found ->
+			file_utils:ensure_path_is_absolute( ?default_data_base_dir,
+									?getAttr(app_base_directory) );
+
+		{ value, D } when is_list( D ) ->
+			file_utils:ensure_path_is_absolute( D,
+												?getAttr(app_base_directory) );
+
+		{ value, InvalidDir }  ->
+			?error_fmt( "Read invalid user-configured data directory: '~p'.",
+						[ InvalidDir ] ),
+			throw( { invalid_data_directory, InvalidDir,
+					 ?us_main_data_dir_key } )
+
+	end,
+
+	file_utils:is_existing_directory( BaseDir ) orelse
+		?warning_fmt( "The base data directory '~ts' does not exist, "
+					  "creating it.", [ BaseDir ] ),
+
+	% Would lead to inconvenient paths, at least if defined as relative:
+	%DataDir = file_utils:join( BaseDir, ?app_subdir ),
+	DataDir = BaseDir,
+
+	try
+
+		file_utils:create_directory_if_not_existing( DataDir, create_parents )
+
+	catch
+
+		{ create_directory_failed, _DataDir, eacces } ->
+
+			% Clearer than system_utils:get_user_name_string/0:
+			Username = system_utils:get_user_name(),
+
+			?error_fmt( "Unable to create the directory for working data "
+				"'~ts': please ensure its parent directory can be written "
+				"by user '~ts', or set it to different path thanks to the "
+				"'~ts' key.", [ DataDir, Username, ?us_main_data_dir_key ] ),
+
+			throw( { data_directory_creation_failed, DataDir, eacces,
+					 Username } );
+
+		E ->
+			throw( { data_directory_creation_failed, DataDir, E } )
+
+	end,
+
+	% Enforce security in all cases ("chmod 700"); if it fails here, the
+	% combined path/user configuration must be incorrect; however we might not
+	% be the owner of that directory (e.g. if the us-main user is different from
+	% the us one). So:
+	%
+	CurrentUserId = system_utils:get_user_id(),
+
+	% If not owned, do nothing:
+	file_utils:get_owner_of( DataDir ) =:= CurrentUserId andalso
+		file_utils:change_permissions( DataDir,
+			[ owner_read, owner_write, owner_execute,
+			  group_read, group_write, group_execute ] ),
+
+	BinDataDir = text_utils:ensure_binary( DataDir ),
+
+	setAttribute( State, data_directory, BinDataDir ).
 
 
 
