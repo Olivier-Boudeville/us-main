@@ -3663,7 +3663,7 @@ integrate_any_number( BaseStr, NumStr ) ->
 init_polling( SensorPollPeriodicity, State ) ->
 
 	?debug_fmt( "Planning a sensor measurement each ~ts.",
-				[ time_utils:duration_to_string( SensorPollPeriodicity ) ] ),
+		[ time_utils:duration_to_string( 1000 * SensorPollPeriodicity ) ] ),
 
 	SchedulerPid = case class_USScheduler:get_main_scheduler() of
 
@@ -3683,7 +3683,8 @@ init_polling( SensorPollPeriodicity, State ) ->
 	receive
 
 		{ wooper_result, { task_registered, TaskId } } ->
-			?debug_fmt( "Polling task registered, as ~B.", [ TaskId ] ),
+			?debug_fmt( "Sensor polling task registered, as identifier #~B.",
+						[ TaskId ] ),
 			setAttributes( State, [ { scheduler_pid, SchedulerPid },
 									{ task_id, TaskId } ] )
 
@@ -4230,8 +4231,19 @@ to_string( State ) ->
 
 	end,
 
+	CfgStr = case ?getAttr(us_config_server_pid) of
+
+		undefined ->
+			"no US configuration server";
+
+		CfgSrvPid ->
+			text_utils:format( "US configuration server ~w",
+							   [ CfgSrvPid ] )
+
+	end,
+
 	text_utils:format( "US sensor manager for '~ts', ~ts; using the "
-		"US configuration server ~w, ~ts and "
+		"US configuration server ~w, using ~ts and "
 		"the communication gateway ~w",
-		[ net_utils:localhost(), TrackStr, ?getAttr(us_config_server_pid),
-		  SchedStr, ?getAttr(comm_gateway_pid) ] ).
+		[ net_utils:localhost(), TrackStr, CfgStr, SchedStr,
+		  ?getAttr(comm_gateway_pid) ] ).
