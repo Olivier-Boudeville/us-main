@@ -97,8 +97,8 @@
 						  | 'constant_absence'.
 % A intra-day general program regarding a presence to simulate.
 %
-% If slots are used, at least one shall be defined (otherwise a constant_* atom
-% shall be used).
+% If slots are used, at least one shall be defined (otherwise one of the
+% constant_* atoms shall be used).
 
 
 -type celestial_timing() :: { Dawn :: maybe( time() ), Dusk :: maybe( time() ) }
@@ -122,12 +122,11 @@
 
 
 
-
 % Local types:
 
 
 -type presence_sim_id() :: count().
-% Internal identifier of a presence simulation.
+% Internal identifier of a registered presence simulation instance.
 
 
 -type telegram_pair() :: { Press :: telegram(), Release :: telegram() }.
@@ -152,8 +151,8 @@
 	enabled = true :: boolean(),
 
 	% Tells whether the presence simulation is currently activated, that is if
-	% lighting is currently on or off (avoids sending unnecessary switching
-	% orders).
+	% lighting is currently on or off (allows avoiding the sending of
+	% unnecessary switching orders).
 	%
 	% Note that we consider that this server is the sole controller of the
 	% target actuator; if not (e.g. should the user be able to switch on/off a
@@ -181,20 +180,20 @@
 	target_eurid :: eurid(),
 
 
-	% The general program of this presence simulation (to be applied each day),
-	% generally a chronologically-ordered intra-day (from midnight to midnight)
-	% non-empty list of presence slots, or simpler policies:
+	% The general dily program of this presence simulation, generally a
+	% chronologically-ordered intra-day (from midnight to midnight) non-empty
+	% list of presence slots, or simpler policies:
 	%
 	program :: presence_program(),
 
 
 	% The next planned action (if any) that shall happen:
-	% Not used as relying now on a "stateless" algorithm.
+	% Not used, as relying now on a "stateless" algorithm.
 	%next_action :: maybe( { timestamp(), presence_action() } ),
 
 	% Tells whether lighting shall be switched off during a presence slot when
-	% the light of day should be available (provided that the position of the
-	% server is known):
+	% the light of day should be available (provided that the geographical
+	% position of the server is known):
 	%
 	smart_lighting = true :: boolean(),
 
@@ -268,8 +267,9 @@
 	{ scheduler_pid, scheduler_pid(),
 	  "the PID of the scheduler used by this server" },
 
-	% Better defined separately from presence_table, as the program shall remain
-	% whereas presence simulation may be regularly enabled/disabled:
+	% Better defined separately from presence_table, as the program shall
+	% remain, whereas presence simulation service may be regularly
+	% enabled/disabled:
 	%
 	{ presence_simulation_enabled, boolean(),
 	  "tells whether the presence simulation service is currently enabled" },
@@ -283,11 +283,11 @@
 	{ midnight_task_id, maybe( task_id() ),
 	  "A task triggered, if the presence simulation is activated, each day "
 	  "at midnight to determine and update the activity of the presence "
-	  "simulations for the next day (and to ensure that any potential error "
-	  "does not linger)" },
+	  "simulations for the next day (and to ensure that any potential "
+	  "switching discrepancy does not linger)" },
 
 	{ server_location, maybe( position() ),
-	  "the (geographic) location, as a position, of the US-Main server" },
+	  "the (geographic) location, as a position, of this US-Main server" },
 
 	{ celestial_info, maybe( celestial_info() ),
 	  "any precomputed dawn/dusk time, for the current day" },
@@ -318,12 +318,13 @@
 
 % Regarding presence simulation:
 %
-% The presence milestones of a slot may overlap (typically because the time of
-% dusk and dawn varies in the course of the year); anyway the presence will be
-% simulated in all cases with no interruption.
+% The various presence periods in a slot may overlap (typically because the time
+% of dusk and dawn varies in the course of the year); anyway the presence will
+% be simulated in all cases with no interruption.
 %
 % A robust mode of operation has been retained, with which states are enforced
-% (e.g smart plug is on) rather than transitions (e.g. toggling smart plug).
+% (e.g smart plug is on) rather than transitions (e.g. toggling smart plug
+% "blindly").
 
 
 % Regarding the computation of the time in the day of dawn and dusk:
@@ -339,17 +340,16 @@
 %
 % Each presence simulation is planned from the current event to (only) the next.
 % As soon there is at least one presence simulation, an additional overall
-% update (daily, at midnight) is scheduled, so that the programs for this day
-% are established.
+% update (daily, at midnight) is scheduled, so that the programs for this new
+% day are established.
 
 
 % Regarding the Enocean actuators:
 %
 % We suppose that these devices already learnt the USB gateway being used by
-% Oceanic. This server will act upon these actuators as a double-rocker switch
-% (e.g. not two single-contact buttons), whose on button is button_ao, and whose
-% off button is button_ai.
-
+% Oceanic. This server will act upon each of these actuators as if it was a
+% double-rocker switch (e.g. not two single-contact buttons), whose 'on' button
+% is button_ao, and whose 'off' button is button_ai.
 
 
 
@@ -357,7 +357,6 @@
 % Implementation of the supervisor_bridge behaviour, for the intermediate
 % process allowing to interface this home automation server with an OTP
 % supervision tree.
-
 
 
 % @doc Starts and links a supervision bridge for the home automation system.
@@ -442,7 +441,7 @@ construct( State, TtyPath ) ->
 %
 % Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
 % performed, specified either as a complete list of presence settings, or only
-% through the EURID of the target actuator(s), in which case a default presence
+% through the EURID of the target actuator(s) - in which case a default presence
 % policy will apply; the source used for the sent telegrams will be the base
 % identifier of the gateway.
 %
@@ -459,9 +458,11 @@ construct( State, TtyPath, MaybePresenceSimSettings ) ->
 %
 % Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
 % performed, specified either as a complete list of presence settings, or only
-% through the EURID of the target actuator(s), in which case a default presence
+% through the EURID of the target actuator(s) - in which case a default presence
 % policy will apply; the source used for the sent telegrams will be the
 % specified one (if any), otherwise the base identifier of the gateway.
+%
+% (most complete constructor)
 %
 -spec construct( wooper:state(), device_path(),
 	maybe( presence_simulation_settings() | eurid_string() ),
@@ -1690,22 +1691,41 @@ clear_any_presence_task( Psc, _SchedPid ) ->
 
 
 % @doc Handles a device event notified by the specified Oceanic server.
--spec onEnoceanEvent( wooper:state(), device_event(),
-					  oceanic_server_pid() ) -> const_oneway_return().
-onEnoceanEvent( State, Event, OcSrvPid ) when is_tuple( Event ) ->
+-spec onEnoceanDeviceEvent( wooper:state(), device_event(),
+							oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
 
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
+	Msg = oceanic:device_event_to_string( DeviceEvent ),
+
 	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Received (and ignored) the following device event "
-			"from Oceanic server ~w: ~ts",
-			[ OcSrvPid, oceanic:device_event_to_string( Event ) ] ) ),
+		?debug_fmt( "Received the following device event "
+			"from Oceanic server ~w: ~ts", [ OcSrvPid, Msg ] ) ),
+
+	SubCateg = case oceanic:get_maybe_device_name( DeviceEvent ) of
+
+		undefined ->
+			SrcEurid = oceanic:get_source_eurid( DeviceEvent ),
+			oceanic:eurid_to_string( SrcEurid );
+
+		BinDeviceName ->
+			BinDeviceName
+
+	end,
+
+	EmitterCateg = text_utils:format( "~ts.~ts",
+		[ ?getAttr(trace_emitter_categorization), SubCateg ] ),
+
+	class_TraceEmitter:send_categorized_emitter( info, State, Msg,
+		EmitterCateg ),
 
 	wooper:const_return();
 
 
-onEnoceanEvent( State, OtherEvent, OcSrvPid ) ->
+onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
 
 	?error_fmt( "Received an unexpected device event (~p) from ~w, "
 				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
