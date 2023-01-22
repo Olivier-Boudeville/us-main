@@ -116,6 +116,8 @@ The US-Main server offers house automation services based on the `Enocean protoc
 
 These services are implemented thanks to our `Ceylan-Oceanic <http://oceanic.esperide.org>`_ library; please refer to it for a better understanding of EURIDs, base identifiers, telegrams and so on.
 
+A key point is to define the `Oceanic settings <https://oceanic.esperide.org/#oceanic-settings>`_, so that the various devices involved can be monitored and correctly interpreted.
+
 
 
 Presence Simulator
