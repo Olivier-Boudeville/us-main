@@ -262,6 +262,7 @@ if [ $do_clone -eq 0 ]; then
 
 	# A specific branch might be selected:
 	target_branch="master"
+	#target_branch="web-app-addition"
 
 	# To avoid "Already on 'master'":
 	if [ "${target_branch}" != "master" ]; then
@@ -681,3 +682,5 @@ else
 	echo "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service')"
 
 fi
+
+echo "Consider running our 'monitor-us-main.sh' script if wanting more detailed information regarding that launched instance."
