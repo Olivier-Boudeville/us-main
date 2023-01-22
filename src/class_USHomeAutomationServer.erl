@@ -231,12 +231,15 @@
 
 -type ustring() :: text_utils:ustring().
 
+-type timestamp() :: time_utils:timestamp().
+
 -type device_path() :: file_utils:device_path().
 
 -type bytes_per_second() :: system_utils:bytes_per_second().
 
 -type date() :: time_utils:date().
 -type time() :: time_utils:time().
+-type milliseconds() :: time_utils:milliseconds().
 
 -type scheduler_pid() :: class_USScheduler:scheduler_pid().
 -type task_id() :: class_USScheduler:task_id().
@@ -244,10 +247,11 @@
 -type position() :: unit_utils:position().
 
 -type oceanic_server_pid() :: oceanic:oceanic_server_pid().
+-type device_name() :: oceanic:device_name().
 -type device_event() :: oceanic:device_event().
--type eurid_string() :: oceanic:eurid_strin().
+-type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
--type telegram() :: oceanic:eurid().
+-type telegram() :: oceanic:telegram().
 
 
 
@@ -266,6 +270,8 @@
 	% Typically for the presence simulator:
 	{ scheduler_pid, scheduler_pid(),
 	  "the PID of the scheduler used by this server" },
+
+	{ actual_presence, boolean(), "tells whether there is someone at home" },
 
 	% Better defined separately from presence_table, as the program shall
 	% remain, whereas presence simulation service may be regularly
@@ -515,19 +521,30 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	SchedPid = class_USScheduler:get_main_scheduler(),
 
 	% Interleaved:
-	MaybeSrvLoc = receive
+	{ MaybeUserSrvLoc, OceanicSettings } = receive
 
-		{ wooper_result, _MaybeUserSrvLoc=undefined } ->
+		{ wooper_result, HomeAutoMatSettings } ->
+			HomeAutoMatSettings
+
+	end,
+
+	% Sooner:
+	MaybeOcSrvPid =:= undefined orelse
+		oceanic:add_configuration_settings( OceanicSettings, MaybeOcSrvPid ),
+
+	MaybeSrvLoc = case MaybeUserSrvLoc of
+
+		undefined ->
 			undefined;
 
 		% Already checked as floats by the configuration server:
-		{ wooper_result, UserSrvLoc={ Lat, Long } } ->
-			( Lat > 90.0 orelse Lat < -90.0 ) andalso
-				throw( { invalid_latitude, Lat } ),
+		_UserSrvLoc={ Lat, _Long } when Lat > 90.0 orelse Lat < -90.0 ->
+			throw( { invalid_latitude, Lat } );
 
-			( Long > 180.0 orelse Long < -180.0 ) andalso
-				throw( { invalid_longitude, Long } ),
+		_UserSrvLoc={ _Lat, Long } when Long > 180.0 orelse Long < -180.0 ->
+			throw( { invalid_longitude, Long } );
 
+		UserSrvLoc ->
 			UserSrvLoc
 
 	end,
@@ -549,6 +566,10 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ oc_base_id, MaybeBaseId },
 		{ us_config_server_pid, UsMainCfgSrvPid },
 		{ scheduler_pid, SchedPid },
+
+		% Expecting to be launching this server while being at home:
+		{ actual_presence, true },
+
 		{ presence_simulation_enabled, InitalPscEnabled },
 		{ presence_table, InitPscTable },
 		{ next_presence_id, NextPscId },
@@ -1537,7 +1558,6 @@ resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
 
 	{ erlang:date(), { DefaultDawnTime, DefaultDuskTime } };
 
-
 resolve_logical_milestones( SrvLoc={ _Lat, _Long }, State ) ->
 
 	Date = erlang:date(),
@@ -1687,10 +1707,12 @@ clear_any_presence_task( Psc, _SchedPid ) ->
 
 
 
-% Management of messages sent by Oceanic:
+% Management of messages sent by the Oceanic server:
 
 
-% @doc Handles a device event notified by the specified Oceanic server.
+% @doc Handles a device-related event (typically a sensor report) notified by
+% the specified Oceanic server.
+%
 -spec onEnoceanDeviceEvent( wooper:state(), device_event(),
 							oceanic_server_pid() ) -> const_oneway_return().
 onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
@@ -1729,6 +1751,27 @@ onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
 
 	?error_fmt( "Received an unexpected device event (~p) from ~w, "
 				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+
+% @doc Handles the detection of the vanishing of the specified device by the
+% specified Oceanic server.
+%
+-spec onEnoceanDeviceLost( wooper:state(), eurid(), device_name(), timestamp(),
+			milliseconds(), oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, LastSeenTimestamp,
+					 TimeOutMs, OcSrvPid ) ->
+
+	?warning_fmt( "Device '~ts' (EURID: ~ts) considered lost "
+		"(last seen on ~ts, after a waiting of ~ts) "
+		"by Oceanic server ~w",
+		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
+		  time_utils:timestamp_to_string( LastSeenTimestamp ),
+		  time_utils:duration_to_string( TimeOutMs ),
+		  OcSrvPid ] ),
 
 	wooper:const_return().
 
@@ -1838,6 +1881,16 @@ to_string( State ) ->
 
 	end,
 
+	AtHomeStr = "considering that " ++ case ?getAttr(actual_presence) of
+
+		true ->
+			"someone";
+
+		famse ->
+			"nobody"
+
+	end ++ " is at home",
+
 	PscStr = case ?getAttr(presence_simulation_enabled) of
 
 		true ->
@@ -1877,9 +1930,10 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts; the presence simulator is currently ~ts; ~ts",
+		"gateway ~w, ~ts, ~ts; the presence simulator is currently ~ts; ~ts",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
-		  ?getAttr(comm_gateway_pid), LocStr, PscStr, MidTaskStr ] ).
+		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, PscStr,
+		  MidTaskStr ] ).
 
 
 
