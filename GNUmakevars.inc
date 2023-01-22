@@ -194,6 +194,46 @@ ifndef PREDECESSOR_PLT
 endif
 
 
+# Prererequisites are supposedly already available and built as siblings,
+# otherwise thanks to rebar3:
+
+SIBLING_ROOT = $(US_MAIN_TOP)/..
+PREREQ_ROOT = $(US_MAIN_TOP)/_build/default/lib
+
+
+ifndef JSX_TOP
+	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/jsx/.),)
+		JSX_TOP = $(US_MAIN_TOP)/_checkouts/jsx
+	else
+		ifneq ($(wildcard $(SIBLING_ROOT)/jsx/.),)
+			JSX_TOP = $(SIBLING_ROOT)/jsx
+		else
+			JSX_TOP = $(PREREQ_ROOT)/jsx
+		endif
+	endif
+endif
+
+ifndef JIFFY_TOP
+	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/jiffy/.),)
+		JIFFY_TOP = $(US_MAIN_TOP)/_checkouts/jiffy
+	else
+		ifneq ($(wildcard $(SIBLING_ROOT)/jiffy/.),)
+			JIFFY_TOP = $(SIBLING_ROOT)/jiffy
+		else
+			JIFFY_TOP = $(PREREQ_ROOT)/jiffy
+		endif
+	endif
+endif
+
+
+US_MAIN_EXTRA_DEPS = $(JSX_TOP) $(JIFFY_TOP)
+
+# $(SIBLING_ROOT) and $(PREREQ_ROOT) are added, as most includes are expected to
+# be done with include_lib, hence as, for example, "foobar/include/foobar.hrl":
+#
+INC += $(foreach dir,$(US_MAIN_EXTRA_DEPS),-I$(dir)/include) -I$(SIBLING_ROOT) -I$(PREREQ_ROOT)
+
+
 # We define the path to the US-Common layer (possibly available as a symbolic
 # link).
 #
