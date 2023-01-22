@@ -58,6 +58,11 @@
 -type general_main_settings() :: #general_main_settings{}.
 
 
+-type home_automation_settings() ::
+	{ maybe( user_server_location() ), oceanic_settings() }.
+% Settings gathered on behalf of the home automation server.
+
+
 -type user_muted_sensor_points() :: list().
 % A list expected to contain muted sensor measurement points, typically as read
 % from the sensor monitoring section of the US-Main configuration.
@@ -75,8 +80,8 @@
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0, user_muted_sensor_points/0,
-			   user_server_location/0 ]).
+-export_type([ general_main_settings/0, home_automation_settings/0,
+			   user_muted_sensor_points/0, user_server_location/0 ]).
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -119,11 +124,19 @@
 
 
 % All known, licit (top-level) keys for the US-Main configuration file:
--define( known_config_keys, [ ?us_main_epmd_port_key,
+-define( known_us_main_config_keys, [ ?us_main_epmd_port_key,
 	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
 	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
 	?us_main_contact_files_key ] ).
+
+
+% All known, licit (top-level) keys for the Oceanic configuration information
+% (preferred to be read directly from the US-Main configuration file rather than
+% from a separate Myriad preferences file):
+%
+-define( supported_oceanic_config_keys,
+		 [ oceanic_emitter, oceanic_devices, oceanic_jamming_threshold ] ).
 
 
 % The last-resort environment variable:
@@ -189,8 +202,9 @@
 %-type position() :: unit_utils:position().
 
 %-type contact_directory_pid() ::
-%		class_USContactDirectory:contact_directory_pid().
+%   class_USContactDirectory:contact_directory_pid().
 
+-type oceanic_settings() :: oceanic:oceanic_settings().
 
 
 % The class-specific attributes:
@@ -222,6 +236,10 @@
 
 	{ server_location, maybe( user_server_location() ),
 	  "the user-specified location of this US-Main server" },
+
+	{ oceanic_settings, oceanic_settings(),
+	  "any Oceanic settings read (and not specifically checked) on behalf of "
+	  "the house automation server" },
 
 	{ config_base_directory, bin_directory_path(),
 	  "the base directory where all US configuration is to be found "
@@ -367,7 +385,7 @@ construct( State, SupervisorPid, AppRunContext ) ->
 
 	CfgState = load_and_apply_configuration( SupState ),
 
-	?send_info( CfgState, "Constructed: " ++ to_string( CfgState ) ),
+	?send_info_fmt( CfgState, "Constructed: ~ts.", [ to_string( CfgState ) ] ),
 
 	% Done rather late on purpose, so that the existence of that file can be
 	% seen as a sign that the initialisation went well (used by
@@ -433,13 +451,14 @@ getSensorSettings( State ) ->
 
 
 
-% @doc Returns suitable home automation settings (typically for the home
-% automation server).
+% @doc Returns suitable home automation settings, read for the configuration
+% (typically on behalf of the home automation server).
 %
 -spec getHomeAutomationSettings( wooper:state() ) ->
-			const_request_return( maybe( user_server_location() ) ).
+			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
-	wooper:const_return_result( ?getAttr(server_location) ).
+	wooper:const_return_result(
+		{ ?getAttr(server_location), ?getAttr(oceanic_settings) } ).
 
 
 
@@ -592,7 +611,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	FinalState = AutomatState,
 
-	LicitKeys = ?known_config_keys,
+	LicitKeys = ?known_us_main_config_keys ++ ?supported_oceanic_config_keys,
 
 	case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
 
@@ -1231,7 +1250,8 @@ manage_home_automation( ConfigTable, State ) ->
 											 ConfigTable ) of
 
 		key_not_found ->
-			?info( "No user settings regarding home automation." ),
+			?info( "Home automation: no user settings regarding "
+				   "server location." ),
 			undefined;
 
 
@@ -1248,10 +1268,15 @@ manage_home_automation( ConfigTable, State ) ->
 
 	end,
 
-	% Not specifically checked at this level, will be done by the home
+	% Fetching any Oceanic-related settings:
+	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
+		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
+
+	% Not specifically checked at this level; will be done by the home
 	% automation server:
 	%
-	setAttribute( State, server_location, MaybePosition ).
+	setAttributes( State, [ { server_location, MaybePosition },
+							{ oceanic_settings, OcSettings } ] ).
 
 
 
