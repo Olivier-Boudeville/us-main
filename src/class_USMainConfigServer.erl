@@ -182,6 +182,8 @@
 % A table holding US-Main configuration information.
 
 
+-include_lib("myriad/include/spawn_utils.hrl").
+
 
 % Shorthands:
 
@@ -501,6 +503,78 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 
 
+% Static section.
+
+
+% @doc Returns the PID of the US-Main configuration server, waiting (up to a few
+% seconds, as all US-Main servers are bound to be launched mostly
+% simultaneously) if needed.
+%
+% Typically useful for the various other US-Main servers, so that they can
+% easily access to their configuration information.
+%
+-spec get_us_main_config_server() -> static_return( server_pid() ).
+get_us_main_config_server() ->
+
+	CfgRegName = ?default_us_main_config_server_registration_name,
+
+	CfgLookupScope = naming_utils:registration_to_look_up_scope(
+		?default_us_main_config_server_registration_scope ),
+
+	CfgPid = naming_utils:wait_for_registration_of( CfgRegName,
+													CfgLookupScope ),
+
+	trace_bridge:debug_fmt( "Resolved the US-Main configuration server as ~w, "
+		"(name: '~ts', look-up scope: ~ts).",
+		[ CfgPid, CfgRegName, CfgLookupScope ] ),
+
+	wooper:return_static( CfgPid ).
+
+
+
+% @doc Creates a mockup of the US-Main configuration server, notably for the
+% testing of the other servers.
+%
+-spec create_mockup_for_test() -> static_return( server_pid() ).
+create_mockup_for_test() ->
+
+	% Clearer than a Y-combinator:
+	CfgPid = ?myriad_spawn_link( fun() -> us_main_mockup_srv() end ),
+
+	CfgRegName = ?default_us_main_config_server_registration_name,
+
+	CfgRegScope = ?default_us_main_config_server_registration_scope,
+
+	naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
+
+	trace_bridge:info_fmt( "Created a mock-up US-Main configuration server ~w, "
+		"registered (~ts) as '~ts'.",
+		[ CfgPid, CfgRegScope, CfgRegName ] ),
+
+
+	wooper:return_static( CfgPid ).
+
+
+
+us_main_mockup_srv() ->
+
+	%trace_utils:debug( "Mock-up US-Main configuration server in main loop." ),
+
+	receive
+
+		{ getSensorSettings, [], RequesterPid } ->
+
+			RequesterPid ! { wooper_result, _MutMeasurements=[] },
+			us_main_mockup_srv();
+
+		UnexpectedMsg ->
+			trace_bridge:error_fmt( "The mock-up US-Main configuration server "
+				"~w received an unexpected (ignored) message: ~p.",
+				[ self(), UnexpectedMsg ] ),
+			us_main_mockup_srv()
+
+	end.
+
 
 
 % Helper section.
@@ -629,11 +703,6 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	end.
 
-
-
-
-
-% Helper section.
 
 
 % @doc Manages any US-Main level user-configured EPMD port.
@@ -1277,30 +1346,6 @@ manage_home_automation( ConfigTable, State ) ->
 	%
 	setAttributes( State, [ { server_location, MaybePosition },
 							{ oceanic_settings, OcSettings } ] ).
-
-
-
-% Static section.
-
-
-% @doc Returns the PID of the US-Main configuration server, waiting (up to a few
-% seconds, as all US-Main servers are bound to be launched mostly
-% simultaneously) if needed.
-%
-% Typically useful for the various other US-Main servers, so that they can
-% easily access to their configuration information.
-%
--spec get_us_main_config_server() -> static_return( server_pid() ).
-get_us_main_config_server() ->
-
-	Scope = naming_utils:registration_to_look_up_scope(
-				?default_us_main_config_server_registration_scope ),
-
-	CfgPid = naming_utils:wait_for_registration_of(
-				?default_us_main_config_server_registration_name, Scope ),
-
-	wooper:return_static( CfgPid ).
-
 
 
 
