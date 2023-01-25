@@ -61,7 +61,6 @@
 % communication gateway.
 
 
-
 % This communication gateway is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
 % defined in this module. See https://wooper.esperide.org/#otp-guidelines for
@@ -165,10 +164,10 @@ start_link() ->
 % start_link/0 above being executed.
 %
 -spec init( [] ) -> { 'ok', pid(), State :: term() }
-							| 'ignore' | { 'error', Error :: term() }.
+					| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
-	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
+	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
 						   "the communication gateway.", [ self() ] ),
 
 	% Not specifically synchronous:
@@ -194,7 +193,7 @@ terminate( Reason, _BridgeState=CommGatewayPid )
 	wooper:delete_synchronously_instance( CommGatewayPid ),
 
 	trace_bridge:debug_fmt( "US-Main communication gateway ~w terminated.",
-						   [ CommGatewayPid ] ).
+							[ CommGatewayPid ] ).
 
 
 
@@ -221,7 +220,8 @@ construct( State ) ->
 		{ us_main_config_server_pid, USMainCfgServerPid },
 		{ parent_comm_gateway_pid, undefined } ] ),
 
-	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
+	?send_notice_fmt( SetState, "Constructed: ~ts.",
+					  [ to_string( SetState ) ] ),
 
 	SetState.
 
@@ -255,8 +255,8 @@ onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
 onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 	% Typically: "Received exit message '{{nocatch,
-	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
-	%							FunName,Arity,Args,AtomCause}}, [...]}"
+	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
+	%       FunName,Arity,Args,AtomCause}}, [...]}"
 
 	% Redundant information yet useful for console outputs:
 	?warning_fmt( "US Communication Gateway  ~w received and ignored "
