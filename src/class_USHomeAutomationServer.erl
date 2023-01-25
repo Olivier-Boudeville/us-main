@@ -1721,13 +1721,14 @@ onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
-	Msg = oceanic:device_event_to_string( DeviceEvent ),
+	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
 
 	cond_utils:if_defined( us_main_debug_home_automation,
 		?debug_fmt( "Received the following device event "
 			"from Oceanic server ~w: ~ts", [ OcSrvPid, Msg ] ) ),
 
-	SubCateg = case oceanic:get_maybe_device_name( DeviceEvent ) of
+	EmitterName = "Devices."
+			++ case oceanic:get_maybe_device_name( DeviceEvent ) of
 
 		undefined ->
 			SrcEurid = oceanic:get_source_eurid( DeviceEvent ),
@@ -1738,11 +1739,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
 
 	end,
 
-	EmitterCateg = text_utils:format( "~ts.~ts",
-		[ ?getAttr(trace_emitter_categorization), SubCateg ] ),
-
-	class_TraceEmitter:send_categorized_emitter( info, State, Msg,
-		EmitterCateg ),
+	class_TraceEmitter:send_named_emitter( info, State, Msg, EmitterName ),
 
 	wooper:const_return();
 
