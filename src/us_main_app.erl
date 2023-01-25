@@ -51,9 +51,10 @@
 %
 %  - the OTP release-based one (generally based on rebar3)
 
-% Calls to io:format/{1,2} shall not be replaced typically by trace_bridge ones,
-% in order to better diagnose problems with dependencies (typically should
-% Myriad not be found).
+
+% Calls to io:format/{1,2} shall not be replaced (for example by trace_bridge
+% ones), in order to better diagnose problems with dependencies (typically
+% should Myriad not be found).
 
 
 % Silencing:
@@ -61,22 +62,22 @@
 
 
 
-% @doc Runs US-Main, directly (ex: as 'make us_main_exec') rather than as an OTP
-% release.
+% @doc Runs US-Main, directly (e.g. as 'make us_main_exec') rather than as an
+% OTP release.
 %
 -spec exec() -> void().
 exec() ->
 
 	% Expecting Myriad to be already available in this branch:
 	trace_bridge:info( "Starting the US-Main application natively "
-					   "(ex: not as an OTP release)." ),
+					   "(e.g. not as an OTP release)." ),
 
 	cond_utils:if_defined( us_main_debug_execution,
 		trace_bridge:debug_fmt( "Initially, the ~ts",
 								[ code_utils:get_code_path_as_string() ] ) ),
 
-	% Not in an OTP context here, yet we need OTP applications (ex: jsx) to be
-	% available (ex: w.r.t. their .app and BEAMs being found, their starting to
+	% Not in an OTP context here, yet we need OTP applications (e.g. jsx) to be
+	% available (e.g. w.r.t. their .app and BEAMs being found, their starting to
 	% be done, etc.); we just not want US-Main to be launched the same way:
 
 	% Base build root directory from which prerequisite applications may be
@@ -115,7 +116,7 @@ exec() ->
 start( StartType, StartArgs ) ->
 
 	% Myriad may be already available in this branch as well, though:
-	io:format( "Starting us_main application "
+	io:format( "Starting the us_main application "
 		"(start type: ~p, arguments: ~p)...~n", [ StartType, StartArgs ] ),
 
 	% To debug any dependency-related 'undef' problem, or to ensure
@@ -138,7 +139,7 @@ start( StartType, StartArgs ) ->
 
 % @doc Stops the US-Main application.
 stop( _State ) ->
-	trace_bridge:info( "Stopping us_main application." ),
+	trace_bridge:info( "Stopping the us_main application." ),
 
 	% In native context, explicit stopping should be done, with the same
 	% blacklisting.
