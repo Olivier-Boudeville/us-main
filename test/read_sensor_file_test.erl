@@ -20,7 +20,7 @@
 % Creation date: Wednesday, June 9, 2021.
 
 
-% @doc Reads and interprets specified text file containing <b>sensor output
+% @doc Reads and interprets the specified text file containing <b>sensor output
 % data</b> (possibly gathered from another host, to test/improve the sensor
 % coverage of US-Main).
 %
@@ -50,6 +50,9 @@ run() ->
 	case file_utils:is_existing_file_or_link( SensorDataFilename ) of
 
 		true ->
+
+			% As used by the sensor manager:
+			class_USMainConfigServer:create_mockup_for_test(),
 
 			SensorManagerPid =
 				class_USSensorManager:new_link( SensorDataFilename ),
