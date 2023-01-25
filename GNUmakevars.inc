@@ -201,17 +201,18 @@ SIBLING_ROOT = $(US_MAIN_TOP)/..
 PREREQ_ROOT = $(US_MAIN_TOP)/_build/default/lib
 
 
-ifndef JSX_TOP
-	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/jsx/.),)
-		JSX_TOP = $(US_MAIN_TOP)/_checkouts/jsx
-	else
-		ifneq ($(wildcard $(SIBLING_ROOT)/jsx/.),)
-			JSX_TOP = $(SIBLING_ROOT)/jsx
-		else
-			JSX_TOP = $(PREREQ_ROOT)/jsx
-		endif
-	endif
-endif
+# Deactivated as expected to already managed by Myriad:
+#ifndef JSX_TOP
+#	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/jsx/.),)
+#		JSX_TOP = $(US_MAIN_TOP)/_checkouts/jsx
+#	else
+#		ifneq ($(wildcard $(SIBLING_ROOT)/jsx/.),)
+#			JSX_TOP = $(SIBLING_ROOT)/jsx
+#		else
+#			JSX_TOP = $(PREREQ_ROOT)/jsx
+#		endif
+#	endif
+#endif
 
 ifndef JIFFY_TOP
 	ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/jiffy/.),)
