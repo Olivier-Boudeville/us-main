@@ -660,7 +660,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	% Checks that only pairs are found:
 	MainCfgTable = table:new_from_unique_entries(
-					file_utils:read_terms( MainCfgFilePath ) ),
+		file_utils:read_terms( MainCfgFilePath ) ),
 
 	?debug_fmt( "Read main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
