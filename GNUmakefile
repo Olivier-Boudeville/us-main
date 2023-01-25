@@ -340,7 +340,7 @@ test-ci:
 # (now in _checkouts/)
 #
 #links:
-#	@cd .. && for p in myriad wooper traces us_common; do ln -s $$p; done
+#   @cd .. && for p in myriad wooper traces us_common; do ln -s $$p; done
 
 
 clean-local: clean-log
