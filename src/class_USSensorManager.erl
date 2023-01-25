@@ -1180,7 +1180,7 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 
 % @doc Vets the user-configured measurements to be muted.
 -spec vet_muted_sensor_points( user_muted_sensor_points(),
-							  wooper:state() ) -> muted_sensor_measurements().
+							   wooper:state() ) -> muted_sensor_measurements().
 vet_muted_sensor_points( ReadMutedMeasurements, State ) ->
 	vet_muted_sensor_points( ReadMutedMeasurements, _Acc=[], State ).
 
@@ -1654,7 +1654,10 @@ register_temperature_points( _PointTriples=[], DataTable, _SensorId,
 register_temperature_points( _PointTriples=[], DataTable, SensorId,
 							 MutedPoints, State ) ->
 
-	?error_fmt( "For ~ts, following muted measurements were not matched: ~ts",
+	% This is not an error at all, as non-temperature points (e.g. intrusion
+	% ones) may have to be muted as well:
+	%
+	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
 		[ sensor_id_to_string( SensorId ),
 		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
 
@@ -1716,8 +1719,6 @@ create_temperature_data( PointValueMap, BinPointName, BinDesc, SensorId,
 	% We check all attributes in turn; no need to accumulate here.
 
 	% Here the current temperature has not been taken into account yet:
-	% (preferring muting last)
-	%
 	init_temp_point( _TempEntries=map_hashtable:enumerate( PointValueMap ),
 		BinPointName, #temperature_data{
 			description=BinDesc,
@@ -2070,18 +2071,34 @@ init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 % Fan section.
 
 
-% @doc Registers specified fan points in specified data table, for the
-% initialisation of specified sensor, from specified JSON content.
+% @doc Registers the specified fan points in the specified data table, for the
+% initialisation of the specified sensor, from the specified JSON content.
 %
 % Only point triples that are already filtered for fans are expected, thus no
 % need to accumulate unexpected points.
 %
-% At least currently, fan points are never muted.
-%
 -spec register_fan_points( [ json_triple() ], points_data_table(),
 	sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
-register_fan_points( _PointTriples=[], DataTable, _SensorId, _MutedPoints,
+register_fan_points( _PointTriples, DataTable, _SensorId,
+					 _MutedPoints=all_points, _State ) ->
+	DataTable;
+
+% Normal end of recursion:
+register_fan_points( _PointTriples=[], DataTable, _SensorId, _MutedPoints=[],
 					 _State ) ->
+	DataTable;
+
+% Remaining muted points:
+register_fan_points( _PointTriples=[], DataTable, SensorId, MutedPoints,
+					 State ) ->
+
+	% This is not an error at all, as non-fan points (e.g. intrusion ones) may
+	% have to be muted as well:
+	%
+	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
+		[ sensor_id_to_string( SensorId ),
+		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
+
 	DataTable;
 
 
@@ -2092,17 +2109,35 @@ register_fan_points(
 		DataTable, SensorId, MutedPoints, State ) ->
 
 	cond_utils:if_defined( us_main_debug_sensors,
-		?debug_fmt( "Registering fan point '~ts' (~ts) with:~n ~p",
-			[ BinPointName, BinDesc, PointValueMap ] ) ),
+		?debug_fmt( "Considering the registration of fan point "
+			"'~ts' (~ts) with:~n ~p~n(muted points: ~p)",
+			[ BinPointName, BinDesc, PointValueMap, MutedPoints ] ) ),
 
-	InitPointData = create_fan_data( PointValueMap, BinPointName, BinDesc,
-									 SensorId, State ),
+	% The case MutedPoints=all_points has already been intercepted:
+	{ NewDataTable, NewMutedPoints } =
+			case list_utils:extract_element_if_existing( BinPointName,
+														 MutedPoints ) of
 
-	% Uniqueness checked:
-	NewDataTable =
-		table:add_new_entry( BinPointName, InitPointData, DataTable ),
+		% Hence not muted:
+		false ->
+			InitPointData = create_fan_data( PointValueMap, BinPointName,
+				BinDesc, SensorId, State ),
 
-	register_fan_points( T, NewDataTable, SensorId, MutedPoints, State ).
+			% Uniqueness checked:
+			{ table:add_new_entry( BinPointName, InitPointData, DataTable ),
+			  MutedPoints };
+
+		ShrunkMutedPoints ->
+			?info_fmt( "Point '~ts' of sensor ~ts belongs to the muted "
+				"ones, hence is excluded.",
+				[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+			{ DataTable, ShrunkMutedPoints }
+
+	end,
+
+	% First update done globally directly from the constructor.
+
+	register_fan_points( T, NewDataTable, SensorId, NewMutedPoints, State ).
 
 
 
@@ -2116,6 +2151,7 @@ create_fan_data( PointValueMap, BinPointName, BinDesc, SensorId, State ) ->
 
 	% We check all attributes in turn; no need to accumulate here.
 
+	% Here the current fan status has not been taken into account yet:
 	init_fan_point( _FanEntries=map_hashtable:enumerate( PointValueMap ),
 		BinPointName, #fan_data{ description=BinDesc }, SensorId, State ).
 
@@ -2313,18 +2349,34 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 
 
-% @doc Registers specified intrusion points in specified data table, for the
-% initialisation of specified sensor, from specified JSON content.
+% @doc Registers the specified intrusion points in the specified data table, for
+% the initialisation of the specified sensor, from the specified JSON content.
 %
 % Only point triples that are already filtered for intrusion are expected,
 % thus no need to accumulate unexpected points.
 %
-% At least currently, intrusion points are never muted.
-%
 -spec register_intrusion_points( [ json_triple() ], points_data_table(),
 	sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
-register_intrusion_points( _PointTriples=[], DataTable, _SensorId, _MutedPoints,
-						   _State ) ->
+register_intrusion_points( _PointTriples, DataTable, _SensorId,
+						   _MutedPoints=all_points, _State ) ->
+	DataTable;
+
+% Normal end of recursion:
+register_intrusion_points( _PointTriples=[], DataTable, _SensorId,
+						   _MutedPoints=[], _State ) ->
+	DataTable;
+
+% Remaining muted points:
+register_intrusion_points( _PointTriples=[], DataTable, SensorId, MutedPoints,
+						   State ) ->
+
+	% This is not an error at all, as non-intrusion points (e.g. temperature
+	% ones) may have to be muted as well:
+	%
+	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
+		[ sensor_id_to_string( SensorId ),
+		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
+
 	DataTable;
 
 
@@ -2338,30 +2390,52 @@ register_intrusion_points(
 		DataTable, SensorId, MutedPoints, State ) ->
 
 	cond_utils:if_defined( us_main_debug_sensors,
-		?debug_fmt( "Registering intrusion point '~ts' (~ts) with:~n ~p",
-			[ BinPointName, BinDesc, PointValueMap ] ) ),
+		?debug_fmt( "Considering the registration of intrusion point "
+			"'~ts' (~ts) with:~n ~p~n(muted points: ~p)",
+			[ BinPointName, BinDesc, PointValueMap, MutedPoints ] ) ),
 
-	InitPointData = create_intrusion_data( PointValueMap, BinPointName,
-										   BinDesc, SensorId, State ),
+	% The case MutedPoints=all_points has already been intercepted:
+	{ NewDataTable, NewMutedPoints } =
+			case list_utils:extract_element_if_existing( BinPointName,
+														 MutedPoints ) of
 
-	% Uniqueness checked:
-	NewDataTable =
-		table:add_new_entry( BinPointName, InitPointData, DataTable ),
+		% Hence not muted:
+		false ->
+			InitPointData = create_intrusion_data( PointValueMap,
+				BinPointName, BinDesc, SensorId, State ),
 
-	register_intrusion_points( T, NewDataTable, SensorId, MutedPoints, State ).
+			% Uniqueness checked:
+			{ table:add_new_entry( BinPointName, InitPointData, DataTable ),
+			  MutedPoints };
+
+		ShrunkMutedPoints ->
+			?info_fmt( "Point '~ts' of sensor ~ts belongs to the muted "
+				"ones, hence is excluded.",
+				[ BinPointName, sensor_id_to_string( SensorId ) ] ),
+			{ DataTable, ShrunkMutedPoints }
+
+	end,
+
+	% First update done globally directly from the constructor.
+
+	register_intrusion_points( T, NewDataTable, SensorId, NewMutedPoints,
+							   State ).
 
 
 
-% @doc Returns a new intrusion data initialised from the specified JSON content,
-% ready to be updated with the future next current intrusion notifications.
+% @doc Returns a new intrusion data initialised from the specified JSON content
+% for the specified measurement point, ready to be updated with the future next
+% current intrusion notifications (knowing it is not muted, as now muted points
+% are filtered upfront).
 %
 -spec create_intrusion_data( point_attribute_map(), measurement_point_name(),
 		measurement_point_description(), sensor_id(), wooper:state() ) ->
-									intrusion_data().
+			intrusion_data().
 create_intrusion_data( PointValueMap, BinPointName, BinDesc, SensorId,
 					   State ) ->
 
 	% We check all attributes in turn; no need to accumulate here.
+
 	% Here the current intrusion status has not been taken into account yet:
 	init_intrus_point( _IntrusEntries=map_hashtable:enumerate( PointValueMap ),
 		BinPointName, #intrusion_data{
@@ -3419,8 +3493,7 @@ filter_motherboard_json( _BasicTriples=[
 		{ _Name="CPU" ++ Num, BinPointName, V } | T ], TempAcc,
 						 FanAcc, IntrusionAcc, OtherAcc ) ->
 
-	Desc = integrate_any_number( "motherboard CPU temperature sensor",
-								 Num ),
+	Desc = integrate_any_number( "motherboard CPU temperature sensor", Num ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
