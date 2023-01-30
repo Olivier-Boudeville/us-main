@@ -180,7 +180,7 @@
 	target_eurid :: eurid(),
 
 
-	% The general dily program of this presence simulation, generally a
+	% The general daily program of this presence simulation, generally a
 	% chronologically-ordered intra-day (from midnight to midnight) non-empty
 	% list of presence slots, or simpler policies:
 	%
@@ -294,6 +294,11 @@
 
 	{ server_location, maybe( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
+
+	{ presence_switching_device, maybe( eurid() ),
+	  "the device (typically any that can be interpreted as being pressed and "
+	  "released, like a push-button or a double-rocker), if any, used as "
+	  "first-level indicator about whether somebody is at home" },
 
 	{ celestial_info, maybe( celestial_info() ),
 	  "any precomputed dawn/dusk time, for the current day" },
@@ -488,7 +493,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 			case oceanic:is_available( TtyPath ) of
 
 		{ true, _SerialRootDir } ->
-			OcPid = oceanic:start_link( TtyPath, _EventListenerPid=self() ),
+			OcPid = oceanic:start_link( TtyPath, [ _EventListenerPid=self() ] ),
 			BaseId = oceanic:get_oceanic_eurid( OcPid ),
 			SourceId = case MaybeSourceEuridStr of
 
@@ -521,7 +526,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	SchedPid = class_USScheduler:get_main_scheduler(),
 
 	% Interleaved:
-	{ MaybeUserSrvLoc, OceanicSettings } = receive
+	{ MaybeUserSrvLoc, MaybePscSwitchEurid, OceanicSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
 			HomeAutoMatSettings
@@ -575,12 +580,14 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ next_presence_id, NextPscId },
 		{ midnight_task_id, MaybeMidnightTaskId },
 		{ server_location, MaybeSrvLoc },
+		{ presence_switching_device, MaybePscSwitchEurid },
 		{ celestial_info, undefined },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
 
 	ApplyState = apply_presence_simulation( SetState ),
 
-	?send_notice( ApplyState, "Constructed: " ++ to_string( ApplyState ) ),
+	?send_notice_fmt( ApplyState, "Constructed: ~ts.",
+					  [ to_string( ApplyState ) ] ),
 
 	ApplyState.
 
@@ -901,7 +908,7 @@ update_presence_simulations( PscSims, State ) ->
 %
 -spec update_presence_simulations( [ presence_simulation() ], time(),
 		maybe( celestial_info() ), presence_table(), wooper:state() ) ->
-					wooper:state().
+			wooper:state().
 update_presence_simulations( _PscSims=[], _CurrentTime, _MaybeCelestialInfo,
 							 PscTable, State ) ->
 	setAttribute( State, presence_table, PscTable );
@@ -1709,12 +1716,136 @@ clear_any_presence_task( Psc, _SchedPid ) ->
 
 % Management of messages sent by the Oceanic server:
 
+% @doc Handles a device-related discovery event (typically a sensor report)
+% notified by the specified Oceanic server.
+%
+-spec onEnoceanDeviceDiscovery( wooper:state(), device_event(),
+							oceanic_server_pid() ) -> oneway_return().
+onEnoceanDeviceDiscovery( State, DeviceEvent, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	% Longer description at this discovery time:
+	Msg = text_utils:format( "Discovered device: ~ts.",
+		[ oceanic:device_event_to_string( DeviceEvent ) ] ),
+
+	cond_utils:if_defined( us_main_debug_home_automation,
+		?debug_fmt( "Received the following event regarding a "
+			"just-discovered device, from Oceanic server ~w: ~ts",
+			[ OcSrvPid, Msg ] ) ),
+
+	EmitterName = "Devices."
+			++ case oceanic:get_maybe_device_name( DeviceEvent ) of
+
+		undefined ->
+			SrcEurid = oceanic:get_source_eurid( DeviceEvent ),
+			oceanic:eurid_to_string( SrcEurid );
+
+		BinDeviceName ->
+			BinDeviceName
+
+	end,
+
+	class_TraceEmitter:send_named_emitter( notice, State, Msg, EmitterName ),
+
+	NewState = manage_presence_switching( DeviceEvent, State ),
+
+	wooper:return_state( NewState );
+
+
+onEnoceanDeviceDiscovery( State, OtherEvent, OcSrvPid ) ->
+
+	?error_fmt( "Received an invalid discovery device event (~p) "
+				"from ~w, ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Checks whether an actual presence switching (somebody being at home or
+% not)
+%
+-spec manage_presence_switching( device_event(), wooper:state() ) ->
+										wooper:state().
+manage_presence_switching( DevEvent, State ) ->
+
+	cond_utils:if_defined( us_main_debug_home_automation,
+		?debug_fmt( "Examining whether following event relates to presence "
+			"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ]
+				  ) ),
+
+	case ?getAttr(presence_switching_device) of
+
+		undefined ->
+			%?debug( "(no presence switching device defined)" ),
+			State;
+
+		PscSwitchEurid ->
+			case oceanic:get_source_eurid( DevEvent ) of
+
+				% This is the device we were looking for:
+				PscSwitchEurid ->
+					% We cannot just use the receiving of a telegram to toggle
+					% presence, as pushing a button/rocker sends multiple
+					% telegrams (one when pressing, one when releasing); we act
+					% only on one of these two messages, the press one:
+
+					case oceanic:device_triggered( DevEvent ) of
+
+						true ->
+							NewPsc = not ?getAttr(actual_presence),
+
+							SetState =
+								setAttribute( State, actual_presence, NewPsc ),
+
+							case NewPsc of
+
+								true ->
+									?info_fmt( "Told by the presence switching "
+										"device (~ts) that somebody is at home "
+										"now.", [ oceanic:eurid_to_string(
+													PscSwitchEurid ) ] ),
+									% Time to disable the alarm and the presence
+									% simulation (TODO).
+									%
+									SetState;
+
+								false ->
+									?info_fmt( "Told by the presence switching "
+										"device (~ts) that nobody is at home "
+										"now.", [ oceanic:eurid_to_string(
+													PscSwitchEurid ) ] ),
+									% Time to enable the alarm and the presence
+									% simulation (TODO: add timer).
+									%
+									SetState
+
+							end;
+
+						false ->
+							State
+
+					end;
+
+
+				_OtherEurid ->
+					State
+
+			end
+
+	end.
+
+
 
 % @doc Handles a device-related event (typically a sensor report) notified by
 % the specified Oceanic server.
 %
+% This device has been already discovered.
+%
 -spec onEnoceanDeviceEvent( wooper:state(), device_event(),
-							oceanic_server_pid() ) -> const_oneway_return().
+							oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
 								when is_tuple( DeviceEvent ) ->
 
@@ -1741,12 +1872,14 @@ onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
 
 	class_TraceEmitter:send_named_emitter( info, State, Msg, EmitterName ),
 
-	wooper:const_return();
+	NewState = manage_presence_switching( DeviceEvent, State ),
+
+	wooper:return_state( NewState );
 
 
 onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
 
-	?error_fmt( "Received an unexpected device event (~p) from ~w, "
+	?error_fmt( "Received an invalid device event (~p) from ~w, "
 				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
 
 	wooper:const_return().
@@ -1905,12 +2038,24 @@ to_string( State ) ->
 					text_utils:format( "~B presences defined: ~ts",
 						[ length( PscSims ), text_utils:strings_to_string(
 							[ presence_simulation_to_string( PS )
-								|| PS <-PscSims ] ) ] )
+								|| PS <- PscSims ] ) ] )
 
 			end;
 
 		false ->
 			"disabled"
+
+	end,
+
+	PscSwitchStr = case ?getAttr(presence_switching_device) of
+
+		undefined ->
+			"no presence-switching device has been defined";
+
+		PscSwitchEurid ->
+			text_utils:format( "a presence-switching device has been "
+				"defined, of EURID ~ts",
+				[ oceanic:eurid_to_string( PscSwitchEurid ) ] )
 
 	end,
 
@@ -1927,9 +2072,10 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts; the presence simulator is currently ~ts; ~ts",
+		"gateway ~w, ~ts, ~ts; the presence simulator is currently ~ts, "
+		"and ~ts; ~ts",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
-		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, PscStr,
+		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, PscStr, PscSwitchStr,
 		  MidTaskStr ] ).
 
 
@@ -1981,7 +2127,6 @@ presence_simulation_to_string( #presence_simulation{
 				[ PscTaskId, time_utils:time_to_string( PscTime ) ] )
 
 	end,
-
 
 	text_utils:format( "~ts presence simulation of id #~B, "
 		"whose program is ~ts; "
