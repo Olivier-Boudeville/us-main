@@ -2,7 +2,8 @@
 
 # Script typically meant to be placed in /usr/local/bin of a gateway
 #
-# Complementary to running, as root: 'systemctl status us-main.service'
+# Complementary to running, as root:
+# 'systemctl status us-main-as-native-build.service'.
 
 
 # See also start-us-main.sh and stop-us-main.sh.
@@ -50,7 +51,6 @@ fi
 . "${us_main_common_script}" 1>/dev/null
 
 
-
 # Comment redirections for more details:
 
 read_us_config_file $1 #1>/dev/null
@@ -96,7 +96,7 @@ fi
 epmd ${epmd_port_opt} -names
 echo
 
-journalctl -xe --unit us-main.service --no-pager --lines=20
+journalctl -xe --unit us-main-as-native-build.service --no-pager --lines=20
 
 # If not finding a us-main log file, might be the sign that us-main is actually
 # not running:
