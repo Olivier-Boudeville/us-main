@@ -10,6 +10,9 @@
 # easily specific directories (ex: for the VM logs).
 
 
+#echo "### US-Main script being sourced."
+
+
 # We expect us_main_install_root to be already set by the caller:
 if [ -z "${us_main_install_root}" ]; then
 
@@ -76,10 +79,10 @@ us_actual_root="${us_main_install_root}"
 
 # As depends on it:
 us_common_script="${us_common_root}/priv/bin/us-common.sh"
-
 if [ -f "${us_common_script}" ]; then
 
-	. "${us_common_script}" 1>/dev/null
+	#echo "### Sourcing now ${us_common_script}"
+	. "${us_common_script}" #1>/dev/null
 
 else
 
