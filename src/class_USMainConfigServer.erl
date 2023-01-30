@@ -59,7 +59,7 @@
 
 
 -type home_automation_settings() ::
-	{ maybe( user_server_location() ), oceanic_settings() }.
+	{ maybe( user_server_location() ), maybe( eurid() ), oceanic_settings() }.
 % Settings gathered on behalf of the home automation server.
 
 
@@ -107,6 +107,7 @@
 -define( us_main_log_dir_key, us_main_log_dir ).
 
 
+
 % Entries for sensor monitoring:
 
 -define( us_main_sensor_key, sensor_monitoring ).
@@ -120,6 +121,9 @@
 
 -define( us_main_server_location_key, server_location ).
 
+-define( us_main_presence_switching_key, presence_switching_actuator ).
+
+
 -define( us_main_contact_files_key, us_contact_files ).
 
 
@@ -128,7 +132,7 @@
 	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
 	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
-	?us_main_contact_files_key ] ).
+	?us_main_presence_switching_key, ?us_main_contact_files_key ] ).
 
 
 % All known, licit (top-level) keys for the Oceanic configuration information
@@ -207,6 +211,7 @@
 %   class_USContactDirectory:contact_directory_pid().
 
 -type oceanic_settings() :: oceanic:oceanic_settings().
+-type eurid() :: oceanic:eurid().
 
 
 % The class-specific attributes:
@@ -236,12 +241,14 @@
 	  "A list expected to contain muted sensor measurement points; "
 	  "to be vetted by the sensor manager when it will request it" },
 
+	% Multi-purpose information (not only for home-automation):
 	{ server_location, maybe( user_server_location() ),
 	  "the user-specified location of this US-Main server" },
 
-	{ oceanic_settings, oceanic_settings(),
-	  "any Oceanic settings read (and not specifically checked) on behalf of "
-	  "the house automation server" },
+	% Home-automation specific:
+	{ home_automation_core_settings, { maybe( eurid() ), oceanic_settings() },
+	  "any home automation core settings read (and not specifically checked) "
+	  "on behalf of the house automation server" },
 
 	{ config_base_directory, bin_directory_path(),
 	  "the base directory where all US configuration is to be found "
@@ -453,14 +460,18 @@ getSensorSettings( State ) ->
 
 
 
-% @doc Returns suitable home automation settings, read for the configuration
+% @doc Returns suitable home automation settings, read from the configuration
 % (typically on behalf of the home automation server).
 %
 -spec getHomeAutomationSettings( wooper:state() ) ->
 			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
+
+	{ MaybePscSwitchEurid, OcSettings } =
+		?getAttr(home_automation_core_settings),
+
 	wooper:const_return_result(
-		{ ?getAttr(server_location), ?getAttr(oceanic_settings) } ).
+		{ ?getAttr(server_location), MaybePscSwitchEurid, OcSettings } ).
 
 
 
@@ -1337,15 +1348,35 @@ manage_home_automation( ConfigTable, State ) ->
 
 	end,
 
+	MaybePscSwitchEurid = case table:lookup_entry(
+			?us_main_presence_switching_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No presence-switching device set." ),
+			undefined;
+
+		{ value, EuridStr } when is_list( EuridStr ) ->
+			?info_fmt( "The configured presence-switching device, "
+				"of EURID ~ts, will be used.", [ EuridStr ] ),
+			oceanic:string_to_eurid( EuridStr );
+
+		{ value, Other } ->
+			throw( { invalid_eurid, Other, ?us_main_presence_switching_key } )
+
+	end,
+
 	% Fetching any Oceanic-related settings:
 	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
 		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
 
+	HACoreSettings = { MaybePscSwitchEurid, OcSettings },
+
 	% Not specifically checked at this level; will be done by the home
 	% automation server:
 	%
-	setAttributes( State, [ { server_location, MaybePosition },
-							{ oceanic_settings, OcSettings } ] ).
+	setAttributes( State, [
+		{ server_location, MaybePosition },
+		{ home_automation_core_settings, HACoreSettings } ] ).
 
 
 
