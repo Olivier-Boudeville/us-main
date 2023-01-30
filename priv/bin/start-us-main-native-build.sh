@@ -86,7 +86,20 @@ xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
 
 maybe_us_config_dir="$1"
 
+
 if [ -n "${maybe_us_config_dir}" ]; then
+
+	if [[ "${maybe_us_config_dir}" == / || "${maybe_us_config_dir}" == ~[/a-z] ]]; then
+
+		# Already absolute, OK:
+		echo "Using specified absolute directory '${maybe_us_config_dir}'."
+
+	else
+
+		# Relative, to be made absolute:
+		maybe_us_config_dir="$(pwd)/${maybe_us_config_dir}"
+
+	fi
 
 	if [ ! -d "${maybe_us_config_dir}" ]; then
 
@@ -95,6 +108,9 @@ if [ -n "${maybe_us_config_dir}" ]; then
 		exit 20
 
 	fi
+
+	# Better for messages output:
+	maybe_us_config_dir="$(realpath ${maybe_us_config_dir})"
 
 	# As a 'universal-server/us.config' suffix will be added to each candidate
 	# configuration directory, we remove the last directory:
@@ -111,7 +127,7 @@ fi
 # We need first to locate the us-main-common.sh script:
 
 # Location expected also by us-common.sh afterwards:
-cd "${us_main_install_root}" || exit
+cd "${us_main_install_root}" || exit 1
 
 # As expected by us-main-common.sh for the VM logs:
 log_dir="${us_main_install_root}/log"
@@ -136,7 +152,7 @@ fi
 # Hint for the helper scripts:
 us_launch_type="native"
 
-#echo "Sourcing '${us_main_common_script}'."
+echo "Sourcing '${us_main_common_script}' from $(pwd)."
 . "${us_main_common_script}" #1>/dev/null
 
 
@@ -149,7 +165,8 @@ secure_authbind
 
 prepare_us_main_launch
 
-cd src || exit
+# From us_main:
+cd src || exit 2
 
 
 #echo "epmd_make_opt=${epmd_make_opt}"
@@ -160,7 +177,7 @@ cd src || exit
 # (note that a former instance of EPMD may wrongly report that a node with the
 # target name is still running, whereas no Erlang VM even exists)
 #
-make -s launch-epmd ${epmd_make_opt} || exit
+make -s launch-epmd ${epmd_make_opt} || exit 2
 
 
 if [ -n "${erl_epmd_port}" ]; then
