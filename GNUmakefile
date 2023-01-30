@@ -13,6 +13,7 @@ US_MAIN_TOP = .
 		log cat-log tail-log                                               \
 		inspect monitor-development monitor-production                     \
 		kill shell test test-us-interactive test-ci                        \
+		sync-all-to-server-local                                           \
 		clean clean-logs real-clean clean-otp-build-tree clean-rebar-cache \
 		info info-local info-conditionals info-deps
 
@@ -331,6 +332,14 @@ test-us-interactive: compile
 test-ci:
 	@cd test && $(MAKE) -s test-ci
 
+
+sync-all-to-server: sync-all-to-server-local
+
+# Not wanting to import on the target server a colliding file that a production
+# user cannot overwrite:
+#
+sync-all-to-server-local:
+	-@/bin/rm -f src/traces_via_otp.traces
 
 
 # Creates the symbolic links that allow the make system to find its Ceylan
