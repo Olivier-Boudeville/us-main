@@ -310,6 +310,6 @@ ifndef PREDECESSOR_LAYER_TOPS
 endif
 
 ifndef BASE_PLT_FILES
-	# Until the --plts Dialyzer option is fixed:
+	# Extra PLTs commented-out until the --plts Dialyzer option is fixed:
 	BASE_PLT_FILES = $(PREDECESSOR_PLT_FILE) #$(OCEANIC_PLT_FILE) $(MOBILE_PLT_FILE)
 endif
