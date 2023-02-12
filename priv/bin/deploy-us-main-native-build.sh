@@ -78,8 +78,8 @@ github_base="https://github.com/Olivier-Boudeville"
 # Note that this mode of obtaining US-Main does not rely on rebar3 for US-Main
 # itself, even if it could be used for some dependencies.
 #
-# This does not lead to duplications (ex: Myriad being built once in the context
-# of LEEC and also once for the other packages), thanks to _checkouts
+# This does not lead to duplications (e.g. Myriad being built once in the
+# context of LEEC and also once for the other packages), thanks to _checkouts
 # directories containing symlinks whenever appropriate.
 
 token_eaten=0
@@ -681,6 +681,8 @@ else
 
 	echo "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service')"
 
+	echo "Any prior US-Main instance that would still linger could be removed thanks to our 'kill-us-main.sh' script. Use 'journalctl -eu us-main-as-native-build.service' to consult the corresponding systemd-level logs."
+
 fi
 
-echo "Consider running our 'monitor-us-main.sh' script if wanting more detailed information regarding that launched instance."
+echo "Consider running our 'us_main/priv/bin/monitor-us-main.sh' script if wanting more detailed information regarding that launched instance."
