@@ -116,7 +116,7 @@
 
 -export_type([ home_automation_server_pid/0,
 			   presence_simulation_settings/0, presence_simulation_setting/0,
-			   presence_milestone/0, presence_slot/0,
+			   presence_milestone/0, presence_slot/0, presence_program/0,
 			   celestial_timing/0, celestial_info/0 ]).
 
 
@@ -230,6 +230,7 @@
 -type user_data() :: basic_utils:user_data().
 
 -type ustring() :: text_utils:ustring().
+-type bin_string() :: text_utils:bin_string().
 
 -type timestamp() :: time_utils:timestamp().
 
@@ -239,7 +240,7 @@
 
 -type date() :: time_utils:date().
 -type time() :: time_utils:time().
--type milliseconds() :: time_utils:milliseconds().
+-type milliseconds() :: unit_utils:milliseconds().
 
 -type scheduler_pid() :: class_USScheduler:scheduler_pid().
 -type task_id() :: class_USScheduler:task_id().
@@ -1716,8 +1717,46 @@ clear_any_presence_task( Psc, _SchedPid ) ->
 
 % Management of messages sent by the Oceanic server:
 
-% @doc Handles a device-related discovery event (typically a sensor report)
-% notified by the specified Oceanic server.
+
+% @doc Handles a device-related first detection of a configured device
+% (typically a sensor report) notified by the specified Oceanic server.
+%
+-spec onEnoceanConfiguredDeviceFirstSeen( wooper:state(), device_event(),
+							oceanic_server_pid() ) -> oneway_return().
+onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
+	% Longer description when first seen:
+	Msg = text_utils:format( "The device '~ts', declared in the configuration, "
+		"has been detected for the first time, based on the following "
+		"event: ~ts.",
+		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ) ] ),
+
+	class_TraceEmitter:send_named_emitter( notice, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
+
+	NewState = manage_presence_switching( DeviceEvent, State ),
+
+	wooper:return_state( NewState );
+
+
+onEnoceanConfiguredDeviceFirstSeen( State, OtherEvent, OcSrvPid ) ->
+
+	?error_fmt( "Received an invalid first-seen device event (~p) "
+				"from ~w, ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Handles a device-related discovery of a device (typically a sensor
+% report) that was not in the configuration, as notified by the specified
+% Oceanic server.
 %
 -spec onEnoceanDeviceDiscovery( wooper:state(), device_event(),
 							oceanic_server_pid() ) -> oneway_return().
@@ -1727,29 +1766,19 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, OcSrvPid )
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
 	% Longer description at this discovery time:
-	Msg = text_utils:format( "Discovered device: ~ts.",
-		[ oceanic:device_event_to_string( DeviceEvent ) ] ),
+	Msg = text_utils:format( "The device '~ts' has been discovered "
+		"(detected yet not declared in the configuration), based on "
+		"the following event: ~ts.",
+		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ) ] ),
 
-	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Received the following event regarding a "
-			"just-discovered device, from Oceanic server ~w: ~ts",
-			[ OcSrvPid, Msg ] ) ),
 
-	EmitterName = "Devices."
-			++ case oceanic:get_maybe_device_name( DeviceEvent ) of
+	class_TraceEmitter:send_named_emitter( warning, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
 
-		undefined ->
-			SrcEurid = oceanic:get_source_eurid( DeviceEvent ),
-			oceanic:eurid_to_string( SrcEurid );
-
-		BinDeviceName ->
-			BinDeviceName
-
-	end,
-
-	class_TraceEmitter:send_named_emitter( notice, State, Msg, EmitterName ),
-
+	% If ever the device was not configured yet declared as presence-switching:
 	NewState = manage_presence_switching( DeviceEvent, State ),
 
 	wooper:return_state( NewState );
@@ -1761,6 +1790,118 @@ onEnoceanDeviceDiscovery( State, OtherEvent, OcSrvPid ) ->
 				"from ~w, ignoring it.", [ OtherEvent, OcSrvPid ] ),
 
 	wooper:const_return().
+
+
+
+% @doc Handles a device-related event (typically a sensor report) notified by
+% the specified Oceanic server.
+%
+% This device has been already discovered.
+%
+-spec onEnoceanDeviceEvent( wooper:state(), device_event(),
+							oceanic_server_pid() ) -> oneway_return().
+onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
+
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
+	class_TraceEmitter:send_named_emitter( info, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
+
+	NewState = manage_presence_switching( DeviceEvent, State ),
+
+	wooper:return_state( NewState );
+
+
+onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
+
+	?error_fmt( "Received an invalid device event (~p) from ~w, "
+				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Handles a teach-in event of a device, as notified by the specified
+% Oceanic server.
+%
+-spec onEnoceanDeviceTeachIn( wooper:state(), device_event(),
+							  oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanDeviceTeachIn( State, DeviceEvent, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
+	% Longer description at this teach-in time:
+	Msg = text_utils:format( "The device '~ts' has emitted the following "
+		"teach-in event: ~ts.",
+		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ) ] ),
+
+	class_TraceEmitter:send_named_emitter( notice, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
+
+	wooper:const_return();
+
+
+onEnoceanDeviceTeachIn( State, OtherEvent, OcSrvPid ) ->
+
+	?error_fmt( "Received an invalid teach-in device event (~p) "
+				"from ~w, ignoring it.", [ OtherEvent, OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Handles the detection of the vanishing of the specified device by the
+% specified Oceanic server.
+%
+-spec onEnoceanDeviceLost( wooper:state(), eurid(), device_name(), timestamp(),
+			milliseconds(), oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, LastSeenTimestamp,
+					 TimeOutMs, OcSrvPid ) ->
+
+	?warning_fmt( "Device '~ts' (EURID: ~ts) considered lost "
+		"(last seen on ~ts, after a waiting of ~ts) "
+		"by Oceanic server ~w",
+		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
+		  time_utils:timestamp_to_string( LastSeenTimestamp ),
+		  time_utils:duration_to_string( TimeOutMs ),
+		  OcSrvPid ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Handles a possible jamming attempt, as suspected and reported by the
+% specified Oceanic server.
+%
+-spec onEnoceanJamming( wooper:state(), bytes_per_second(),
+						oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	?alert_fmt( "Received a notification from Oceanic server ~w of a "
+		"possible jamming attempt (traffic level of ~B bytes per second).",
+		[ OcSrvPid, TrafficLevel ] ),
+
+	wooper:const_return().
+
+
+
+% @doc Returns a suitable name for a trace emitter for the specified device.
+-spec get_trace_emitter_name_from( device_name() ) -> bin_string().
+get_trace_emitter_name_from( BinDevName ) ->
+	text_utils:bin_concatenate( <<"Devices.">>, BinDevName ).
 
 
 
@@ -1836,100 +1977,6 @@ manage_presence_switching( DevEvent, State ) ->
 			end
 
 	end.
-
-
-
-% @doc Handles a device-related event (typically a sensor report) notified by
-% the specified Oceanic server.
-%
-% This device has been already discovered.
-%
--spec onEnoceanDeviceEvent( wooper:state(), device_event(),
-							oceanic_server_pid() ) -> oneway_return().
-onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
-								when is_tuple( DeviceEvent ) ->
-
-	% Check:
-	OcSrvPid = ?getAttr(oc_srv_pid),
-
-	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
-
-	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Received the following device event "
-			"from Oceanic server ~w: ~ts", [ OcSrvPid, Msg ] ) ),
-
-	EmitterName = "Devices."
-			++ case oceanic:get_maybe_device_name( DeviceEvent ) of
-
-		undefined ->
-			SrcEurid = oceanic:get_source_eurid( DeviceEvent ),
-			oceanic:eurid_to_string( SrcEurid );
-
-		BinDeviceName ->
-			BinDeviceName
-
-	end,
-
-	class_TraceEmitter:send_named_emitter( info, State, Msg, EmitterName ),
-
-	NewState = manage_presence_switching( DeviceEvent, State ),
-
-	wooper:return_state( NewState );
-
-
-onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
-
-	?error_fmt( "Received an invalid device event (~p) from ~w, "
-				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
-
-	wooper:const_return().
-
-
-
-
-% @doc Handles the detection of the vanishing of the specified device by the
-% specified Oceanic server.
-%
--spec onEnoceanDeviceLost( wooper:state(), eurid(), device_name(), timestamp(),
-			milliseconds(), oceanic_server_pid() ) -> const_oneway_return().
-onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, LastSeenTimestamp,
-					 TimeOutMs, OcSrvPid ) ->
-
-	?warning_fmt( "Device '~ts' (EURID: ~ts) considered lost "
-		"(last seen on ~ts, after a waiting of ~ts) "
-		"by Oceanic server ~w",
-		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
-		  time_utils:timestamp_to_string( LastSeenTimestamp ),
-		  time_utils:duration_to_string( TimeOutMs ),
-		  OcSrvPid ] ),
-
-	wooper:const_return().
-
-
-
-% @doc Handles a possible jamming attempt, as suspected and reported by the
-% specified Oceanic server.
-%
--spec onEnoceanJamming( wooper:state(), bytes_per_second(),
-						oceanic_server_pid() ) -> const_oneway_return().
-onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
-
-	% Check:
-	OcSrvPid = ?getAttr(oc_srv_pid),
-
-	?alert_fmt( "Received a notification from Oceanic server ~w of a "
-		"possible jamming attempt (traffic level of ~B bytes per second).",
-		[ OcSrvPid, TrafficLevel ] ),
-
-	wooper:const_return().
-
-
-% Later:
-%
-%-spec onEnoceanSensorLost( wooper:state(), device_info(),
-%    oceanic_server_pid() ) -> const_oneway_return().
-
-
 
 
 
