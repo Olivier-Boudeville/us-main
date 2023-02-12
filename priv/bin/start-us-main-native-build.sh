@@ -86,20 +86,20 @@ xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
 
 maybe_us_config_dir="$1"
 
-
 if [ -n "${maybe_us_config_dir}" ]; then
 
-	if [[ "${maybe_us_config_dir}" == / || "${maybe_us_config_dir}" == ~[/a-z] ]]; then
+	case "${maybe_us_config_dir}" in
 
-		# Already absolute, OK:
-		echo "Using specified absolute directory '${maybe_us_config_dir}'."
-
-	else
-
-		# Relative, to be made absolute:
-		maybe_us_config_dir="$(pwd)/${maybe_us_config_dir}"
-
-	fi
+		/*)
+			# Already absolute, OK:
+			echo "Using specified absolute directory '${maybe_us_config_dir}'."
+			;;
+		*)
+			# Relative, to be made absolute:
+			maybe_us_config_dir="$(pwd)/${maybe_us_config_dir}"
+			echo "Transformed specified relative directory in '${maybe_us_config_dir}' absolute one."
+			;;
+	esac
 
 	if [ ! -d "${maybe_us_config_dir}" ]; then
 
@@ -188,7 +188,7 @@ fi
 
 
 echo
-echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, whereas VM log directory is '${us_main_vm_log_dir}'..."
+echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, VM log expected in '${us_main_vm_log_dir}/erlang.log.1'..."
 
 
 # Apparently variables may be indifferently set prior to make, directly in the
