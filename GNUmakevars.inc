@@ -95,7 +95,7 @@ endif
 
 
 # The uniquely-defined version of this layer, for all uses, including rebar:
-US_MAIN_VERSION := 0.0.10
+US_MAIN_VERSION := 0.0.11
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
@@ -164,7 +164,7 @@ endif
 US_MAIN_BEAM_DIRS = $(US_MAIN_BEAM_DIR)
 
 
-# JSON parser needed for the decoding of sensors data:
+# JSON parser needed for the decoding of sensor data:
 USE_JSON = true
 
 
