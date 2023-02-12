@@ -201,7 +201,7 @@
 -type supervisor_pid() :: otp_utils:supervisor_pid().
 -type application_run_context() :: otp_utils:application_run_context().
 
--type server_pid() :: class_UniversalServer:server_pid().
+-type server_pid() :: class_USServer:server_pid().
 
 %-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
 

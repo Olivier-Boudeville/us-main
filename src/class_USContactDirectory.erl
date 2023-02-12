@@ -182,7 +182,7 @@
 
 
 	% The roles (if any) taken in charge by this user.
-	roles :: [ role() ] } ).
+	roles = [] :: [ role() ] } ).
 
 
 -type user_settings() :: #user_settings{}.
@@ -264,6 +264,8 @@
 -include_lib("traces/include/class_TraceEmitter.hrl").
 
 
+-define( server_name, "Contact directory" ).
+
 
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
@@ -322,7 +324,7 @@ terminate( Reason, _BridgeState=ContactDirectoryPid )
 	wooper:delete_synchronously_instance( ContactDirectoryPid ),
 
 	trace_bridge:debug_fmt( "US-Main contact directory ~w terminated.",
-						   [ ContactDirectoryPid ] ).
+							[ ContactDirectoryPid ] ).
 
 
 
@@ -339,7 +341,7 @@ construct( State ) ->
 	% (traps EXITs)
 	%
 	SrvState = class_USServer:construct( State,
-		?trace_categorize("Contact directory"),
+		?trace_categorize(?server_name),
 		?us_main_contact_server_registration_name,
 		?us_main_contact_server_registration_scope ),
 
@@ -365,7 +367,7 @@ construct( State, ContactFilePath ) ->
 	% (traps EXITs)
 	%
 	SrvState = class_USServer:construct( State,
-		?trace_categorize("contact directory"),
+		?trace_categorize(?server_name),
 		?us_main_contact_server_registration_name,
 		?us_main_contact_server_registration_scope ),
 
@@ -460,7 +462,7 @@ get_contact_directory() ->
 % @doc Loads and applies the relevant configuration settings first from the
 % overall US configuration file.
 %
-% As a result, the US configuration file is not fully checked as such (ex: no
+% As a result, the US configuration file is not fully checked as such (e.g. no
 % extracting and check that no entry remains; it is the job of the US config
 % server), we just select the relevant information from it.
 %
@@ -781,7 +783,7 @@ vet_contacts_fifth( Line, T, Settings, UserId, RolesT, UserTable, RoleTable,
 					?error_fmt( "Invalid (hence ignored) contact line:  '~p':~n"
 						"user id #~B already registered, corresponding "
 						"to: ~ts.", [ Line, UserId, user_settings_to_string(
-						table:get_value( UserId ) ) ] ),
+						table:get_value( UserId, UserTable ) ) ] ),
 					add_contacts( T, UserTable, RoleTable, State );
 
 				false ->

@@ -94,7 +94,8 @@ init( _Args=[ AppRunContext ] ) ->
 	AggregatorPid =
 		class_TraceAggregator:get_aggregator( _LaunchAggregator=false ),
 
-	BridgeSpec = { BinTraceEmitterName, BinTraceCategory, AggregatorPid },
+	BridgeSpec = trace_bridge:get_bridge_spec( BinTraceEmitterName,
+		BinTraceCategory, AggregatorPid ),
 
 	trace_bridge:register( BridgeSpec ),
 

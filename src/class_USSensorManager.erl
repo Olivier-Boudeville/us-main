@@ -122,7 +122,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type json_triple() :: { measurement_point_name(),
-						 measurement_point_description(), json_read_value() }.
+	measurement_point_description(), point_attribute_map() }.
 % Defined just for convenience.
 
 
@@ -158,7 +158,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 -type sensor_interface() ::
-		'isa' | 'acpi' | 'pci' | 'virtual' | 'unknown' | atom().
+	'isa' | 'acpi' | 'pci' | 'virtual' | 'unknown' | atom().
 % The reported hardware interface for a sensor.
 
 
@@ -1084,9 +1084,9 @@ initialise_sensor_data( State ) ->
 		% showstopper anymore, as in some contexts (e.g. continuous integration)
 		% this might happen and should not crash such a manager:
 		%
-		error ->
-			?warning( "Not able to initialise sensor data, not activating "
-					  "their monitoring." ),
+		{ error, ErrorOutput } ->
+			?warning_fmt( "Not able to initialise sensor data ('~ts'), "
+						  "not activating their monitoring.", [ ErrorOutput ] ),
 			{ false, setAttribute( State, sensor_monitoring, false ) }
 
 	end.
@@ -1112,7 +1112,7 @@ fetch_sensor_data( State ) ->
 	case system_utils:run_executable( ExecPath, ExecArgs, Environment,
 			_MaybeWorkingDir=undefined, PortOptions ) of
 
-		{ _ReturnCode=0, CmdOutput  } ->
+		{ _ReturnCode=0, CmdOutput } ->
 
 			cond_utils:if_defined( us_main_debug_execution,
 				?debug_fmt(
@@ -1129,7 +1129,7 @@ fetch_sensor_data( State ) ->
 
 			% Do not crash in this case anymore:
 			%throw( { sensor_read_failed, ErrorOutput } )
-			error;
+			{ error, ErrorOutput };
 
 		{ ReturnCode, ErrorOutput  } ->
 			?emergency_fmt( "Error when running '~ts' with arguments ~p: '~ts' "
@@ -4217,8 +4217,10 @@ measurement_points_to_string( PointsDataTable, IndentationLevel ) ->
 
 
 
-% @doc Returns a textual description of the specified intrusion status.
--spec intrusion_status_to_string( temp_alert_state() ) -> ustring().
+% @doc Returns a textual description of the specified intrusion detection
+% status.
+%
+-spec intrusion_status_to_string( intrusion_detected_status() ) -> ustring().
 intrusion_status_to_string( _IntrusStatus=true ) ->
 	"intrusion detected";
 
