@@ -400,6 +400,9 @@ info-versions:
 	@echo "MOBILE_VERSION = $(MOBILE_VERSION)"
 
 
+info-conditionals:
+
+
 info-deps:
 	@echo "MYRIAD_TOP = $(MYRIAD_TOP) (i.e. $$(realpath $(MYRIAD_TOP)))"
 	@echo "WOOPER_TOP = $(WOOPER_TOP)) (i.e. $$(realpath $(WOOPER_TOP)))"
@@ -409,6 +412,5 @@ info-deps:
 	@echo "MOBILE_TOP = $(MOBILE_TOP) (i.e. $$(realpath $(MOBILE_TOP)))"
 
 
-info-conditionals:
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc

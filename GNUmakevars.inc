@@ -51,7 +51,7 @@ endif
 ifeq ($(ENABLE_DEBUG),true)
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
 endif
 
 # Defining check flags:
@@ -65,7 +65,7 @@ ERLANG_COMPILER_OPT_BASE += $(US_MAIN_DEBUG_FLAGS)    \
 
 
 
-# Useful to target for example the root of the current layer (ex: to locate the
+# Useful to target for example the root of the current layer (e.g. to locate the
 # relevant, layer-local '_build' directory):
 #
 ifndef LAYER_TOP
@@ -184,13 +184,13 @@ endif
 
 
 # For later reuse in the next layer of the software stack:
-US_MAIN_PLT_FILE := $(US_MAIN_TOP)/us_main.plt
+US_MAIN_PLT_FILE := $(US_MAIN_TOP)/US-Main.plt
 
 
 # This is the merged PLT of the level just below in the software stack.
 # For us-main, it is the PLT of 'us-common':
-ifndef PREDECESSOR_PLT
-	PREDECESSOR_PLT = $(US_COMMON_PLT_FILE)
+ifndef PREDECESSOR_PLT_FILE
+	PREDECESSOR_PLT_FILE = $(US_COMMON_PLT_FILE)
 endif
 
 
@@ -246,8 +246,8 @@ INC += $(foreach dir,$(US_MAIN_EXTRA_DEPS),-I$(dir)/include) -I$(SIBLING_ROOT) -
 # them and if all the packages mentioned here are themselves dependencies (in
 # which case they are all sitting together in the _checkouts child directory).
 #
-# Note also we rely on the names of build roots (ex: myriad) as opposed to
-# project/repository names (ex: Ceylan-Myriad):
+# Note also we rely on the names of build roots (e.g. myriad) as opposed to
+# project/repository names (e.g. Ceylan-Myriad):
 #
 # First priority is an existing checkout directory:
 ifneq ($(wildcard $(US_MAIN_TOP)/_checkouts/us_common/.),)
@@ -307,4 +307,9 @@ endif
 
 ifndef PREDECESSOR_LAYER_TOPS
 	PREDECESSOR_LAYER_TOPS := $(US_COMMON_TOP) $(MOBILE_TOP) $(OCEANIC_TOP)
+endif
+
+ifndef BASE_PLT_FILES
+	# Until the --plts Dialyzer option is fixed:
+	BASE_PLT_FILES = $(PREDECESSOR_PLT_FILE) #$(OCEANIC_PLT_FILE) $(MOBILE_PLT_FILE)
 endif
