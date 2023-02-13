@@ -64,33 +64,32 @@ exec() ->
 
 	app_facilities:display( "Connecting to node '~ts'.", [ TargetNodeName ] ),
 
-	case net_adm:ping( TargetNodeName ) of
-
-		pong ->
-			ok;
-
-		pang ->
+	net_adm:ping( TargetNodeName ) =:= pong orelse
+		begin
 			trace_utils:error_fmt( "Unable to connect to '~ts'.~nIf the target "
 				"node is really running and is named exactly like that, check "
 				"that the cookies and EPMD ports match and, finally, that "
-				"no firewall is in the way (ex: a server may filter the EPMD "
+				"no firewall is in the way (e.g. a server may filter the EPMD "
 				"port of interest).", [ TargetNodeName ] ),
 
 			throw( { unable_to_connect_to, TargetNodeName } )
 
-	end,
+		end,
 
 	% Otherwise the remote node could not be known before use:
 	global:sync(),
 
-	% Rather than finding the US-Main server (whose registered is set in its
-	% configuration file) and stopping it, at least currently we simply stop its
-	% Erlang node as a whole:
+	% Rather than finding the US-Main server (whose registered name is set in
+	% its configuration file) and stopping it, at least currently we simply stop
+	% its Erlang node as a whole:
+
+	%trace_utils:warning_fmt( "Just about to stop node '~ts'.",
+	%                         [ TargetNodeName ] ),
 
 	% All applications are taken down smoothly, all code is unloaded, and all
 	% ports are closed before the system terminates by calling halt(Status):
 	%
-	case rpc:call( TargetNodeName, init, stop, [] ) of
+	case rpc:call( TargetNodeName, _Mod=init, _Func=stop, _Args=[] ) of
 
 		{ badrpc, Reason } ->
 			trace_utils:warning_fmt( "The stopping of node '~ts' failed with "
@@ -102,6 +101,9 @@ exec() ->
 
 	end,
 
+	% Instead a (safer) asynchronous operation would be of no interest:
+	%rpc:cast( TargetNodeName, _Mod=init, _Func=stop, _Args=[] ),
+
 	% ?app_stop should not be used here as its wait_for_any_trace_supervisor
 	% macro would wait for a non-launched supervisor.
 	%
@@ -109,7 +111,6 @@ exec() ->
 	% no aggregator was started from that test.
 	%
 	app_facilities:finished().
-
 
 
 % @doc Initialises this application from the command line.
@@ -125,8 +126,8 @@ init_from_command_line() ->
 
 	% Argument expected to be set by the caller script:
 	{ RemoteCookie, CookieShrunkTable } =
-		case list_table:extract_entry_if_existing( '-target-cookie',
-												   ArgTable ) of
+			case list_table:extract_entry_if_existing( '-target-cookie',
+													   ArgTable ) of
 
 		false ->
 			throw( no_target_cookie_set );
@@ -143,13 +144,6 @@ init_from_command_line() ->
 
 	net_utils:set_cookie( RemoteCookie ),
 
-	case list_table:is_empty( CookieShrunkTable ) of
-
-		true ->
-			ok;
-
-		false ->
-			throw( { unexpected_arguments,
-					 list_table:enumerate( CookieShrunkTable ) } )
-
-	end.
+	list_table:is_empty( CookieShrunkTable ) orelse
+		throw( { unexpected_arguments,
+				 list_table:enumerate( CookieShrunkTable ) } ).
