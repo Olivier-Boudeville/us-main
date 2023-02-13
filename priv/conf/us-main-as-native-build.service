@@ -6,6 +6,13 @@ After=network.target
 
 [Service]
 
+# With this type (expected not to be relevant, as US-Main has a daemon-like mode
+# of operation), a start returns instantly, yet a few seconds afterwards a stop
+# is triggered by systemd, resulting in an unusable service:
+#
+#Type=simple
+
+
 # The started UNIX process is expected to call fork() as part of its start-up.
 #
 # The parent process is expected to exit when start-up is complete and all
@@ -13,7 +20,13 @@ After=network.target
 # service process, and the service manager will consider the unit started when
 # the parent process exits. This is the behavior of traditional UNIX services.
 #
+# Yet stopping with systemd was found hanging and failing on a timeout, even if
+# the Exec{Start,Stop} scripts were working beautifully outside of systemd. This
+# could nevertheless be solved in Myriad's app_facilities:finished/0 - albeit
+# thanks to an unorthodox approach ("magic" waiting).
+#
 Type=forking
+
 
 
 # The two Exec scripts below are typically symlinks pointing to an install of
