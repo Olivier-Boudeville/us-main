@@ -46,12 +46,15 @@ endif
 # Topics covered by flags:
 #  - execution: VM-level information, notably related to the code path
 #  - sensors: help the debugging of sensor management
+#  - home_automation: all information about the home automation service
+#  - presence_simulation: about specifically the presence simulation service
 #
 # Defining debug flags (at least the most verbose are by default commented-out):
 ifeq ($(ENABLE_DEBUG),true)
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
 endif
 
 # Defining check flags:
