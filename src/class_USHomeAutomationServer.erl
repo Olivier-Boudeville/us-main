@@ -62,7 +62,7 @@
 
 
 % Silencing:
--export([ send_psc_trace/3, send_psc_trace_fmt/4 ]).
+-export([ send_psc_trace/3, send_psc_trace_fmt/4, from_decimal_hour/1 ]).
 
 
 -define( bridge_name, ?MODULE ).
@@ -74,6 +74,9 @@
 % For the presence_simulation_setting record:
 -include("class_USHomeAutomationServer.hrl").
 
+% For defines:
+-include_lib("myriad/include/utils/time_utils.hrl").
+
 
 -type presence_simulation_setting() :: #presence_simulation_setting{}.
 % Setting of a given instance of presence simulation.
@@ -82,7 +85,7 @@
 -type presence_simulation_settings() ::
 	{ 'default', MaybeTargetActuatorEurid :: maybe( eurid() ) }
   | [ presence_simulation_setting() ].
-% All settings for a whole presence simulation service.
+% All (user-level) settings for a whole presence simulation service.
 
 
 -type presence_milestone() ::
@@ -142,6 +145,22 @@
 % Information regarding a planned (presence) task, to be able to check/control
 % it.
 
+-type decimal_hour() :: float().
+% An hour in the day or duration, as a floating-point value (e.g. 12.5 for 30
+% minutes past noon).
+
+
+-type time_equation_table() :: table( day_in_the_year(), decimal_hour() ).
+% Time equation table, to correct sunrise/sunset times based on day rank.
+%
+% Maybe a simpler indexed list would have been sufficient.
+
+
+% Originally in
+% https://www.astrolabe-science.fr/wp-content/uploads/2023/02/EdTimcce.csv.
+%
+-define( time_equation_data_file, "time_equation_data.csv").
+
 
 % Internal information regarding an instance of presence simulation:
 -record( presence_simulation, {
@@ -151,7 +170,7 @@
 
 	% Tells whether this presence simulation is enabled:
 	%
-	% (for example when somebody is at home, it may be disabled)
+	% (as it may be disabled, for example when somebody is at home)
 	%
 	enabled = true :: boolean(),
 
@@ -168,7 +187,10 @@
 	%  - or, better, listen to Oceanic events for notifications about state
 	%  changes, and update our knowledge according to unexpected ones
 	%
-	activated :: boolean(),
+	% Setting it by default to false, to force any needed activation, should it
+	% be not set by mistake:
+	%
+	activated = false :: boolean(),
 
 
 	% The specific EURID (if any) to be used to identify the source of the
@@ -222,6 +244,8 @@
 
 -type presence_simulation() :: #presence_simulation{}.
 % Internal information regarding an instance of presence simulation.
+%
+% Counterpart of the user-level presence_simulation_setting().
 
 
 -type presence_table() :: table( presence_sim_id(), presence_simulation() ).
@@ -240,11 +264,14 @@
 -type timestamp() :: time_utils:timestamp().
 
 -type device_path() :: file_utils:device_path().
+%-type bin_directory_path() :: file_utils:bin_directory_path().
 
 -type bytes_per_second() :: system_utils:bytes_per_second().
 
 -type date() :: time_utils:date().
 -type time() :: time_utils:time().
+-type day_in_the_year() :: time_utils:day_in_the_year().
+
 -type milliseconds() :: unit_utils:milliseconds().
 
 -type trace_severity() :: trace_utils:trace_severity().
@@ -257,11 +284,13 @@
 -type task_id() :: class_USScheduler:task_id().
 
 -type position() :: unit_utils:position().
+-type radians() :: unit_utils:radians().
 
 -type oceanic_server_pid() :: oceanic:oceanic_server_pid().
 -type device_name() :: oceanic:device_name().
 -type device_description() :: oceanic:device_description().
 -type device_event() :: oceanic:device_event().
+-type back_online_info() :: oceanic:back_online_info().
 -type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
 -type telegram() :: oceanic:telegram().
@@ -284,6 +313,10 @@
 	{ scheduler_pid, scheduler_pid(),
 	  "the PID of the scheduler used by this server" },
 
+	{ app_base_directory, bin_directory_path(),
+	  "the base directory of the US-Main application (the root where "
+	  "src, priv, ebin, etc. can be found)" },
+
 	{ actual_presence, boolean(), "tells whether there is someone at home" },
 
 	% Better defined separately from presence_table, as the program shall
@@ -298,6 +331,10 @@
 
 	{ next_presence_id, presence_sim_id(),
 	  "the next presence identifier that will be assigned" },
+
+	{ time_equation_table, maybe( time_equation_table() ),
+	  "a table (if any) allowing to correct sunrise/sunset times, for smart "
+	  "lighting" },
 
 	{ midnight_task_id, maybe( task_id() ),
 	  "a task to be triggered, if the presence simulation is activated, "
@@ -360,7 +397,8 @@
 % of interest; the actual moments for dawn and dusk depend also on longitude.
 %
 % More information (in French):
-% - https://www.astrolabe-science.fr/duree-du-jour-et-latitude/
+% https://www.astrolabe-science.fr/duree-du-jour-et-latitude/. Many thanks to
+% David Alberto for the sharing.
 
 
 % Regarding scheduling:
@@ -505,23 +543,25 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		?us_main_home_automation_server_registration_scope ),
 
 	% Do not start Oceanic if it is bound to fail:
-	{ MaybeOcSrvPid, MaybeSrcEurid, MaybeBaseId } =
+	{ MaybeOcSrvPid, MaybeSrcEuridStr, MaybeBaseId } =
 			case oceanic:is_available( TtyPath ) of
 
 		{ true, _SerialRootDir } ->
 			OcPid = oceanic:start_link( TtyPath, [ _EventListenerPid=self() ] ),
 			BaseId = oceanic:get_oceanic_eurid( OcPid ),
-			SourceId = case MaybeSourceEuridStr of
+			SourceIdStr = case MaybeSourceEuridStr of
 
 				undefined ->
-					% Then go for the BaseId:
-					BaseId;
+					% Then go for the BaseId; having to convert it back to
+					% string, as to be fed to a presence_simulation_setting:
+					%
+					oceanic:eurid_to_short_string( BaseId );
 
-				SrcId ->
-					oceanic:string_to_eurid( SrcId )
+				SrcIdStr ->
+					SrcIdStr
 
 			end,
-			{ OcPid, SourceId, BaseId };
+			{ OcPid, SourceIdStr, BaseId };
 
 		{ false, ReasonStr, ErrorTerm } ->
 			% No house automation can be done then (newline needed, otherwise
@@ -542,12 +582,36 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	SchedPid = class_USScheduler:get_main_scheduler(),
 
 	% Interleaved:
-	{ MaybeUserSrvLoc, MaybePscSwitchEurid, OceanicSettings } = receive
+	{ MaybeUserSrvLoc, BinAppBaseDirectoryPath, MaybePscSwitchEurid,
+	  MaybeConfiguredPscSimSettings, OceanicSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
 			HomeAutoMatSettings
 
 	end,
+
+	MaybeRetainedPscSimSettings = case MaybeConfiguredPscSimSettings of
+
+		undefined ->
+			MaybePresenceSimSettings;
+
+		ConfiguredPscSimSettings ->
+			case MaybePresenceSimSettings of
+
+				undefined ->
+					ConfiguredPscSimSettings;
+
+				PresenceSimSettings ->
+					?send_warning_fmt( SrvState, "The construction-specified "
+						"presence simulation settings (~p) will override the "
+						"configuration-specified ones (~p).",
+						[ PresenceSimSettings, ConfiguredPscSimSettings ] ),
+					PresenceSimSettings
+
+			end
+
+	end,
+
 
 	% Sooner:
 	MaybeOcSrvPid =:= undefined orelse
@@ -558,7 +622,9 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		undefined ->
 			undefined;
 
-		% Already checked as floats by the configuration server:
+		% Already checked as floats by the US-Main configuration server;
+		% they are degrees:
+		%
 		_UserSrvLoc={ Lat, _Long } when Lat > 90.0 orelse Lat < -90.0 ->
 			throw( { invalid_latitude, Lat } );
 
@@ -590,12 +656,17 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	{ InitPscTable, NextPscId, MaybeMidnightTaskId } = init_presence_simulation(
-		MaybePresenceSimSettings, MaybeOcSrvPid, MaybeSrcEurid, SrvState ),
+	MoreCompleState = setAttributes( SrvState, [
+		{ scheduler_pid, SchedPid },
+		{ app_base_directory, BinAppBaseDirectoryPath } ] ),
+
+	{ InitPscTable, NextPscId, MaybeTimeEqTable, MaybeMidnightTaskId } =
+		init_presence_simulation( MaybeRetainedPscSimSettings, MaybeOcSrvPid,
+			MaybeSrcEuridStr, MoreCompleState ),
 
 	% Later:
-	%AlarmState = init_alarm( MaybeOcSrvPid, SrvState ),
-	AlarmState = SrvState,
+	%AlarmState = init_alarm( MaybeOcSrvPid, MoreCompleState ),
+	AlarmState = MoreCompleState,
 
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
@@ -606,7 +677,6 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ oc_srv_pid, MaybeOcSrvPid },
 		{ oc_base_id, MaybeBaseId },
 		{ us_config_server_pid, UsMainCfgSrvPid },
-		{ scheduler_pid, SchedPid },
 
 		% Expecting to be launching this server while being at home:
 		{ actual_presence, true },
@@ -614,6 +684,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ presence_simulation_enabled, InitalPscEnabled },
 		{ presence_table, InitPscTable },
 		{ next_presence_id, NextPscId },
+		{ time_equation_table, MaybeTimeEqTable },
 		{ midnight_task_id, MaybeMidnightTaskId },
 		{ server_location, MaybeSrvLoc },
 		{ presence_switching_device, MaybePscSwitchEurid },
@@ -632,12 +703,14 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 % (helper)
 -spec init_presence_simulation( maybe( presence_simulation_settings() ),
-	maybe( oceanic_server_pid() ), maybe( eurid() ), wooper:state() ) ->
-	{ presence_table(), presence_sim_id(), maybe( task_id() ) }.
+	maybe( oceanic_server_pid() ), maybe( eurid_string() ), wooper:state() ) ->
+		{ presence_table(), presence_sim_id(), maybe( time_equation_table() ),
+		  maybe( task_id() ) }.
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
-						  MaybeSrcEurid, State ) ->
+						  MaybeSrcEuridStr, State ) ->
 	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
-		MaybeSrcEurid, _PscTable=table:new(), _NextPscId=1, State ).
+		MaybeSrcEuridStr, _PscTable=table:new(), _NextPscId=1,
+		_TimeEqTableNeeded=false, State ).
 
 
 
@@ -647,11 +720,14 @@ init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 %
 % No presence simulation wanted:
 init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
-						  _MaybeSrcEurid, EmptyPscTable, InitPscId, _State ) ->
-	{ EmptyPscTable, InitPscId, _MaybeMidTaskId=undefined };
+		_MaybeSrcEuridStr, EmptyPscTable, InitPscId, _TimeEqTableNeeded,
+		_State ) ->
+	{ EmptyPscTable, InitPscId, _MaybeTimeEqTable=undefined,
+	  _MaybeMidTaskId=undefined };
 
 init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
-		_MaybeSrcEurid, _PscTable, _NextPscId, State ) ->
+		_MaybeSrcEuridStr, _PscTable, _NextPscId, _TimeEqTableNeeded,
+		State ) ->
 
 	?error_fmt( "No Oceanic support available, the requested presence "
 		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
@@ -661,9 +737,10 @@ init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
 
 % Not expected to happen, as set with OcSrvPid:
 init_presence_simulation( PresenceSimSettings, _OcSrvPid,
-		_MaybeSrcEurid=undefined, _PscTable, _NextPscId, State ) ->
+		_MaybeSrcEuridStr=undefined, _PscTable, _NextPscId, _TimeEqTableNeeded,
+		State ) ->
 
-	?error_fmt( "No source EURID available, the requested presence "
+	?error_fmt( "No overall source EURID available, the requested presence "
 		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
 
 	throw( { no_presence_simulation, no_source_eurid } );
@@ -672,7 +749,8 @@ init_presence_simulation( PresenceSimSettings, _OcSrvPid,
 % Default settings, just switching to the actual clause:
 init_presence_simulation(
 		_PresenceSimSettings={ default, MaybeTargetActuatorEuridStr },
-		OcSrvPid, SrcEurid, PscTable, NextPscId, State ) ->
+		OcSrvPid, SrcEuridStr, PscTable, NextPscId, _TimeEqTableNeeded,
+		State ) ->
 
 	send_psc_trace( info, "Applying default presence simulation settings.",
 					State ),
@@ -680,33 +758,33 @@ init_presence_simulation(
 	% Principle: no useless lighting during the expected presence slots, which
 	% are:
 	%  - in the morning: from 7:30 AM to 8:30 AM
-	%  - in the evening: from 7:00 PM to 11:45 PM
+	%  - in the evening: from 6:30:00 PM to 11:45 PM
 
 	TMorningStart = { 7, 30, 0 },
 	TMorningStop = { 8, 30, 0 },
 
-	TEveningStart = { 19, 00, 00 },
+	TEveningStart = { 18, 30, 00 },
 	TEveningStop = { 23, 45, 00 },
 
-	Slots = [ { TMorningStart, TMorningStop },
-			  { TEveningStart, TEveningStop } ],
+	PscSlots = [ { TMorningStart, TMorningStop },
+				 { TEveningStart, TEveningStop } ],
 
 	DefaultSettings = #presence_simulation_setting{
-		source_eurid=SrcEurid,
+		source_eurid=SrcEuridStr,
 		target_eurid=MaybeTargetActuatorEuridStr,
-		presence_program=Slots,
+		presence_program=PscSlots,
 		smart_lighting=true },
 
 	% Branch then to the general rule:
 	init_presence_simulation( _PscSimSettings=[ DefaultSettings ], OcSrvPid,
-		SrcEurid, PscTable, NextPscId, State );
+		SrcEuridStr, PscTable, NextPscId, _TimeEqTableIsNeeded=true, State );
 
 
 % The "actual" clauses now.
 %
 % Only exit point:
-init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEurid,
-						  PscTable, NextPscId, State ) ->
+init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
+		PscTable, NextPscId, TimeEqTableNeeded, State ) ->
 
 	% Schedules a periodic midnight presence update iff necessary:
 	MaybeMidTaskId = case table:is_empty( PscTable ) of
@@ -718,21 +796,20 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEurid,
 
 		false ->
 			TomorrowDate = time_utils:get_date_after( date(), _DaysOffset=1 ),
-			NextMidnightTimestamp = { TomorrowDate, _Midnight={ 0, 0, 0 } },
+			NextMidnightTimestamp = { TomorrowDate, ?first_time },
 
 			cond_utils:if_defined( us_main_debug_presence_simulation,
 				send_psc_trace_fmt( debug, "Registering a daily presence "
 					"program update task (every midnight), starting from ~ts.",
-					[ time_utils:timestamp_to_string( NextMidnightTimestamp )
-					], State ) ),
+					[ time_utils:timestamp_to_string( NextMidnightTimestamp ) ],
+					State ) ),
 
 			% Every day:
 			DHMSPeriodicity = { _D=1, _H=0, _M=0, _S=0 },
 
 			?getAttr(scheduler_pid) ! { registerTask,
 				[ _CmdMsg=updatePresencePrograms,
-				  _StartTime=NextMidnightTimestamp,
-				  DHMSPeriodicity,
+				  _StartTime=NextMidnightTimestamp, DHMSPeriodicity,
 				  _Count=unlimited ], self() },
 
 			receive
@@ -749,7 +826,32 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEurid,
 			end
 
 	end,
-	{ PscTable, NextPscId, MaybeMidTaskId };
+
+	MaybeTimeEqTable = case TimeEqTableNeeded of
+
+		true ->
+			TimeTableCsvPath = file_utils:join( [ ?getAttr(app_base_directory),
+				"priv", "data", ?time_equation_data_file ] ),
+
+			file_utils:is_existing_file_or_link( TimeTableCsvPath ) orelse
+				throw( { time_equation_data_file_not_found,
+						 TimeTableCsvPath } ),
+
+			{ Rows, _RowCount=365, _FieldCount=2 } =
+				csv_utils:read_file( TimeTableCsvPath, _Separator=$\t ),
+
+			RowsAsNums = [ { text_utils:string_to_integer( DayRankStr ),
+							 text_utils:string_to_float( CorrStr ) } ||
+				{ DayRankStr, CorrStr } <- Rows ],
+
+			table:new( RowsAsNums );
+
+		false ->
+			undefined
+
+	end,
+
+	{ PscTable, NextPscId, MaybeTimeEqTable, MaybeMidTaskId };
 
 
 % Main clause:
@@ -758,13 +860,13 @@ init_presence_simulation( _PresenceSimSettings=[
 			source_eurid=MaybeUserSrcEuridStr,
 			target_eurid=MaybeTargetActuatorEuridStr,
 			presence_program=Program,
-			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEurid, PscTable,
-						  NextPscId, State ) ->
+			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEuridStr, PscTable,
+						  NextPscId, TimeEqTableNeeded, State ) ->
 
 	ActualSrcEurid = case MaybeUserSrcEuridStr of
 
 		undefined ->
-			SrcEurid;
+			oceanic:string_to_eurid( SrcEuridStr );
 
 		UserSrcEuridStr ->
 			oceanic:string_to_eurid( UserSrcEuridStr )
@@ -807,6 +909,8 @@ init_presence_simulation( _PresenceSimSettings=[
 	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
 		ActualSrcEurid, ActualTargetEurid, SwitchOffButton, released ),
 
+	DoSmartLighting = type_utils:ensure_boolean( SmartBool ),
+
 	PscSim = #presence_simulation{
 		id=NextPscId,
 		enabled=true,
@@ -814,7 +918,7 @@ init_presence_simulation( _PresenceSimSettings=[
 		source_eurid=ActualSrcEurid,
 		target_eurid=ActualTargetEurid,
 		program=VettedProgram,
-		smart_lighting=type_utils:ensure_boolean( SmartBool ),
+		smart_lighting=DoSmartLighting,
 		activation_telegrams={ OnPressTelegram, OnReleaseTelegram },
 		deactivation_telegrams={ OffPressTelegram, OffReleaseTelegram } },
 
@@ -823,17 +927,19 @@ init_presence_simulation( _PresenceSimSettings=[
 	send_psc_trace_fmt( info, "Registered a new presence simulation: ~ts",
 		[ presence_simulation_to_string( PscSim ) ], State ),
 
-	init_presence_simulation( T, OcSrvPid, SrcEurid, NewPscTable, NextPscId+1,
-							  State );
+	NewTimeEqTableNeeded = DoSmartLighting orelse TimeEqTableNeeded,
+
+	init_presence_simulation( T, OcSrvPid, SrcEuridStr, NewPscTable,
+		NextPscId+1, NewTimeEqTableNeeded, State );
 
 
 init_presence_simulation( _PresenceSimSettings=[ Other | _T ], _OcSrvPid,
-						  _SrcEurid, _PscTable, _NextPscId, _State ) ->
+		_SrcEuridStr, _PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
 	throw( { invalid_presence_setting, Other } );
 
 
-init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEurid,
-						  _PscTable, _NextPscId, _State ) ->
+init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEuridStr,
+		_PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
 	throw( { invalid_presence_settings, Other } ).
 
 
@@ -864,11 +970,11 @@ vet_program( _PresenceProgram=[], _MaybeLastStop, AccSlots ) ->
 vet_program( _PresenceProgram=[ Slot={ StartMilestone, StopMilestone } | T ],
 			 MaybeLastStop, AccSlots ) ->
 
-	time_utils:is_time( StartMilestone )
-		orelse throw( { invalid_slot_start_milestone, StartMilestone } ),
+	time_utils:is_time( StartMilestone ) orelse
+		throw( { invalid_slot_start_milestone, StartMilestone } ),
 
-	time_utils:is_time( StopMilestone )
-		orelse throw( { invalid_slot_stop_milestone, StopMilestone } ),
+	time_utils:is_time( StopMilestone ) orelse
+		throw( { invalid_slot_stop_milestone, StopMilestone } ),
 
 	StartMilestone < StopMilestone orelse
 		throw( { inconsistent_slot_milestones, StartMilestone,
@@ -931,7 +1037,7 @@ apply_presence_simulation( State ) ->
 update_presence_simulations( PscSims, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( notice, "Updating ~B presence simulations now.",
+		send_psc_trace_fmt( notice, "Updating ~B presence simulation(s) now.",
 			[ length( PscSims ) ], State ) ),
 
 	% Keep only relevant information (if any):
@@ -1192,7 +1298,8 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace( debug, "Enabled yet in constant-absence simulation "
-			"program, hence not lighting and no planned presence transition.",
+			"program, hence not lighting and not planning any presence "
+			"transition.",
 			State ) ),
 
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
@@ -1219,8 +1326,8 @@ manage_presence_simulation( PscSim=#presence_simulation{
 		always_present ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
 				send_psc_trace( debug, "Enabled, no smart lighting requested, "
-					"simulating a constant presence, hence lighting "
-					"and no planned presence transition.", State ) ),
+					"simulating a constant presence from now, hence lighting "
+					"and not planning any presence transition.", State ) ),
 
 			LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 			ensure_no_planned_presence_transition( LitPscSim,
@@ -1229,8 +1336,8 @@ manage_presence_simulation( PscSim=#presence_simulation{
 		always_absent ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
 				send_psc_trace( debug, "Enabled, no smart lighting requested "
-					"simulating a constant absence, hence "
-					"not lighting and no planned presence transition.",
+					"simulating a constant absence from now, hence "
+					"not lighting and not planning any presence transition.",
 					State ) ),
 
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
@@ -1277,29 +1384,52 @@ manage_presence_simulation( PscSim=#presence_simulation{
 	CelestialInfo = { _Date, { MaybeDawnTime, MaybeDuskTime } } =
 		get_celestial_info( MaybeCelestialInfo, State ),
 
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "Getting programmed presence for "
+			"slots ~ts.", [ text_utils:strings_to_string(
+				[ slot_to_string( S ) || S <- Slots ] ) ], State ) ),
+
 	NewPscSim = case get_programmed_presence( Slots, CurrentTime ) of
 
 		% For good, today, hence light always needed:
 		always_present ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
 				send_psc_trace( debug, "Enabled, smart lighting requested, "
-					"simulating a constant presence, hence lighting "
-					"and no planned presence transition.", State ) ),
+					"simulating a constant presence from now, hence lighting "
+					"and not planning any presence transition.", State ) ),
 
 			ensure_constant_light( CurrentTime, MaybeDawnTime, MaybeDuskTime,
 				PscSim, IsActivated, MaybePscTaskInfo, State );
 
 		always_absent ->
 			% Easy case:
+			cond_utils:if_defined( us_main_debug_presence_simulation,
+				send_psc_trace( debug, "Enabled, smart lighting requested, "
+					"simulating a constant absence from now, hence not "
+					"lighting and not planning any presence transition.",
+					State ) ),
+
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 			ensure_no_planned_presence_transition( UnlitPscSim,
 												   MaybePscTaskInfo, State );
 
 		{ present_until, AbsStart } ->
+			cond_utils:if_defined( us_main_debug_presence_simulation,
+				send_psc_trace_fmt( debug, "Enabled, smart lighting requested, "
+					"simulating a presence until ~ts, hence lighting "
+					"and planning a presence transition.",
+					[ time_utils:time_to_string( AbsStart ) ], State ) ),
+
 			ensure_light_until( AbsStart, CurrentTime, MaybeDawnTime,
 				MaybeDuskTime, PscSim, IsActivated, MaybePscTaskInfo, State );
 
 		{ absent_until, PresStart } ->
+			cond_utils:if_defined( us_main_debug_presence_simulation,
+				send_psc_trace_fmt( debug, "Enabled, smart lighting requested, "
+					"simulating a presence from ~ts, hence not lighting "
+					"and planning a presence transition.",
+					[ time_utils:time_to_string( PresStart ) ], State ) ),
+
 			ensure_light_from( PresStart, CurrentTime, MaybeDawnTime,
 				MaybeDuskTime, PscSim, IsActivated, MaybePscTaskInfo, State )
 
@@ -1333,9 +1463,8 @@ get_programmed_presence( _Slots=[ { StartPscTime, _StopPscTime } | _T ], Time )
 % We are in a slot:
 get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 						 _Time ) ->
-	% Implicit: StartPscTime <= Time <= StopPscTime:
-	Midnight = { 0, 0, 0 },
-	case StopPscTime < Midnight of
+	% Implicit: StartPscTime <= Time <= StopPscTime; comparing to next midnight:
+	case StopPscTime < ?last_time of
 
 		true ->
 			{ present_until, StopPscTime };
@@ -1401,8 +1530,10 @@ ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
 
 	TaskCmd = { updatePresenceSimulation, [ PscId ] },
 
+	PlannedTimestamp = { date(), PlannedTime },
+
 	?getAttr(scheduler_pid) !
-		{ registerOneshotTask, [ TaskCmd, PlannedTime ], self() },
+		{ registerOneshotTask, [ TaskCmd, PlannedTimestamp ], self() },
 
 	receive
 
@@ -1847,21 +1978,148 @@ resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
 
 	{ erlang:date(), { DefaultDawnTime, DefaultDuskTime } };
 
-resolve_logical_milestones( SrvLoc={ _Lat, _Long }, State ) ->
+resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 
 	Date = erlang:date(),
 
-	% Temporary:
-	DawnTime = { 8, 0, 0 },
-	DuskTime = { 19, 0, 0 },
+	LatRadians = math_utils:degree_to_radian( LatDegrees ),
+	% LongRadians = math_utils:degree_to_radian( LongDegrees ),
+
+	% Refer to https://www.astrolabe-science.fr/duree-du-jour-et-latitude/; we
+	% compute based on universal, UTC time before converting to local time:
+
+	AngleRad = math_utils:degree_to_radian( 23.4 ),
+
+	DayInYear = time_utils:get_day_in_year( Date ),
+
+	Degrees = 360 * ( DayInYear - 81 ) / 365.2422,
+
+	DeclinationDegrees = math_utils:radian_to_degree(
+		math:asin( math:sin( AngleRad )
+			* math:sin( math_utils:degree_to_radian( Degrees ) ) ) ),
+
+	{ RiseHour, SetHour } =
+		get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ),
+
+	% Correction regarding longitude:
+	%
+	% (4 minutes per degree, then converted in decimal hours)
+	%
+	LongCorrection = LongDegrees * 4 / 60,
+
+	LongCorrectedRiseHour = RiseHour - LongCorrection,
+	LongCorrectedSetHour  = SetHour  - LongCorrection,
+
+	% Clamping leap years:
+	DayIndex = case DayInYear of
+
+		366 ->
+			365;
+
+		_ ->
+			DayInYear
+
+	end,
+
+	% Applying the time equation:
+
+	% Index start at 1:
+	TECorrection =
+		table:get_value( DayIndex, ?getAttr(time_equation_table) ) / 60,
+
+	TECorrectedRiseHour = LongCorrectedRiseHour + TECorrection,
+	TECorrectedSetHour  = LongCorrectedSetHour  + TECorrection,
+
+	UTCDawnTime = from_decimal_hour( TECorrectedRiseHour ),
+	UTCDuskTime = from_decimal_hour( TECorrectedSetHour ),
+
+
+	UTCDawnTimestamp = { Date, UTCDawnTime },
+
+	% Both for time zone and Daylight Saving Time:
+	LocalDawnTimestamp = { LocalDawnDate, LocalDawnTime } =
+		calendar:universal_time_to_local_time( UTCDawnTimestamp ),
+
+	% If ever dates where to change (always possible if distant from Greenwich):
+	LocalDawnDate =:= Date orelse
+		?error_fmt( "Unexpected date change when transforming UTC "
+			"to local dawn time: ~ts converts into ~ts.",
+			[ time_utils:timestamp_to_string( UTCDawnTimestamp ),
+			  time_utils:timestamp_to_string( LocalDawnTimestamp ) ] ),
+
+
+	UTCDuskTimestamp = { Date, UTCDuskTime },
+
+	LocalDuskTimestamp = { LocalDuskDate, LocalDuskTime } =
+		calendar:universal_time_to_local_time( UTCDuskTimestamp ),
+
+	LocalDuskDate =:= Date orelse
+		?error_fmt( "Unexpected date change when transforming UTC "
+			"to local dusk time: ~ts converts into ~ts.",
+			[ time_utils:timestamp_to_string( UTCDuskTimestamp ),
+			  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
+
+	?debug_fmt( "Raw celestial timestamps are:~n"
+		" - in UTC time: ~ts for dawn and ~ts for dusk~n"
+		" - in local time (with time zone and DST, before applying "
+		"margins): ~ts for dawn and ~ts for dusk~n",
+		[ time_utils:timestamp_to_string( UTCDawnTimestamp ),
+		  time_utils:timestamp_to_string( UTCDuskTimestamp ),
+		  time_utils:timestamp_to_string( LocalDawnTimestamp ),
+		  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
+
+
+	% To account for dim daylight (forcing to switch on longer, in order to
+	% compensate for insufficient light), even if atmospheric refraction will
+	% help a bit, the following margins, expressed in seconds, apply:
+
+	EnoughLightAfterDawnMargin  = 15*60,
+	EnoughLightBeforeDuskMargin = 15*60,
+
+	% To end the lighting a little later than the actual forecast dawn:
+	RetainedDawnTime = time_utils:offset_time( LocalDawnTime,
+											   EnoughLightAfterDawnMargin ),
+
+	% To start the lighting a little earlier than the actual forecast dusk:
+	RetainedDuskTime = time_utils:offset_time( LocalDuskTime,
+											   -EnoughLightBeforeDuskMargin ),
 
 	?debug_fmt( "For the specified server location (~ts) and date, "
-		"computed following deadlines: ~ts for dawn and ~ts for dusk. ",
+		"computed following deadlines this day (light margins included): "
+		"~ts for dawn and ~ts for dusk.",
 		[ unit_utils:position_to_string( SrvLoc ),
-		  time_utils:time_to_string( DawnTime ),
-		  time_utils:time_to_string( DuskTime ) ] ),
+		  time_utils:time_to_string( RetainedDawnTime ),
+		  time_utils:time_to_string( RetainedDuskTime ) ] ),
 
-	{ Date, { DawnTime, DuskTime } }.
+	{ Date, { RetainedDawnTime, RetainedDuskTime } }.
+
+
+
+% Not unit_utils:latitude(), as would be degrees:
+-spec get_sun_rise_and_set_times( radians(), unit_utils:declination() ) ->
+			{ float(), float() }.
+get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ) ->
+
+	DeclinationRadians = math_utils:degree_to_radian( DeclinationDegrees ),
+
+	% Decimal hour:
+	ZeroHourDegrees = math_utils:radian_to_degree( math:acos(
+		-math:tan( LatRadians ) * math:tan( DeclinationRadians ) ) ),
+
+	ZeroHourFrac = ZeroHourDegrees / 15,
+
+	{ 12 - ZeroHourFrac, 12 + ZeroHourFrac }.
+
+
+
+% @doc Converts a decimal hour to hours and minutes.
+-spec from_decimal_hour( float() ) -> time_utils:time().
+from_decimal_hour( DecHour ) ->
+	Hours = math_utils:floor( DecHour ),
+	DecMinutes = 60 * ( DecHour - Hours ),
+	Minutes = math_utils:floor( DecMinutes ),
+	Seconds = round( 60 * ( DecMinutes - Minutes ) ),
+	{ Hours, Minutes, Seconds }.
 
 
 
@@ -2021,7 +2279,7 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	% Longer description when first seen:
 	Msg = text_utils:format( "The device '~ts', declared in the configuration, "
 		"has been detected for the first time, based on the following "
-		"event: ~ts. Full device information: ~ts.",
+		"event: ~ts.~n~nFull device information: ~ts.",
 		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
@@ -2060,7 +2318,7 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	% Longer description at this discovery time:
 	Msg = text_utils:format( "The device '~ts' has been discovered "
 		"(detected yet not declared in the configuration), based on "
-		"the following event: ~ts. Full device information: ~ts.",
+		"the following event: ~ts.~n~nFull device information: ~ts.",
 		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
@@ -2086,14 +2344,15 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 % @doc Handles a device-related event (typically a sensor report) notified by
 % the specified Oceanic server.
 %
-% This device has been already discovered.
+% This device has been already discovered; tells whether this device was
+% considered lost until now.
 %
 % This is by far the most frequent device-related message (once a
 % discovery-related message has been received first).
 %
--spec onEnoceanDeviceEvent( wooper:state(), device_event(),
+-spec onEnoceanDeviceEvent( wooper:state(), device_event(), back_online_info(),
 							oceanic_server_pid() ) -> oneway_return().
-onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
+onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 								when is_tuple( DeviceEvent ) ->
 
 	% Check:
@@ -2111,7 +2370,28 @@ onEnoceanDeviceEvent( State, DeviceEvent, OcSrvPid )
 	wooper:return_state( NewState );
 
 
-onEnoceanDeviceEvent( State, OtherEvent, OcSrvPid ) ->
+onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
+								when is_tuple( DeviceEvent ) ->
+
+	% Check:
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
+	Msg = text_utils:format( "The device '~ts', which was considered lost, "
+		"is back online: ~ts.~n~nFull device information: ~ts.",
+		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
+		  BinDevDesc ] ),
+
+	class_TraceEmitter:send_named_emitter( notice, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
+
+	NewState = manage_presence_switching( DeviceEvent, State ),
+
+	wooper:return_state( NewState );
+
+
+onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
 
 	?error_fmt( "Received an invalid device event (~p) from ~w, "
 				"ignoring it.", [ OtherEvent, OcSrvPid ] ),
@@ -2135,7 +2415,7 @@ onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
 	% Longer description at this teach-in time:
 	Msg = text_utils:format( "The device '~ts' has emitted the following "
-		"teach-in event: ~ts. Full device information: ~ts.",
+		"teach-in event: ~ts.~n~nFull device information: ~ts.",
 		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
@@ -2159,18 +2439,37 @@ onEnoceanDeviceTeachIn( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 % specified Oceanic server.
 %
 -spec onEnoceanDeviceLost( wooper:state(), eurid(), device_name(),
-		device_description(),timestamp(), milliseconds(),
+		device_description(), boolean(), timestamp(), milliseconds(),
 		oceanic_server_pid() ) -> const_oneway_return().
 onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
-					 LastSeenTimestamp, TimeOutMs, OcSrvPid ) ->
+		_IsNewLoss=true, LastSeenTimestamp, TimeOutMs, OcSrvPid ) ->
 
-	?warning_fmt( "Device '~ts' (EURID: ~ts) considered lost "
-		"(last seen on ~ts, after a waiting of ~ts) "
-		"by Oceanic server ~w. Full device information: ~ts.",
+	Msg = text_utils:format( "The device '~ts' (EURID: ~ts) is just considered "
+		"lost (last seen on ~ts, after a waiting of ~ts) "
+		"by the Oceanic server ~w.~n~nFull device information: ~ts.",
 		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
 		  time_utils:timestamp_to_string( LastSeenTimestamp ),
 		  time_utils:duration_to_string( TimeOutMs ),
 		  OcSrvPid, BinDevDesc ] ),
+
+	class_TraceEmitter:send_named_emitter( error, State, Msg,
+		get_trace_emitter_name_from( BinDeviceName ) ),
+
+	wooper:const_return();
+
+onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
+		_IsNewLoss=false, LastSeenTimestamp, TimeOutMs, OcSrvPid ) ->
+
+	Msg = text_utils:format( "Device '~ts' (EURID: ~ts) still considered lost "
+		"(last seen on ~ts, after a waiting of ~ts) "
+		"by Oceanic server ~w.~n~nFull device information: ~ts.",
+		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
+		  time_utils:timestamp_to_string( LastSeenTimestamp ),
+		  time_utils:duration_to_string( TimeOutMs ),
+		  OcSrvPid, BinDevDesc ] ),
+
+	class_TraceEmitter:send_named_emitter( warning, State, Msg,
+		get_trace_emitter_name_from( BinDeviceName ) ),
 
 	wooper:const_return().
 
@@ -2386,7 +2685,7 @@ to_string( State ) ->
 	PscStr = case ?getAttr(presence_simulation_enabled) of
 
 		true ->
-			PscSims = table:values( ?getAttr(presence_simulations) ),
+			PscSims = table:values( ?getAttr(presence_table) ),
 			"enabled, with " ++ case PscSims of
 
 				[] ->
@@ -2402,7 +2701,16 @@ to_string( State ) ->
 							[ presence_simulation_to_string( PS )
 								|| PS <- PscSims ] ) ] )
 
-			end;
+			end ++ "and " ++ case ?getAttr(time_equation_table) of
+
+				undefined ->
+					"no time equation table used";
+
+				TimeEqTable ->
+					text_utils:format( "using a time equation table "
+						"comprising ~B entries", [ table:size( TimeEqTable ) ] )
+
+							 end;
 
 		false ->
 			"disabled"
@@ -2460,10 +2768,10 @@ presence_simulation_to_string( #presence_simulation{
 	PrgStr = case Program of
 
 		constant_presence ->
-			"constant presence";
+			"is constant presence";
 
 		constant_absence ->
-			"constant absence";
+			"is constant absence";
 
 		[] ->
 			"has no slot defined";
@@ -2474,7 +2782,7 @@ presence_simulation_to_string( #presence_simulation{
 
 		Slots ->
 			text_utils:format( "has ~B presence slots defined: ~ts",
-				[ length( Slots ), text_utils:strings_to_listed_string(
+				[ length( Slots ), text_utils:strings_to_string(
 					[ slot_to_string( S ) || S <- Slots ] ) ] )
 
 	end,
@@ -2490,19 +2798,20 @@ presence_simulation_to_string( #presence_simulation{
 
 	end,
 
-	text_utils:format( "~ts presence simulation of id #~B, "
-		"whose program is ~ts; "
-		"its source EURID is ~ts and target EURID is ~ts "
+	text_utils:format( "presence simulation of id #~B, ~ts, "
+		"whose program ~ts~n"
+		"Its source EURID is ~ts and target EURID is ~ts "
 		"(activation telegrams are ~ts for pressed, "
 		"~ts for released, deactivation telegrams are ~ts for pressed, "
 		"~ts for released); ~ts",
-		[ case IsEnabled of
-			true -> "enabled";
-			false -> "disabled"
-		  end ++ "and " ++ case IsActivated of
-			true -> "activated";
-			false -> "non-activated"
-		  end, Id, PrgStr,
+		[ Id, case IsEnabled of
+					true -> "enabled";
+					false -> "disabled"
+			  end ++ " and "
+		  ++ case IsActivated of
+					true -> "activated";
+					false -> "non-activated"
+			 end, PrgStr,
 		  oceanic:eurid_to_string( SourceEurid ),
 		  oceanic:eurid_to_string( TargetEurid ),
 		  oceanic:telegram_to_string( PressOn ),
