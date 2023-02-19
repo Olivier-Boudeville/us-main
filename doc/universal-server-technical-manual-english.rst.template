@@ -123,14 +123,20 @@ A key point is to define the `Oceanic settings <https://oceanic.esperide.org/#oc
 Presence Simulator
 ------------------
 
-The goal is to give to any observer from outside the impression that a building is occupied, typically by switching light(s) on and off as if people were inhabiting such a premise.
+The goal is to give to any outside observer the impression that a building is currently inhabited, for example by switching light(s) on and off as if actual people were busy in such a premise.
 
-For that US-Main will control an (Enocean) smart plug (itself able to toggle a well-chosen, low-consumption lamp), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) ``time()`` (hence ``{Hour,Minute,Second}``), or the ``dawn`` and ``dusk`` symbolic deadlines (atoms), which are to be computed each day based on the longitude and the latitude specified by the user for the target location.
+For that, US-Main will control an (Enocean) smart plug (itself able typically to toggle a well-chosen, low-consumption lamp visible from outside), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) intra-day ``time()`` (hence ``{Hour,Minute,Second}``), or the ``dawn`` and ``dusk`` symbolic deadlines (atoms), which are then computed each day based on the longitude and the latitude specified by the user for the location of the premise of interest.
 
-By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a presence simulated (the general principle is to switch on a lamp during the busy hours of the day only if no natural light can be expected):
+The general principle, if the so-called "smart-lighting" feature is enabled, is to switch on a lamp during the busy hours of the day iff no natural light can be expected.
+
+If not smart lighting is enabled, then during a slot of simulated presence, the actuator will be triggered unconditionally (that is whether daylight shall be expected or not).
+
+By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a simulated presence:
 
 - from ``TMorningStart = 7:30 AM`` to ``TMorningStop``, where ``TMorningStop`` is the soonest deadline between 8:30 AM and dawn (of course no actuator triggered when ``TMorningStop`` is sooner than ``TMorningStart``)
 - from ``TEveningStart`` to ``TEveningStop = 11:45 PM``, where ``TEveningStart`` is the latest deadline between 7:00 PM and dusk (of course no actuator triggered when ``TEveningStop`` is sooner than ``TEveningStart``)
+
+More generally, through the user is free, through the ``presence_simulation_settings``, either to select a default policy or to specify their own presence program (constant presence or absence, or a list of presence slots), with or without smart lighting.
 
 
 
@@ -654,6 +660,12 @@ This allows the use of the Universal Server code in a wide a variety of software
 
 We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.
 
+
+-------
+Credits
+-------
+
+Many thanks to David Alberto for `his kind sharing in terms of computation of latitude-based daylight durations <https://www.astrolabe-science.fr/duree-du-jour-et-latitude/>`_ (in French).
 
 
 -------------
