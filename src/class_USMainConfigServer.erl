@@ -58,11 +58,6 @@
 -type general_main_settings() :: #general_main_settings{}.
 
 
--type home_automation_settings() ::
-	{ maybe( user_server_location() ), maybe( eurid() ), oceanic_settings() }.
-% Settings gathered on behalf of the home automation server.
-
-
 -type user_muted_sensor_points() :: list().
 % A list expected to contain muted sensor measurement points, typically as read
 % from the sensor monitoring section of the US-Main configuration.
@@ -72,7 +67,15 @@
 %   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
 %   { { acpitz, acpi, "0" }, all_points } ].
 
--type user_server_location() :: { float(), float() }.
+
+-type home_automation_settings() :: { maybe( user_server_location() ),
+	BinAppBaseDirectoryPath :: bin_directory_path(),
+	MaybePscSwitchEurid :: maybe( eurid() ), oceanic_settings() }.
+% Settings gathered on behalf of the home automation server.
+
+
+-type user_server_location() ::
+	{ LatDegrees :: float(), LongDegrees :: float() }.
 % Checked more precisely as a position() in the home automation server.
 
 
@@ -123,6 +126,7 @@
 
 -define( us_main_presence_switching_key, presence_switching_actuator ).
 
+-define( us_main_presence_simulation_key, presence_simulation_settings ).
 
 -define( us_main_contact_files_key, us_contact_files ).
 
@@ -132,7 +136,8 @@
 	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
 	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
-	?us_main_presence_switching_key, ?us_main_contact_files_key ] ).
+	?us_main_presence_switching_key, ?us_main_presence_simulation_key,
+	?us_main_contact_files_key ] ).
 
 
 % All known, licit (top-level) keys for the Oceanic configuration information
@@ -246,7 +251,8 @@
 	  "the user-specified location of this US-Main server" },
 
 	% Home-automation specific:
-	{ home_automation_core_settings, { maybe( eurid() ), oceanic_settings() },
+	{ home_automation_core_settings, { maybe( eurid() ),
+		maybe( presence_simulation_settings() ), oceanic_settings() },
 	  "any home automation core settings read (and not specifically checked) "
 	  "on behalf of the house automation server" },
 
@@ -262,10 +268,11 @@
 	  "the US-Main internal configuration directory, 'us_main/priv/conf'" },
 
 	{ data_directory, bin_directory_path(),
-	  "the directory where working data is to be stored" },
+	  "the directory where the US-Main working data is to be stored "
+	  "(typically [...]/us_main/priv/data)" },
 
 	{ log_directory, bin_directory_path(), "the directory where (non-VM) US-Main
-	  logs shall be written, notabl traces" },
+	  logs shall be written, notably traces" },
 
 	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
 	  "(as absolute paths), whence contact information may be read" } ] ).
@@ -467,11 +474,12 @@ getSensorSettings( State ) ->
 			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
-	{ MaybePscSwitchEurid, OcSettings } =
+	{ MaybePscSwitchEurid, MaybePscSimSettings, OcSettings } =
 		?getAttr(home_automation_core_settings),
 
-	wooper:const_return_result(
-		{ ?getAttr(server_location), MaybePscSwitchEurid, OcSettings } ).
+	wooper:const_return_result( { ?getAttr(server_location),
+		?getAttr(app_base_directory), MaybePscSwitchEurid, MaybePscSimSettings,
+		OcSettings } ).
 
 
 
@@ -535,9 +543,9 @@ get_us_main_config_server() ->
 	CfgPid = naming_utils:wait_for_registration_of( CfgRegName,
 													CfgLookupScope ),
 
-	trace_bridge:debug_fmt( "Resolved the US-Main configuration server as ~w, "
-		"(name: '~ts', look-up scope: ~ts).",
-		[ CfgPid, CfgRegName, CfgLookupScope ] ),
+	%trace_bridge:debug_fmt( "Resolved the US-Main configuration server as ~w, "
+	%   "(name: '~ts', look-up scope: ~ts).",
+	%   [ CfgPid, CfgRegName, CfgLookupScope ] ),
 
 	wooper:return_static( CfgPid ).
 
@@ -1079,11 +1087,11 @@ manage_data_directory( ConfigTable, State ) ->
 
 		key_not_found ->
 			file_utils:ensure_path_is_absolute( ?default_data_base_dir,
-									?getAttr(app_base_directory) );
+				?getAttr(app_base_directory) );
 
 		{ value, D } when is_list( D ) ->
 			file_utils:ensure_path_is_absolute( D,
-												?getAttr(app_base_directory) );
+				?getAttr(app_base_directory) );
 
 		{ value, InvalidDir }  ->
 			?error_fmt( "Read invalid user-configured data directory: '~p'.",
@@ -1360,8 +1368,28 @@ manage_home_automation( ConfigTable, State ) ->
 				"of EURID ~ts, will be used.", [ EuridStr ] ),
 			oceanic:string_to_eurid( EuridStr );
 
-		{ value, Other } ->
-			throw( { invalid_eurid, Other, ?us_main_presence_switching_key } )
+		{ value, NotEuridStr } ->
+			throw( { invalid_eurid, NotEuridStr,
+					 ?us_main_presence_switching_key } )
+
+	end,
+
+	MaybePscSimSettings = case table:lookup_entry(
+			?us_main_presence_simulation_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No presence-simulation information set." ),
+			undefined;
+
+		{ value, PscSimSettings } when is_list( PscSimSettings )
+				orelse is_tuple( PscSimSettings ) ->
+			?info_fmt( "The following configured presence-simulation settings "
+				"will be used: ~p", [ PscSimSettings ] ),
+			PscSimSettings;
+
+		{ value, NotPscSimSettings } ->
+			throw( { invalid_presence_simulation_settings, NotPscSimSettings,
+					 ?us_main_presence_simulation_key } )
 
 	end,
 
@@ -1369,11 +1397,11 @@ manage_home_automation( ConfigTable, State ) ->
 	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
 		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
 
-	HACoreSettings = { MaybePscSwitchEurid, OcSettings },
-
 	% Not specifically checked at this level; will be done by the home
 	% automation server:
 	%
+	HACoreSettings = { MaybePscSwitchEurid, MaybePscSimSettings, OcSettings },
+
 	setAttributes( State, [
 		{ server_location, MaybePosition },
 		{ home_automation_core_settings, HACoreSettings } ] ).
