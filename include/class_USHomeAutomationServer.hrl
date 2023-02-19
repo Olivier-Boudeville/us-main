@@ -51,6 +51,4 @@
 	% the light of day should be available (provided that the position of the
 	% server is known):
 	%
-	smart_lighting = true :: boolean()
-
- } ).
+	smart_lighting = true :: boolean() } ).
