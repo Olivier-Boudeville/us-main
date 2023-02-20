@@ -12,7 +12,7 @@ US_MAIN_TOP = .
 		stop stop-as-release                                               \
 		log cat-log tail-log                                               \
 		inspect monitor-development monitor-production                     \
-		kill shell test test-us-interactive test-ci                        \
+		kill test test-us-interactive test-ci                              \
 		sync-all-to-server-local                                           \
 		clean clean-logs real-clean clean-otp-build-tree clean-rebar-cache \
 		info info-local info-conditionals info-deps
@@ -314,9 +314,6 @@ monitor-production:
 kill:
 	-@killall epmd run_erl 2>/dev/null || true
 
-
-# Shorthand:
-shell: test-us-interactive
 
 
 # us_main auto-booted:
