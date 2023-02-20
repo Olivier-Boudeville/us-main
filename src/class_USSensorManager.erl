@@ -927,7 +927,7 @@ destruct( State ) ->
 readSensors( State ) ->
 
 	cond_utils:if_defined( us_main_debug_sensors,
-		?debug( "Reading sensors now." ) ),
+						   ?notice( "Reading sensors now." ) ),
 
 	ReadState = update_sensor_data( State ),
 
