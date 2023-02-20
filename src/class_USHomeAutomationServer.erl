@@ -153,7 +153,9 @@
 -type time_equation_table() :: table( day_in_the_year(), decimal_hour() ).
 % Time equation table, to correct sunrise/sunset times based on day rank.
 %
-% Maybe a simpler indexed list would have been sufficient.
+% A simpler indexed list would have been sufficient.
+%
+% See also https://en.wikipedia.org/wiki/Equation_of_time
 
 
 % Originally in
@@ -1073,9 +1075,10 @@ update_presence_simulations( PscSims, State ) ->
 -spec update_presence_simulations( [ presence_simulation() ], time(),
 		maybe( celestial_info() ), presence_table(), wooper:state() ) ->
 			wooper:state().
-update_presence_simulations( _PscSims=[], _CurrentTime, _MaybeCelestialInfo,
+update_presence_simulations( _PscSims=[], _CurrentTime, MaybeCelestialInfo,
 							 PscTable, State ) ->
-	setAttribute( State, presence_table, PscTable );
+	setAttributes( State, [ { presence_table, PscTable },
+						    { celestial_info, MaybeCelestialInfo } ] );
 
 update_presence_simulations( _PscSims=[
 		PscSim=#presence_simulation{ id=Id,
@@ -1450,8 +1453,11 @@ get_programmed_presence( _Slots=[], _Time ) ->
 	% No more presence slot, hence:
 	always_absent;
 
+% We must include the equal case in the tests, as by design we are awoken most
+% of the time at the exact threshold millisecond:
+%
 get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | T ], Time )
-								when Time > StopPscTime ->
+								when Time >= StopPscTime ->
 	% Time of interest not reached in the list, continuing:
 	get_programmed_presence( T, Time );
 
@@ -1463,7 +1469,7 @@ get_programmed_presence( _Slots=[ { StartPscTime, _StopPscTime } | _T ], Time )
 % We are in a slot:
 get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 						 _Time ) ->
-	% Implicit: StartPscTime <= Time <= StopPscTime; comparing to next midnight:
+	% Implicit: StartPscTime <= Time < StopPscTime; comparing to next midnight:
 	case StopPscTime < ?last_time of
 
 		true ->
