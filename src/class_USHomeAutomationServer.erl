@@ -1078,7 +1078,7 @@ update_presence_simulations( PscSims, State ) ->
 update_presence_simulations( _PscSims=[], _CurrentTime, MaybeCelestialInfo,
 							 PscTable, State ) ->
 	setAttributes( State, [ { presence_table, PscTable },
-						    { celestial_info, MaybeCelestialInfo } ] );
+							{ celestial_info, MaybeCelestialInfo } ] );
 
 update_presence_simulations( _PscSims=[
 		PscSim=#presence_simulation{ id=Id,
@@ -1486,16 +1486,21 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 -spec ensure_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_lighting( PscSim, _IsActivated=true, State ) ->
-	?debug_fmt( "Presence simulation #~B already activated, nothing to do.",
-				[ PscSim#presence_simulation.id ] ),
+
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug,
+			"Presence simulation #~B already activated, nothing to do.",
+			[ PscSim#presence_simulation.id ], State ) ),
+
 	PscSim;
 
 ensure_lighting( PscSim=#presence_simulation{
 							activation_telegrams=ActivationTelegrams },
 				 _IsActivated=false, State ) ->
 
-	?debug_fmt( "Activating presence simulation #~B.",
-				[ PscSim#presence_simulation.id ] ),
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "Activating presence simulation #~B.",
+			[ PscSim#presence_simulation.id ], State ) ),
 
 	send_telegram_pair( ActivationTelegrams, State ),
 
@@ -1510,8 +1515,9 @@ ensure_not_lighting( PscSim=#presence_simulation{
 								deactivation_telegrams=DeactivationTelegrams },
 					 _IsActivated=true, State ) ->
 
-	?debug_fmt( "Deactivating presence simulation #~B.",
-				[ PscSim#presence_simulation.id ] ),
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "Deactivating presence simulation #~B.",
+				[ PscSim#presence_simulation.id ], State ) ),
 
 	send_telegram_pair( DeactivationTelegrams, State ),
 
@@ -1519,8 +1525,12 @@ ensure_not_lighting( PscSim=#presence_simulation{
 
 
 ensure_not_lighting( PscSim, _IsActivated=false, State ) ->
-	?debug_fmt( "Presence simulation #~B already deactivated, nothing to do.",
-				[ PscSim#presence_simulation.id ] ),
+
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug,
+			"Presence simulation #~B already deactivated, nothing to do.",
+			[ PscSim#presence_simulation.id ], State ) ),
+
 	PscSim.
 
 
@@ -1562,10 +1572,12 @@ ensure_planned_presence_transition( PscSim, PlannedTime,
 ensure_planned_presence_transition( PscSim, PlannedTime,
 		_PrevPscTaskInfo={ PrevPscTaskId, PrevPlannedTime }, State ) ->
 
-	?warning_fmt( "Switching, for presence simulation #~B, planned time "
-		"from ~ts to ~ts.", [ PscSim#presence_simulation.id,
-			time_utils:time_to_string( PrevPlannedTime ),
-			time_utils:time_to_string( PlannedTime ) ] ),
+	% A priori may be legit:
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( notice, "Switching, for presence simulation #~B, "
+			"planned time from ~ts to ~ts.", [ PscSim#presence_simulation.id,
+				time_utils:time_to_string( PrevPlannedTime ),
+				time_utils:time_to_string( PlannedTime ) ], State ) ),
 
 	% Clearer:
 	%ClearedPsim = ensure_no_planned_presence_transition( PscSim,
@@ -1605,6 +1617,7 @@ ensure_no_planned_presence_transition( PscSim, { PscTaskId, _TaskTime },
 % needed:
 ensure_constant_light( _CurrentTime, _MaybeDawnTime=undefined,
 		_MaybeDuskTime, PscSim, IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace( debug, "Constant light requested, whereas no dawn, "
 			"supposedly no dusk either, constant darkness, hence constant "
@@ -1618,6 +1631,7 @@ ensure_constant_light( _CurrentTime, _MaybeDawnTime=undefined,
 % Before dawn here:
 ensure_constant_light( CurrentTime, DawnTime, _MaybeDuskTime=undefined, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) when CurrentTime < DawnTime ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Constant light requested, we are before "
 			"dawn, to happen at ~ts (and there is no dusk): lights (only) "
@@ -1631,6 +1645,7 @@ ensure_constant_light( CurrentTime, DawnTime, _MaybeDuskTime=undefined, PscSim,
 % After dawn here (implicit: CurrentTime >= DawnTime):
 ensure_constant_light( _CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 		PscSim, IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Constant light requested, we are "
 			"after dawn (was at ~ts) and there is no dusk: "
@@ -1647,6 +1662,7 @@ ensure_constant_light( _CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 % Here before dawn, still in darkness, thus lighting until dawn:
 ensure_constant_light( CurrentTime, DawnTime, _DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) when CurrentTime < DawnTime ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Constant light requested, we are before "
 			"dawn (at ~ts), still in darkness, thus lighting until dawn.",
@@ -1661,12 +1677,14 @@ ensure_constant_light( CurrentTime, DawnTime, _DuskTime, PscSim,
 %
 ensure_constant_light( CurrentTime, _DawnTime, DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) when CurrentTime < DuskTime ->
+
 	% In daylight, thus no lighting until dusk:
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Constant light requested, we are after "
 			"dawn but before dusk (at ~ts), thus in daylight, thus not "
 			"lighting until dusk.",
 			[ time_utils:time_to_string( DuskTime ) ], State ) ),
+
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 	ensure_planned_presence_transition( UnlitPscSim, DuskTime, MaybePscTaskInfo,
 										State );
@@ -1676,6 +1694,7 @@ ensure_constant_light( CurrentTime, _DawnTime, DuskTime, PscSim,
 %
 ensure_constant_light( _CurrentTime, _DawnTime, DuskTime, PscSim,
 					   IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Constant light requested, we are already "
 			"after dusk (was at ~ts), thus in darkness, thus lighting "
@@ -1702,6 +1721,7 @@ ensure_constant_light( _CurrentTime, _DawnTime, DuskTime, PscSim,
 % until stop time:
 ensure_light_until( StopTime, _CurrentTime, _MaybeDawnTime=undefined,
 		_MaybeDuskTime, PscSim, IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested until ~ts, no dawn, "
 			"supposedly no dusk either, constant darkness, hence "
@@ -1738,6 +1758,7 @@ ensure_light_until( StopTime, CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 ensure_light_until( _StopTime, _CurrentTime, _DawnTime,
 		_MaybeDuskTime=undefined, PscSim, IsActivated, MaybePscTaskInfo,
 		State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace( debug, "Light requested until a stop time, "
 			"we are already after dawn, no dusk, hence no lighting needed.",
@@ -1773,6 +1794,7 @@ ensure_light_until( StopTime, CurrentTime, DawnTime, _DuskTime, PscSim,
 %
 ensure_light_until( _StopTime, CurrentTime, _DawnTime, DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) when CurrentTime < DuskTime ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested until a stop time, yet "
 			"we are between dawn and dusk (~ts), hence no lighting needed.",
@@ -1788,6 +1810,7 @@ ensure_light_until( _StopTime, CurrentTime, _DawnTime, DuskTime, PscSim,
 %
 ensure_light_until( StopTime, _CurrentTime, _DawnTime, _DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested until ~ts, "
 			"we are after dusk, hence lighting before stop time.",
@@ -1812,10 +1835,12 @@ ensure_light_until( StopTime, _CurrentTime, _DawnTime, _DuskTime, PscSim,
 % needed from that start time:
 ensure_light_from( StartTime, _CurrentTime, _MaybeDawnTime=undefined,
 		_MaybeDuskTime, PscSim, IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested from ~ts, "
 			"lighting (only) from then, as there is no dawn.",
 			[ time_utils:time_to_string( StartTime ) ], State ) ),
+
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 	ensure_planned_presence_transition( UnlitPscSim, StartTime,
 										MaybePscTaskInfo, State );
@@ -1921,6 +1946,7 @@ ensure_light_from( StartTime, CurrentTime, DawnTime, DuskTime, PscSim,
 %
 ensure_light_from( _StartTime, CurrentTime, _DawnTime, DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) when CurrentTime < DuskTime ->
+
 	% In daylight, thus no lighting until at least dusk:
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested from a start time, yet "
@@ -1936,6 +1962,7 @@ ensure_light_from( _StartTime, CurrentTime, _DawnTime, DuskTime, PscSim,
 %
 ensure_light_from( StartTime, _CurrentTime, _DawnTime, DuskTime, PscSim,
 		IsActivated, MaybePscTaskInfo, State ) ->
+
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Light requested from start time ~ts, "
 			"which will require lighting, as we are already after dusk (~ts).",
@@ -2065,16 +2092,6 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 			[ time_utils:timestamp_to_string( UTCDuskTimestamp ),
 			  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
 
-	?debug_fmt( "Raw celestial timestamps are:~n"
-		" - in UTC time: ~ts for dawn and ~ts for dusk~n"
-		" - in local time (with time zone and DST, before applying "
-		"margins): ~ts for dawn and ~ts for dusk~n",
-		[ time_utils:timestamp_to_string( UTCDawnTimestamp ),
-		  time_utils:timestamp_to_string( UTCDuskTimestamp ),
-		  time_utils:timestamp_to_string( LocalDawnTimestamp ),
-		  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
-
-
 	% To account for dim daylight (forcing to switch on longer, in order to
 	% compensate for insufficient light), even if atmospheric refraction will
 	% help a bit, the following margins, expressed in seconds, apply:
@@ -2090,12 +2107,20 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 	RetainedDuskTime = time_utils:offset_time( LocalDuskTime,
 											   -EnoughLightBeforeDuskMargin ),
 
-	?debug_fmt( "For the specified server location (~ts) and date, "
-		"computed following deadlines this day (light margins included): "
-		"~ts for dawn and ~ts for dusk.",
+	?info_fmt( "For the specified server location (~ts) and date, "
+		"computed following deadlines this day (with some light "
+		"margins included): ~ts for dawn and ~ts for dusk.~n~n"
+		"Raw celestial timestamps were:~n"
+		" - in UTC time: ~ts for dawn and ~ts for dusk~n"
+		" - in local time (with time zone and DST, before applying "
+		"margins): ~ts for dawn and ~ts for dusk",
 		[ unit_utils:position_to_string( SrvLoc ),
 		  time_utils:time_to_string( RetainedDawnTime ),
-		  time_utils:time_to_string( RetainedDuskTime ) ] ),
+		  time_utils:time_to_string( RetainedDuskTime ),
+		  time_utils:timestamp_to_string( UTCDawnTimestamp ),
+		  time_utils:timestamp_to_string( UTCDuskTimestamp ),
+		  time_utils:timestamp_to_string( LocalDawnTimestamp ),
+		  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
 
 	{ Date, { RetainedDawnTime, RetainedDuskTime } }.
 
@@ -2180,8 +2205,9 @@ updatePresenceSimulation( State, PscId ) ->
 
 	PscSim = table:get_value( _K=PscId, PscTable ),
 
-	?debug_fmt( "Requested to update ~ts.",
-				[ presence_simulation_to_string( PscSim ) ] ),
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "Requested to update ~ts.",
+			[ presence_simulation_to_string( PscSim ) ], State ) ),
 
 	% Newer scheduling possibly planned:
 	{ UpdatedPscSim, MaybeCelestialInfo } = manage_presence_simulation( PscSim,
@@ -2767,9 +2793,20 @@ presence_simulation_to_string( #presence_simulation{
 		source_eurid=SourceEurid,
 		target_eurid=TargetEurid,
 		program=Program,
+		smart_lighting=IsSmart,
 		activation_telegrams={ PressOn, ReleaseOn },
 		deactivation_telegrams={ PressOff, ReleaseOff },
 		presence_task_info=MaybeTaskInfo } ) ->
+
+	SmartStr = case IsSmart of
+
+		true ->
+			"";
+
+		false ->
+			"not"
+
+	end,
 
 	PrgStr = case Program of
 
@@ -2805,7 +2842,7 @@ presence_simulation_to_string( #presence_simulation{
 	end,
 
 	text_utils:format( "presence simulation of id #~B, ~ts, "
-		"whose program ~ts~n"
+		"~tsusing smart lighting, whose program ~ts~n"
 		"Its source EURID is ~ts and target EURID is ~ts "
 		"(activation telegrams are ~ts for pressed, "
 		"~ts for released, deactivation telegrams are ~ts for pressed, "
@@ -2817,7 +2854,7 @@ presence_simulation_to_string( #presence_simulation{
 		  ++ case IsActivated of
 					true -> "activated";
 					false -> "non-activated"
-			 end, PrgStr,
+			 end, SmartStr, PrgStr,
 		  oceanic:eurid_to_string( SourceEurid ),
 		  oceanic:eurid_to_string( TargetEurid ),
 		  oceanic:telegram_to_string( PressOn ),
