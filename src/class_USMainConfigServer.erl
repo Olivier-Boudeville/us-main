@@ -1384,7 +1384,7 @@ manage_home_automation( ConfigTable, State ) ->
 		{ value, PscSimSettings } when is_list( PscSimSettings )
 				orelse is_tuple( PscSimSettings ) ->
 			?info_fmt( "The following configured presence-simulation settings "
-				"will be used: ~p", [ PscSimSettings ] ),
+				"will be used:~n ~p", [ PscSimSettings ] ),
 			PscSimSettings;
 
 		{ value, NotPscSimSettings } ->
