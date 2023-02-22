@@ -732,10 +732,10 @@ fans), and of reporting any abnormal situation" ).
 % User periodicity, hence in seconds:
 
 % Nominal one:
-%-define( default_sensor_poll_periodicity, 30 ).
+-define( default_sensor_poll_periodicity, 30 ).
 
 % For testing:
--define( default_sensor_poll_periodicity, 5 ).
+%-define( default_sensor_poll_periodicity, 5 ).
 
 
 
