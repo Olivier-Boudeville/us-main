@@ -32,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Sunday, January 1, 2023</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Wednesday, February 22, 2023</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.10</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.12</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -89,10 +89,12 @@
 </ul>
 </li>
 <li><a class="reference internal" href="#launching-us-main" id="toc-entry-23">Launching US-Main</a></li>
-<li><a class="reference internal" href="#support" id="toc-entry-24">Support</a></li>
-<li><a class="reference internal" href="#licence" id="toc-entry-25">Licence</a></li>
-<li><a class="reference internal" href="#please-react" id="toc-entry-26">Please React!</a></li>
-<li><a class="reference internal" href="#ending-word" id="toc-entry-27">Ending Word</a></li>
+<li><a class="reference internal" href="#monitoring-us-main" id="toc-entry-24">Monitoring US-Main</a></li>
+<li><a class="reference internal" href="#support" id="toc-entry-25">Support</a></li>
+<li><a class="reference internal" href="#licence" id="toc-entry-26">Licence</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-27">Credits</a></li>
+<li><a class="reference internal" href="#please-react" id="toc-entry-28">Please React!</a></li>
+<li><a class="reference internal" href="#ending-word" id="toc-entry-29">Ending Word</a></li>
 </ul>
 </div>
 <p></p>
@@ -111,6 +113,7 @@
 <li><a class="reference external" href="http://us-common.esperide.org/">US-Common</a> (for US base facilities)</li>
 <li>[optional] <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a> (for 3G connectivity, notably SMS sending, relying on the Gammu library)</li>
 <li>[optional] <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a> (prerequisite of Ceylan-Mobile, for a bridge from Erlang to the C language)</li>
+<li><a class="reference external" href="https://github.com/talentdeficit/jsx">jsx</a> (to parse JSON sensor outputs)</li>
 <li><a class="reference external" href="http://oceanic.esperide.org">Ceylan-Oceanic</a> (for the support of home automation, through the integration of Enocean devices and actuators; relies on <a class="reference external" href="https://github.com/Olivier-Boudeville/erlang-serial">our fork of erlang-serial</a>)</li>
 <li><a class="reference external" href="http://traces.esperide.org">Ceylan-Traces</a> (for advanced runtime traces)</li>
 <li><a class="reference external" href="http://wooper.esperide.org">Ceylan-WOOPER</a> (for OOP)</li>
@@ -128,15 +131,35 @@
 <h2><a class="toc-backref" href="#toc-entry-4">Home Automation</a></h2>
 <p>The US-Main server offers house automation services based on the <a class="reference external" href="https://en.wikipedia.org/wiki/EnOcean">Enocean protocol</a> and associated devices (sensors and actuators).</p>
 <p>These services are implemented thanks to our <a class="reference external" href="http://oceanic.esperide.org">Ceylan-Oceanic</a> library; please refer to it for a better understanding of EURIDs, base identifiers, telegrams and so on.</p>
+<p>A key point is to define the <a class="reference external" href="https://oceanic.esperide.org/#oceanic-settings">Oceanic settings</a>, so that the various devices involved can be monitored and correctly interpreted.</p>
 <div class="section" id="presence-simulator">
 <h3><a class="toc-backref" href="#toc-entry-5">Presence Simulator</a></h3>
-<p>The goal is to give to any observer from outside the impression that a building is occupied, typically by switching light(s) on and off as if people were inhabiting such a premise.</p>
-<p>For that US-Main will control an (Enocean) smart plug (itself able to toggle a well-chosen, low-consumption lamp), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) <tt class="docutils literal">time()</tt> (hence <tt class="docutils literal">{Hour,Minute,Second}</tt>), or the <tt class="docutils literal">dawn</tt> and <tt class="docutils literal">dusk</tt> symbolic deadlines (atoms), which are to be computed each day based on the longitude and the latitude specified by the user for the target location.</p>
-<p>By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a presence simulated (the general principle is to switch on a lamp during the busy hours of the day only if no natural light can be expected):</p>
+<p>The goal is to give to any outside observer the illusion that a building is currently inhabited, for example by switching light(s) on and off as if actual people were busy in such a premise.</p>
+<p>For that, US-Main will control an (Enocean) smart plug (itself able typically to toggle a well-chosen, low-consumption lamp visible from outside), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) intra-day <tt class="docutils literal">time()</tt> (hence <tt class="docutils literal">{Hour,Minute,Second}</tt>), or the <tt class="docutils literal">dawn</tt> and <tt class="docutils literal">dusk</tt> symbolic deadlines (atoms), which are then recomputed each day (based on the current date, and on the longitude and the latitude specified by the user for the location of the premise of interest).</p>
+<p>The general principle, if the so-called &quot;smart-lighting&quot; feature is enabled, is to switch on a lamp during the busy hours of the day iff no natural light can be expected. All possible cases are expected to be covered (even, for extreme latitudes, days without dawn and/or dusk).</p>
+<p>If smart lighting is not enabled, then during a slot of simulated presence, the actuator will be triggered unconditionally (that is whether daylight shall be expected or not).</p>
+<p>By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a simulated presence with smart lighting:</p>
 <ul class="simple">
-<li>from <tt class="docutils literal">TMorningStart = 7:30 AM</tt> to <tt class="docutils literal">TMorningStop</tt>, where <tt class="docutils literal">TMorningStop</tt> is the soonest deadline between 8:30 AM and dawn (of course no actuator triggered when <tt class="docutils literal">TMorningStop</tt> is sooner than <tt class="docutils literal">TMorningStart</tt>)</li>
-<li>from <tt class="docutils literal">TEveningStart</tt> to <tt class="docutils literal">TEveningStop = 11:45 PM</tt>, where <tt class="docutils literal">TEveningStart</tt> is the latest deadline between 7:00 PM and dusk (of course no actuator triggered when <tt class="docutils literal">TEveningStop</tt> is sooner than <tt class="docutils literal">TEveningStart</tt>)</li>
+<li>from <tt class="docutils literal">TMorningStart = 7:30 AM</tt> to <tt class="docutils literal">TMorningStop = 8:30 AM</tt>, unless any dawn is to happen concurrently</li>
+<li>from <tt class="docutils literal">TEveningStart = 6:30 PM</tt> to <tt class="docutils literal">TEveningStop = 11:45 PM</tt>, unless any dusk is to happen concurrently</li>
 </ul>
+<p>More generally, the user is free, through the <tt class="docutils literal">presence_simulation_settings</tt>, either to select a default policy or to specify their own presence program (constant presence or absence, or a list of presence slots), with or without smart lighting.</p>
+<p>For example, in one's US-Main configuration file of interest, possibly named <tt class="docutils literal"><span class="pre">foobar-us-main-for-production.config</span></tt>, as referenced in the <tt class="docutils literal">us_main_config_filename</tt> key of <tt class="docutils literal">us.config</tt> (both files being typically in <tt class="docutils literal"><span class="pre">/etc/xdg/universal-server</span></tt>) one may go for the default program:</p>
+<pre class="code erlang literal-block">
+<span class="c">% The EURID of any device (typically a push button or a double rocker)</span><span class="w">
+</span><span class="c">% that serves to indicate whether someone is at home:</span><span class="w">
+</span><span class="c">%</span><span class="w">
+</span><span class="p">{</span><span class="w"> </span><span class="n">presence_switching_actuator</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;004584A6&quot;</span><span class="w"> </span><span class="p">}.</span><span class="w">
+
+</span><span class="c">% The settings in terms of presence simulation:</span><span class="w">
+</span><span class="p">{</span><span class="w"> </span><span class="n">presence_simulation_settings</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">default</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}.</span>
+</pre>
+<p>If a user-specific program is preferred, here with a single slot, with default source and target EURIDs, and with smart lighting:</p>
+<pre class="code erlang literal-block">
+<span class="p">{</span><span class="w"> </span><span class="n">presence_simulation_settings</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="w">
+ </span><span class="p">{</span><span class="w"> </span><span class="n">presence_simulation_setting</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w">
+   </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">00</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">00</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">],</span><span class="w"> </span><span class="n">true</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}.</span>
+</pre>
 </div>
 <div class="section" id="alarm-system">
 <h3><a class="toc-backref" href="#toc-entry-6">Alarm System</a></h3>
@@ -165,10 +188,8 @@
 <p>From then, the sensor manager periodically monitors the various measurement points exhibited by such sensors: it does its best to filter bogus values, to detect abnormal changes and to report to the user any related issue.</p>
 <div class="section" id="preparing-the-setup">
 <h3><a class="toc-backref" href="#toc-entry-8">Preparing the Setup</a></h3>
-<p>The monitoring done by this server relies on the <tt class="docutils literal">sensors</tt> executable
-(typically <tt class="docutils literal">/usr/bin/sensors</tt>, obtained generally from a package of the same
-name and relying on <a class="reference external" href="https://github.com/lm-sensors/lm-sensors">lm-sensors</a>). One may install the <tt class="docutils literal"><span class="pre">i2c-tools</span></tt>
-package as well for DIMM information (see R2 below).</p>
+<p>The monitoring done by this server relies on the <tt class="docutils literal">sensors</tt> executable (typically <tt class="docutils literal">/usr/bin/sensors</tt>, obtained generally from a package of the same
+name and relying on <a class="reference external" href="https://github.com/lm-sensors/lm-sensors">lm-sensors</a>). One may install the <tt class="docutils literal"><span class="pre">i2c-tools</span></tt> package as well for DIMM information (see R2 below).</p>
 <p>The <tt class="docutils literal"><span class="pre">sensors-detect</span></tt> script must have been run once by root beforehand (select then only the default, safer options, by hitting Enter repeatedly or simply use its <tt class="docutils literal"><span class="pre">--auto</span></tt> option), in order to configure sensors.</p>
 <p>Sensor configuration is typically stored in <tt class="docutils literal">/etc/sensors3.conf</tt>, and must exist prior to running the US-Main server.</p>
 </div>
@@ -209,14 +230,14 @@ package as well for DIMM information (see R2 below).</p>
 <h4>Chassis Intrusion</h4>
 <p>In this last case, prior to launching the US server, one may try to reset them; for example, as root:</p>
 <pre class="code bash literal-block">
-$ ls -l /sys/class/hwmon/hwmon*/intrusion*
--rw-r--r-- <span class="m">1</span> root root <span class="m">4096</span> Jul <span class="m">11</span> <span class="m">19</span>:30 /sys/class/hwmon/hwmon3/intrusion0_alarm
--rw-r--r-- <span class="m">1</span> root root <span class="m">4096</span> Jul  <span class="m">8</span> <span class="m">21</span>:46 /sys/class/hwmon/hwmon3/intrusion0_beep
--rw-r--r-- <span class="m">1</span> root root <span class="m">4096</span> Jul <span class="m">11</span> <span class="m">19</span>:30 /sys/class/hwmon/hwmon3/intrusion1_alarm
--rw-r--r-- <span class="m">1</span> root root <span class="m">4096</span> Jul  <span class="m">8</span> <span class="m">21</span>:46 /sys/class/hwmon/hwmon3/intrusion1_beep
-$ <span class="nb">echo</span> <span class="m">0</span> &gt;<span class="p">|</span> /sys/class/hwmon/hwmon3/intrusion1_alarm
-$ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
-<span class="m">1</span>
+$<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/sys/class/hwmon/hwmon*/intrusion*<span class="w">
+</span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>root<span class="w"> </span><span class="m">4096</span><span class="w"> </span>Jul<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">19</span>:30<span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion0_alarm<span class="w">
+</span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>root<span class="w"> </span><span class="m">4096</span><span class="w"> </span>Jul<span class="w">  </span><span class="m">8</span><span class="w"> </span><span class="m">21</span>:46<span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion0_beep<span class="w">
+</span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>root<span class="w"> </span><span class="m">4096</span><span class="w"> </span>Jul<span class="w"> </span><span class="m">11</span><span class="w"> </span><span class="m">19</span>:30<span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion1_alarm<span class="w">
+</span>-rw-r--r--<span class="w"> </span><span class="m">1</span><span class="w"> </span>root<span class="w"> </span>root<span class="w"> </span><span class="m">4096</span><span class="w"> </span>Jul<span class="w">  </span><span class="m">8</span><span class="w"> </span><span class="m">21</span>:46<span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion1_beep<span class="w">
+</span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>&gt;<span class="p">|</span><span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion1_alarm<span class="w">
+</span>$<span class="w"> </span>cat<span class="w"> </span>/sys/class/hwmon/hwmon3/intrusion1_alarm<span class="w">
+</span><span class="m">1</span>
 </pre>
 <p>As shown, this may not succeed.</p>
 </div>
@@ -298,7 +319,7 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 <div class="section" id="communication-gateway-1">
 <span id="communication-gateway"></span><h2><a class="toc-backref" href="#toc-entry-13">Communication Gateway</a></h2>
 <p>The purpose of the US Communication Gateway is to enable (possibly two-way) exchanges with the US users.</p>
-<p>Such communication is not to happen frow a web-based medium (see <a class="reference external" href="http://us-web.esperide.org">US-Web</a> for that), but through alternate modes such as SMS (relying then on <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a>) and/or e-mails (relying then on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl">the corresponding services of Ceylan-Myriad</a>).</p>
+<p>Such communication is not to happen frow a web-based medium (see <a class="reference external" href="http://us-web.esperide.org">US-Web</a> for that), but through alternate modes such as SMS (relying then on <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a>, itself relying on <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a>) and/or e-mails (relying then on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl">the corresponding services of Ceylan-Myriad</a>).</p>
 <p>For that, the correspondance between a US role (ex: <tt class="docutils literal">administrator</tt>) and actual user information is established thanks to the <a class="reference internal" href="#contact-directory">contact directory</a> service.</p>
 </div>
 <div class="section" id="network-support-monitoring">
@@ -343,7 +364,13 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 <span class="p">{</span><span class="n">us_main_config_filename</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;us-main-for-tests.config&quot;</span><span class="p">}.</span>
 </pre>
 <p>This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main scripts</a>, notably in order to start, stop, or monitor a designated US-Main server.</p>
-<p>For operational use, we recommend to create a US-Main specific user (to be set in the <tt class="docutils literal">us_username</tt> entry of one's <tt class="docutils literal">us.config</tt> file), in order to compartmentalise the accesses to resources.</p>
+<p>For operational use, we recommend to create a US-Main specific user (to be set in the <tt class="docutils literal">us_username</tt> entry of one's <tt class="docutils literal">us.config</tt> file), in order to compartmentalise the accesses to resources. For example, provided a <tt class="docutils literal"><span class="pre">us-srv</span></tt> group has already been created:</p>
+<pre class="code bash literal-block">
+$<span class="w"> </span>useradd<span class="w"> </span>--create-home<span class="w"> </span>--shell<span class="w"> </span>/bin/rssh<span class="w"> </span>-g<span class="w"> </span>us-srv<span class="w"> </span>main-srv
+</pre>
+<p>The <a class="reference internal" href="#communication-gateway">communication gateway</a> will rely on Ceylan-Mobile to send SMS. For that, a suitable 3G device (typically a USB key) will have to be used.</p>
+<p>As mentioned <a class="reference external" href="https://mobile.esperide.org/#managing-dev-ttyusb-entries">in this section</a>, proper permissions must apply, so that the user (e.g. <tt class="docutils literal"><span class="pre">main-srv</span></tt>) running US-Main is able to interact with the 3G device (e.g. <tt class="docutils literal"><span class="pre">/dev/ttyUSB-my-3G-key</span></tt>).</p>
+<p>So <tt class="docutils literal">gpasswd <span class="pre">-a</span> <span class="pre">main-srv</span> uucp</tt> can be executed as root (and possibly <tt class="docutils literal"><span class="pre">main-srv</span></tt> may run <tt class="docutils literal">newgrp uucp</tt>).</p>
 </div>
 <div class="section" id="installing-us-main-current-stable-version-download">
 <span id="installation"></span><h1><a class="toc-backref" href="#toc-entry-18">Installing US-Main: Current Stable Version &amp; Download</a></h1>
@@ -359,37 +386,37 @@ $ cat /sys/class/hwmon/hwmon3/intrusion1_alarm
 <p>This is more or less a manual, more limited version of the previous deployment script.</p>
 <p>Once Erlang is available, it should be just a matter of executing:</p>
 <pre class="code bash literal-block">
-$ git clone https://github.com/Olivier-Boudeville/Ceylan-Myriad myriad
-$ <span class="nb">cd</span> myriad <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-Myriad<span class="w"> </span>myriad<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>myriad<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
-$ git clone https://github.com/Olivier-Boudeville/Ceylan-WOOPER wooper
-$ <span class="nb">cd</span> wooper <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-WOOPER<span class="w"> </span>wooper<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>wooper<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
-$ git clone https://github.com/Olivier-Boudeville/Ceylan-Traces traces
-$ <span class="nb">cd</span> traces <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
-
-
-<span class="c1"># Possibly:
-</span>$ git clone https://github.com/Olivier-Boudeville/erlang-serial
-$ <span class="nb">cd</span> erlang-serial <span class="o">&amp;&amp;</span> make <span class="o">&amp;&amp;</span> <span class="nv">DESTDIR</span><span class="o">=</span>. make install <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
-
-$ git clone https://github.com/Olivier-Boudeville/Ceylan-Oceanic oceanic
-$ <span class="nb">cd</span> oceanic <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-Traces<span class="w"> </span>traces<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>traces<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
 
-<span class="c1"># Also possibly:
-</span>$ git clone https://github.com/Olivier-Boudeville/Ceylan-Seaplus seaplus
-$ <span class="nb">cd</span> seaplus <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span><span class="c1"># Possibly:
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/erlang-serial<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>erlang-serial<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nv">DESTDIR</span><span class="o">=</span>.<span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
-$ git clone https://github.com/Olivier-Boudeville/Ceylan-Mobile mobile
-$ <span class="nb">cd</span> mobile <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-Oceanic<span class="w"> </span>oceanic<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>oceanic<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
 
-$ git clone https://github.com/Olivier-Boudeville/us-common
-$ <span class="nb">cd</span> us-common <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span><span class="c1"># Also possibly:
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-Seaplus<span class="w"> </span>seaplus<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>seaplus<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
 
-$ git clone https://github.com/Olivier-Boudeville/us-main
-$ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all <span class="o">&amp;&amp;</span> <span class="nb">cd</span> ..
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/Ceylan-Mobile<span class="w"> </span>mobile<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>mobile<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
+
+
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/us-common<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>us-common<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..<span class="w">
+
+</span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Olivier-Boudeville/us-main<span class="w">
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>us-main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>all<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
 </pre>
 </div>
 <div class="section" id="rebar3-based-build">
@@ -415,9 +442,9 @@ $ <span class="nb">cd</span> us-main <span class="o">&amp;&amp;</span> make all 
 <p>In this last case, first a symbolic link pointing to this script shall be typically created in the <tt class="docutils literal">/usr/local/bin</tt> directory of the host of interest. Then the server is to be triggered based on <tt class="docutils literal"><span class="pre">/etc/systemd/system/us-main-as-native-build.service</span></tt> (see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service">us-main-as-native-build.service</a>).</p>
 <p>For example:</p>
 <pre class="code bash literal-block">
-$ systemctl start us-main-as-native-build
-$ journalctl --pager-end --unit<span class="o">=</span>us-main-as-native-build.service
-$ systemctl <span class="nb">enable</span> us-main-as-native-build
+$<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>us-main-as-native-build<span class="w">
+</span>$<span class="w"> </span>journalctl<span class="w"> </span>--pager-end<span class="w"> </span>--unit<span class="o">=</span>us-main-as-native-build.service<span class="w">
+</span>$<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>us-main-as-native-build
 </pre>
 <p>Then one may run <tt class="docutils literal"><span class="pre">monitor-us-main.sh</span></tt> to browse its traces live at any time.</p>
 <p>Like notified in the start-up message:</p>
@@ -436,22 +463,36 @@ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-
 <p>one may use <tt class="docutils literal">to_erl</tt> to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means <em>killing</em> that node; prefer CTRL-D (once).</p>
 <p>For further information one may refer to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main shell scripts</a>, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).</p>
 </div>
+<div class="section" id="monitoring-us-main">
+<h1><a class="toc-backref" href="#toc-entry-24">Monitoring US-Main</a></h1>
+<p>If using the default US-Main EPMD port, checking whether an instance is running is as simple as:</p>
+<pre class="code bash literal-block">
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ERL_EPMD_PORT</span><span class="o">=</span><span class="m">4507</span><span class="w"> </span><span class="p">;</span><span class="w"> </span>epmd<span class="w"> </span>-names<span class="w">
+</span>epmd:<span class="w"> </span>up<span class="w"> </span>and<span class="w"> </span>running<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">4507</span><span class="w"> </span>with<span class="w"> </span>data:<span class="w">
+</span>name<span class="w"> </span>us_main<span class="w"> </span>at<span class="w"> </span>port<span class="w"> </span><span class="m">50002</span>
+</pre>
+<p>Then executing <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).</p>
+</div>
 <div class="section" id="support">
-<h1><a class="toc-backref" href="#toc-entry-24">Support</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-25">Support</a></h1>
 <p>Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">project interface</a> (typically <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/issues">issues</a>) or directly at the email address mentioned at the beginning of this document.</p>
 </div>
 <div class="section" id="licence">
-<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-25">Licence</a></h1>
+<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-26">Licence</a></h1>
 <p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
 <p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
 <p>We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.</p>
 </div>
+<div class="section" id="credits">
+<h1><a class="toc-backref" href="#toc-entry-27">Credits</a></h1>
+<p>Many thanks to David Alberto for <a class="reference external" href="https://www.astrolabe-science.fr/duree-du-jour-et-latitude/">his kind sharing in terms of computation of latitude-based daylight durations</a> (in French).</p>
+</div>
 <div class="section" id="please-react">
-<h1><a class="toc-backref" href="#toc-entry-26">Please React!</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-28">Please React!</a></h1>
 <p>If you have information more detailed or more recent than those presented in this document, if you noticed errors, neglects or points insufficiently discussed, drop us a line! (for that, follow the <a class="reference internal" href="#support">Support</a> guidelines).</p>
 </div>
 <div class="section" id="ending-word">
-<h1><a class="toc-backref" href="#toc-entry-27">Ending Word</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-29">Ending Word</a></h1>
 <p>Have fun with the Universal Server!</p>
 <p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-small"></img></center></span>
 </p>

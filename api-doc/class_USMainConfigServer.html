@@ -36,13 +36,25 @@
 <p><tt>attribute_value() = <a href="wooper.html#type-attribute_value">wooper:attribute_value()</a></tt></p>
 
 
+<h3 class="typedecl"><a name="type-bin_directory_path">bin_directory_path()</a></h3>
+<p><tt>bin_directory_path() = <a href="file_utils.html#type-bin_directory_path">file_utils:bin_directory_path()</a></tt></p>
+
+
 <h3 class="typedecl"><a name="type-classname">classname()</a></h3>
 <p><tt>classname() = <a href="wooper.html#type-classname">wooper:classname()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-eurid">eurid()</a></h3>
+<p><tt>eurid() = <a href="oceanic.html#type-eurid">oceanic:eurid()</a></tt></p>
 
 
 <h3 class="typedecl"><a name="type-general_main_settings">general_main_settings()</a></h3>
 <p><tt>general_main_settings() = #general_main_settings{}</tt></p>
 
+
+<h3 class="typedecl"><a name="type-home_automation_settings">home_automation_settings()</a></h3>
+<p><tt>home_automation_settings() = {<a href="#type-maybe">maybe</a>(<a href="#type-user_server_location">user_server_location()</a>), BinAppBaseDirectoryPath::<a href="#type-bin_directory_path">bin_directory_path()</a>, MaybePscSwitchEurid::<a href="#type-maybe">maybe</a>(<a href="#type-eurid">eurid()</a>), <a href="#type-oceanic_settings">oceanic_settings()</a>}</tt></p>
+<p> Settings gathered on behalf of the home automation server.</p>
 
 <h3 class="typedecl"><a name="type-instance_pid">instance_pid()</a></h3>
 <p><tt>instance_pid() = pid()</tt></p>
@@ -62,6 +74,10 @@
 
 <h3 class="typedecl"><a name="type-method_name">method_name()</a></h3>
 <p><tt>method_name() = <a href="wooper.html#type-method_name">wooper:method_name()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-oceanic_settings">oceanic_settings()</a></h3>
+<p><tt>oceanic_settings() = <a href="oceanic.html#type-oceanic_settings">oceanic:oceanic_settings()</a></tt></p>
 
 
 <h3 class="typedecl"><a name="type-oneway_name">oneway_name()</a></h3>
@@ -85,7 +101,7 @@
 
 
 <h3 class="typedecl"><a name="type-request_return">request_return()</a></h3>
-<p><tt>request_return(T) = <a href="wooper.html#type-request_result">wooper:request_result</a>(T)</tt></p>
+<p><tt>request_return(T) = <a href="wooper.html#type-request_return">wooper:request_return</a>(T)</tt></p>
 
 
 <h3 class="typedecl"><a name="type-requests_outcome">requests_outcome()</a></h3>
@@ -104,11 +120,10 @@ from the sensor monitoring section of the US-Main configuration.</p>
  Expected to be specified in the form [user_muted_sensor_measurements()]:
  UserMutedMeasurements = [
    { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
-   { { acpitz, acpi, "0" }, all_points }
-                         ].</p>
+   { { acpitz, acpi, "0" }, all_points } ].</p>
 
 <h3 class="typedecl"><a name="type-user_server_location">user_server_location()</a></h3>
-<p><tt>user_server_location() = {float(), float()}</tt></p>
+<p><tt>user_server_location() = {LatDegrees::float(), LongDegrees::float()}</tt></p>
 <p> Checked more precisely as a position() in the home automation server.</p>
 
 <h2><a name="index">Function Index</a></h2>
@@ -429,7 +444,7 @@ server.</p>
 
 <h3 class="function"><a name="wooper_execute_method_as-4">wooper_execute_method_as/4</a></h3>
 <div class="spec">
-<p><tt>wooper_execute_method_as(Classname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
+<p><tt>wooper_execute_method_as(ParentClassname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
 <p> </p>
 </div>
 

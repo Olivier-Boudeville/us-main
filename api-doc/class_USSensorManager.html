@@ -50,6 +50,11 @@
 <p><tt>instance_pid() = pid()</tt></p>
 
 
+<h3 class="typedecl"><a name="type-intrusion_detected_status">intrusion_detected_status()</a></h3>
+<p><tt>intrusion_detected_status() = boolean()</tt></p>
+<p> A status regarding the detection of a chassis intrusion: false if nothing
+ detected, true if an intrusion apparently happened.</p>
+
 <h3 class="typedecl"><a name="type-method_argument">method_argument()</a></h3>
 <p><tt>method_argument() = <a href="wooper.html#type-method_argument">wooper:method_argument()</a></tt></p>
 
@@ -100,7 +105,7 @@
 
 
 <h3 class="typedecl"><a name="type-request_return">request_return()</a></h3>
-<p><tt>request_return(T) = <a href="wooper.html#type-request_result">wooper:request_result</a>(T)</tt></p>
+<p><tt>request_return(T) = <a href="wooper.html#type-request_return">wooper:request_return</a>(T)</tt></p>
 
 
 <h3 class="typedecl"><a name="type-requests_outcome">requests_outcome()</a></h3>
@@ -125,25 +130,20 @@
 <p> Kept as a (binary) string (even if is an hexadecimal value), for clarity.
  For example <code>&lt;&lt;"0a20"&gt;&gt;</code>.</p>
 
-<h3 class="typedecl"><a name="type-temp_alert_state">temp_alert_state()</a></h3>
-<p><tt>temp_alert_state() = critical_high | alarm_high | nominal | alarm_low | critical_low</tt></p>
-<p> The temperature-related alert state of a measurement point. Allows to report
- issues once, rather than repeatedly.</p>
-
 <h3 class="typedecl"><a name="type-user_muted_points">user_muted_points()</a></h3>
 <p><tt>user_muted_points() = [<a href="#type-user_specified_point">user_specified_point()</a>] | all_points</tt></p>
 <p><p> of a given sensor 
 User specification of measurement points to be muted for a given sensor (they 
-shall not be taken into account typically because they are known to report 
+shall not be taken into account, typically because they are known to report 
 bogus values).</p>
 
- At least currently, they mostly apply to temperature sensors.</p>
+ At least currently, this mostly applies to temperature sensors.</p>
 
 <h3 class="typedecl"><a name="type-user_muted_sensor_measurements">user_muted_sensor_measurements()</a></h3>
 <p><tt>user_muted_sensor_measurements() = [{<a href="#type-user_muted_sensor_spec">user_muted_sensor_spec()</a>, <a href="#type-user_muted_points">user_muted_points()</a>}]</tt></p>
 <p><p> User specification of sensor measurements to be muted.</p>
 
- <p>At least currently, they mostly apply to temperature sensors.</p>
+ <p>At least currently, this mostly applies to temperature sensors.</p>
 
  Corresponds to the legit settings expected as
  class_USMainConfigServer:user_muted_sensor_points(); may be for example:
@@ -197,7 +197,8 @@ bogus values).</p>
 <tr><td valign="top"><a href="#incrementAttribute-2">incrementAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#init-1">init/1</a></td><td>Callback to initialise this supervisor bridge, typically in answer to
  start_link/0 being executed.</td></tr>
-<tr><td valign="top"><a href="#intrusion_status_to_string-1">intrusion_status_to_string/1</a></td><td>Returns a textual description of the specified intrusion status.</td></tr>
+<tr><td valign="top"><a href="#intrusion_status_to_string-1">intrusion_status_to_string/1</a></td><td>Returns a textual description of the specified intrusion detection
+ status.</td></tr>
 <tr><td valign="top"><a href="#is_wooper_debug-0">is_wooper_debug/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#popFromAttribute-2">popFromAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#removeAttribute-2">removeAttribute/2</a></td><td></td></tr>
@@ -394,9 +395,11 @@ bogus values).</p>
 
 <h3 class="function"><a name="intrusion_status_to_string-1">intrusion_status_to_string/1</a></h3>
 <div class="spec">
-<p><tt>intrusion_status_to_string(IntrusStatus::<a href="#type-temp_alert_state">temp_alert_state()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
+<p><tt>intrusion_status_to_string(IntrusStatus::<a href="#type-intrusion_detected_status">intrusion_detected_status()</a>) -&gt; <a href="#type-ustring">ustring()</a></tt><br></p>
 <p> </p>
-</div><p>Returns a textual description of the specified intrusion status.</p>
+</div><p>Returns a textual description of the specified intrusion detection
+ status.
+</p>
 
 <h3 class="function"><a name="is_wooper_debug-0">is_wooper_debug/0</a></h3>
 <div class="spec">
@@ -483,7 +486,7 @@ bogus values).</p>
 
 <h3 class="function"><a name="wooper_execute_method_as-4">wooper_execute_method_as/4</a></h3>
 <div class="spec">
-<p><tt>wooper_execute_method_as(Classname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
+<p><tt>wooper_execute_method_as(ParentClassname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
 <p> </p>
 </div>
 

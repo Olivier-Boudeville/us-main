@@ -92,13 +92,20 @@ given (implicit) location and date.</p>
 <p><tt>presence_milestone() = <a href="#type-time">time()</a> | dawn | dusk</tt></p>
 
 
+<h3 class="typedecl"><a name="type-presence_program">presence_program()</a></h3>
+<p><tt>presence_program() = [<a href="#type-presence_slot">presence_slot()</a>] | constant_presence | constant_absence</tt></p>
+<p><p> A intra-day general program regarding a presence to simulate.</p>
+
+ If slots are used, at least one shall be defined (otherwise one of the
+ constant_* atoms shall be used).</p>
+
 <h3 class="typedecl"><a name="type-presence_simulation_setting">presence_simulation_setting()</a></h3>
 <p><tt>presence_simulation_setting() = #presence_simulation_setting{source_eurid = <a href="#type-maybe">maybe</a>(<a href="oceanic.html#type-eurid_string">oceanic:eurid_string()</a>), target_eurid = <a href="#type-maybe">maybe</a>(<a href="oceanic.html#type-eurid_string">oceanic:eurid_string()</a>), presence_program = <a href="class_USHomeAutomationServer.html#type-presence_program">class_USHomeAutomationServer:presence_program()</a>, smart_lighting = boolean()}</tt></p>
 <p> Setting of a given instance of presence simulation.</p>
 
 <h3 class="typedecl"><a name="type-presence_simulation_settings">presence_simulation_settings()</a></h3>
 <p><tt>presence_simulation_settings() = {default, MaybeTargetActuatorEurid::<a href="#type-maybe">maybe</a>(<a href="#type-eurid">eurid()</a>)} | [<a href="#type-presence_simulation_setting">presence_simulation_setting()</a>]</tt></p>
-<p> All settings for a whole presence simulation service.</p>
+<p> All (user-level) settings for a whole presence simulation service.</p>
 
 <h3 class="typedecl"><a name="type-presence_slot">presence_slot()</a></h3>
 <p><tt>presence_slot() = {Start::<a href="#type-presence_milestone">presence_milestone()</a>, Stop::<a href="#type-presence_milestone">presence_milestone()</a>}</tt></p>
@@ -117,7 +124,7 @@ given (implicit) location and date.</p>
 
 
 <h3 class="typedecl"><a name="type-request_return">request_return()</a></h3>
-<p><tt>request_return(T) = <a href="wooper.html#type-request_result">wooper:request_result</a>(T)</tt></p>
+<p><tt>request_return(T) = <a href="wooper.html#type-request_return">wooper:request_return</a>(T)</tt></p>
 
 
 <h3 class="typedecl"><a name="type-requests_outcome">requests_outcome()</a></h3>
@@ -126,6 +133,22 @@ given (implicit) location and date.</p>
 
 <h3 class="typedecl"><a name="type-time">time()</a></h3>
 <p><tt>time() = <a href="time_utils.html#type-time">time_utils:time()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-trace_format">trace_format()</a></h3>
+<p><tt>trace_format() = <a href="text_utils.html#type-trace_format">text_utils:trace_format()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-trace_message">trace_message()</a></h3>
+<p><tt>trace_message() = <a href="trace_utils.html#type-trace_message">trace_utils:trace_message()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-trace_severity">trace_severity()</a></h3>
+<p><tt>trace_severity() = <a href="trace_utils.html#type-trace_severity">trace_utils:trace_severity()</a></tt></p>
+
+
+<h3 class="typedecl"><a name="type-trace_values">trace_values()</a></h3>
+<p><tt>trace_values() = <a href="text_utils.html#type-trace_values">text_utils:trace_values()</a></tt></p>
 
 
 <h2><a name="index">Function Index</a></h2>
@@ -151,6 +174,7 @@ given (implicit) location and date.</p>
 <tr><td valign="top"><a href="#executeRequest-3">executeRequest/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#executeRequestAs-3">executeRequestAs/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#executeRequestAs-4">executeRequestAs/4</a></td><td></td></tr>
+<tr><td valign="top"><a href="#from_decimal_hour-1">from_decimal_hour/1</a></td><td>Converts a decimal hour to hours and minutes.</td></tr>
 <tr><td valign="top"><a href="#getAttribute-2">getAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#getAttributes-2">getAttributes/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#getMaybeAttribute-2">getMaybeAttribute/2</a></td><td></td></tr>
@@ -161,6 +185,10 @@ given (implicit) location and date.</p>
 <tr><td valign="top"><a href="#is_wooper_debug-0">is_wooper_debug/0</a></td><td></td></tr>
 <tr><td valign="top"><a href="#popFromAttribute-2">popFromAttribute/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#removeAttribute-2">removeAttribute/2</a></td><td></td></tr>
+<tr><td valign="top"><a href="#send_psc_trace-3">send_psc_trace/3</a></td><td>Sends the specified presence simulation trace, to have it correctly
+ categorised.</td></tr>
+<tr><td valign="top"><a href="#send_psc_trace_fmt-4">send_psc_trace_fmt/4</a></td><td>Sends the specified presence simulation formatted trace, to have it
+ correctly categorised.</td></tr>
 <tr><td valign="top"><a href="#setAttribute-3">setAttribute/3</a></td><td></td></tr>
 <tr><td valign="top"><a href="#setAttributes-2">setAttributes/2</a></td><td></td></tr>
 <tr><td valign="top"><a href="#start_link-0">start_link/0</a></td><td>Starts and links a supervision bridge for the home automation system.</td></tr>
@@ -314,6 +342,12 @@ given (implicit) location and date.</p>
 <p> </p>
 </div>
 
+<h3 class="function"><a name="from_decimal_hour-1">from_decimal_hour/1</a></h3>
+<div class="spec">
+<p><tt>from_decimal_hour(DecHour::float()) -&gt; <a href="time_utils.html#type-time">time_utils:time()</a></tt><br></p>
+<p> </p>
+</div><p>Converts a decimal hour to hours and minutes.</p>
+
 <h3 class="function"><a name="getAttribute-2">getAttribute/2</a></h3>
 <div class="spec">
 <p><tt>getAttribute(State::<a href="wooper.html#type-state">wooper:state()</a>, AttributeName::<a href="#type-attribute_name">attribute_name()</a>) -&gt; <a href="#type-attribute_value">attribute_value()</a></tt><br></p>
@@ -369,6 +403,22 @@ given (implicit) location and date.</p>
 <p><tt>removeAttribute(State::<a href="wooper.html#type-state">wooper:state()</a>, AttributeName::<a href="#type-attribute_name">attribute_name()</a>) -&gt; <a href="wooper.html#type-state">wooper:state()</a></tt><br></p>
 <p> </p>
 </div>
+
+<h3 class="function"><a name="send_psc_trace-3">send_psc_trace/3</a></h3>
+<div class="spec">
+<p><tt>send_psc_trace(TraceSeverity::<a href="#type-trace_severity">trace_severity()</a>, TraceMsg::<a href="#type-trace_message">trace_message()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; <a href="#type-void">void()</a></tt><br></p>
+<p> </p>
+</div><p>Sends the specified presence simulation trace, to have it correctly
+ categorised.
+</p>
+
+<h3 class="function"><a name="send_psc_trace_fmt-4">send_psc_trace_fmt/4</a></h3>
+<div class="spec">
+<p><tt>send_psc_trace_fmt(TraceSeverity::<a href="#type-trace_severity">trace_severity()</a>, TraceFormat::<a href="#type-trace_format">trace_format()</a>, TraceValues::<a href="#type-trace_values">trace_values()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; <a href="#type-void">void()</a></tt><br></p>
+<p> </p>
+</div><p>Sends the specified presence simulation formatted trace, to have it
+ correctly categorised.
+</p>
 
 <h3 class="function"><a name="setAttribute-3">setAttribute/3</a></h3>
 <div class="spec">
@@ -437,7 +487,7 @@ given (implicit) location and date.</p>
 
 <h3 class="function"><a name="wooper_execute_method_as-4">wooper_execute_method_as/4</a></h3>
 <div class="spec">
-<p><tt>wooper_execute_method_as(Classname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
+<p><tt>wooper_execute_method_as(ParentClassname::<a href="#type-classname">classname()</a>, MethodAtom::<a href="#type-method_name">method_name()</a>, Parameters::<a href="#type-method_arguments">method_arguments()</a>, State::<a href="wooper.html#type-state">wooper:state()</a>) -&gt; {<a href="wooper.html#type-state">wooper:state()</a>, <a href="#type-method_internal_result">method_internal_result()</a>}</tt><br></p>
 <p> </p>
 </div>
 
