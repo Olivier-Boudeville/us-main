@@ -123,20 +123,20 @@ A key point is to define the `Oceanic settings <https://oceanic.esperide.org/#oc
 Presence Simulator
 ------------------
 
-The goal is to give to any outside observer the impression that a building is currently inhabited, for example by switching light(s) on and off as if actual people were busy in such a premise.
+The goal is to give to any outside observer the illusion that a building is currently inhabited, for example by switching light(s) on and off as if actual people were busy in such a premise.
 
-For that, US-Main will control an (Enocean) smart plug (itself able typically to toggle a well-chosen, low-consumption lamp visible from outside), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) intra-day ``time()`` (hence ``{Hour,Minute,Second}``), or the ``dawn`` and ``dusk`` symbolic deadlines (atoms), which are then computed each day based on the longitude and the latitude specified by the user for the location of the premise of interest.
+For that, US-Main will control an (Enocean) smart plug (itself able typically to toggle a well-chosen, low-consumption lamp visible from outside), based on intra-day logical presence slots. Such a slot is defined by two milestones, a start and a stop one (respectively to switch the smart plug on and off), which may be either a (fixed) intra-day ``time()`` (hence ``{Hour,Minute,Second}``), or the ``dawn`` and ``dusk`` symbolic deadlines (atoms), which are then recomputed each day (based on the current date, and on the longitude and the latitude specified by the user for the location of the premise of interest).
 
-The general principle, if the so-called "smart-lighting" feature is enabled, is to switch on a lamp during the busy hours of the day iff no natural light can be expected.
+The general principle, if the so-called "smart-lighting" feature is enabled, is to switch on a lamp during the busy hours of the day iff no natural light can be expected. All possible cases are expected to be covered (even, for extreme latitudes, days without dawn and/or dusk).
 
-If not smart lighting is enabled, then during a slot of simulated presence, the actuator will be triggered unconditionally (that is whether daylight shall be expected or not).
+If smart lighting is not enabled, then during a slot of simulated presence, the actuator will be triggered unconditionally (that is whether daylight shall be expected or not).
 
-By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a simulated presence:
+By default, the following single intra-day logical presence slots, controlling a single set of actuators, are defined, for a simulated presence with smart lighting:
 
-- from ``TMorningStart = 7:30 AM`` to ``TMorningStop``, where ``TMorningStop`` is the soonest deadline between 8:30 AM and dawn (of course no actuator triggered when ``TMorningStop`` is sooner than ``TMorningStart``)
-- from ``TEveningStart`` to ``TEveningStop = 11:45 PM``, where ``TEveningStart`` is the latest deadline between 7:00 PM and dusk (of course no actuator triggered when ``TEveningStop`` is sooner than ``TEveningStart``)
+- from ``TMorningStart = 7:30 AM`` to ``TMorningStop = 8:30 AM``, unless any dawn is to happen concurrently
+- from ``TEveningStart = 6:30 PM`` to ``TEveningStop = 11:45 PM``, unless any dusk is to happen concurrently
 
-More generally, through the user is free, through the ``presence_simulation_settings``, either to select a default policy or to specify their own presence program (constant presence or absence, or a list of presence slots), with or without smart lighting.
+More generally, the user is free, through the ``presence_simulation_settings``, either to select a default policy or to specify their own presence program (constant presence or absence, or a list of presence slots), with or without smart lighting.
 
 For example, in one's US-Main configuration file of interest, possibly named ``foobar-us-main-for-production.config``, as referenced in the ``us_main_config_filename`` key of ``us.config`` (both files being typically in ``/etc/xdg/universal-server``) one may go for the default program:
 
@@ -155,9 +155,10 @@ If a user-specific program is preferred, here with a single slot, with default s
 
 .. code:: erlang
 
-{ presence_simulation_settings, [
+ { presence_simulation_settings, [
   { presence_simulation_setting, undefined, undefined,
-	[ { { 7, 30, 0 }, { 8, 30, 0 } }, { { 18, 30, 00 }, { 23, 45, 00 } } ], true } ] }.
+	[ { { 6, 30, 0 }, { 8, 0, 0 } }, { { 19, 30, 00 }, { 23, 30, 00 } } ], true } ] }.
+
 
 
 Alarm System
