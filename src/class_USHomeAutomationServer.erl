@@ -45,6 +45,9 @@
 % (https://github.com/Olivier-Boudeville/erlang-serial).
 
 
+% TO-DO: deactivate the presence simulation when someone is declared at home /
+% activate it otherwise.
+
 
 % This home automation server is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
