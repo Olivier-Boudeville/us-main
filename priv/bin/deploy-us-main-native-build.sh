@@ -253,7 +253,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning US-Main"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/us-main us_main; then
+	if ! ${git} clone ${clone_opts} "${github_base}/us-main" us_main; then
 
 		echo " Error, unable to obtain US-Main." 1>&2
 		exit 40
@@ -267,7 +267,7 @@ if [ $do_clone -eq 0 ]; then
 	# To avoid "Already on 'master'":
 	if [ "${target_branch}" != "master" ]; then
 
-		cd us_main && ${git} checkout ${target_branch} 1>/dev/null && cd ..
+		cd us_main && ${git} checkout "${target_branch}" 1>/dev/null && cd ..
 		if [ ! $? -eq 0 ]; then
 
 			echo " Error, unable to switch to US-Main branch '${target_branch}'." 1>&2
@@ -280,7 +280,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning US-Common"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/us-common us_common; then
+	if ! ${git} clone ${clone_opts} "${github_base}/us-common" us_common; then
 
 		echo " Error, unable to obtain US-Common." 1>&2
 		exit 35
@@ -290,7 +290,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning our fork of erlang-serial (for TTY control)"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/erlang-serial; then
+	if ! ${git} clone ${clone_opts} "${github_base}/erlang-serial"; then
 
 		echo " Error, unable to obtain erlang-serial." 1>&2
 		exit 34
@@ -299,7 +299,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-Oceanic (for Enocean support)"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-Oceanic oceanic; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Oceanic" oceanic; then
 
 		echo " Error, unable to obtain Ceylan-Oceanic." 1>&2
 		exit 33
@@ -308,7 +308,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-Seaplus (for Erlang/C integration)"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-Seaplus seaplus; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Seaplus" seaplus; then
 
 		echo " Error, unable to obtain Ceylan-Seaplus." 1>&2
 		exit 32
@@ -317,7 +317,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-Mobile (for SMS management)"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-Mobile mobile; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Mobile" mobile; then
 
 		echo " Error, unable to obtain Ceylan-Mobile." 1>&2
 		exit 31
@@ -327,7 +327,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-Traces"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-Traces traces; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Traces" traces; then
 
 		echo " Error, unable to obtain Ceylan-Traces." 1>&2
 		exit 30
@@ -337,7 +337,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-WOOPER"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-WOOPER wooper; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-WOOPER" wooper; then
 
 		echo " Error, unable to obtain Ceylan-WOOPER." 1>&2
 		exit 25
@@ -347,7 +347,7 @@ if [ $do_clone -eq 0 ]; then
 
 	echo " - cloning Ceylan-Myriad"
 
-	if ! ${git} clone ${clone_opts} ${github_base}/Ceylan-Myriad myriad; then
+	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Myriad" myriad; then
 
 		echo " Error, unable to obtain Ceylan-Myriad." 1>&2
 		exit 20
