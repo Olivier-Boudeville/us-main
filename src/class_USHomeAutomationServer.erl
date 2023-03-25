@@ -308,6 +308,10 @@
 	{ oc_srv_pid, maybe( oceanic_server_pid() ),
 	  "the PID of the Oceanic server (if any can exist) used by this server" },
 
+	{ oc_periodic_restart, boolean(), "tells whether Oceanic shall be "
+	  "periodically restarted, in order to overcome any risk of freeze of "
+	  "the USB-based serial interface" },
+
 	{ oc_base_id, maybe( eurid() ), "the base identifier (if any) of "
 	  "the local Enocean gateway to use, as determined by Oceanic" },
 
@@ -345,7 +349,8 @@
 	  "a task to be triggered, if the presence simulation is activated, "
 	  "each day at midnight to determine and update the activity of the "
 	  "presence simulations for the next day (and to ensure that any "
-	  "potential switching discrepancy does not linger)" },
+	  "potential switching discrepancy does not linger, and if enabled to "
+	  "restart the serial interface)" },
 
 	{ server_location, maybe( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
@@ -680,6 +685,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	SetState = setAttributes( AlarmState, [
 		{ oc_srv_pid, MaybeOcSrvPid },
+		{ oc_periodic_restart, true },
 		{ oc_base_id, MaybeBaseId },
 		{ us_config_server_pid, UsMainCfgSrvPid },
 
@@ -2234,6 +2240,20 @@ updatePresenceSimulation( State, PscId ) ->
 -spec updatePresencePrograms( wooper:state() ) -> oneway_return().
 updatePresencePrograms( State ) ->
 
+	?getAttr(oc_periodic_restart) andalso
+		begin
+
+			OcSrvPid = ?getAttr(oc_srv_pid),
+
+			send_psc_trace_fmt( info, "Restarting the serial interface "
+				"of the Oceanic server ~w.", [ OcSrvPid ], State ),
+
+			oceanic:restart_serial_interface( OcSrvPid ),
+
+			send_psc_trace( info, "Oceanic serial interface restarted.", State )
+
+		end,
+
 	PscTable = ?getAttr(presence_table),
 
 	UpdatedState = case table:values( PscTable ) of
@@ -2690,8 +2710,10 @@ to_string( State ) ->
 
 		OcSrvPid ->
 			text_utils:format( "relying on its Oceanic server ~w "
-				"(base identifier being EURID ~ts)",
-				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_base_id) ) ] )
+				"(base identifier being EURID ~ts; "
+				"periodic restarts enabled: ~ts)",
+				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_base_id) ),
+				  ?getAttr(oc_periodic_restart) ] )
 
 	end,
 
