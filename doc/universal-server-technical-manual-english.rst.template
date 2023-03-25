@@ -189,7 +189,7 @@ The objective here is to track the various (and numerous) sensors of interest th
 
 The `US Sensor Manager <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl>`_ tracks automatically many **hardware sensors**; at start-up it detects the main available ones, regarding:
 
-- **temperatures** at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); in the future, adding GPU and RAM modules is considered
+- **temperatures** at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (e.g. NVME); in the future, adding GPU and RAM modules is considered
 - the **speed of the fans** known of the motherboard (as opposed to any case fan that would be directly connected to the power supply and that would remain invisible)
 - **chassis intrusion**, should such sensors be available
 
@@ -242,7 +242,7 @@ In the future, extra information sources could be used:
 
 Refer to R5 for further details.
 
-Note that `Platform Controller Hub <https://en.wikipedia.org/wiki/Platform_Controller_Hub>`_ (ex: ``pch_cannonlake-virtual-*``, ``pch_skylake-virtual-*``, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.
+Note that `Platform Controller Hub <https://en.wikipedia.org/wiki/Platform_Controller_Hub>`_ (e.g. ``pch_cannonlake-virtual-*``, ``pch_skylake-virtual-*``, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.
 
 They may be reported as autonomous first-level entries, or as measurement points of the motherboard.
 
@@ -253,11 +253,11 @@ Fan Control
 
 The rotation speed of the fans can be measured thanks to ``lm-sensors`` as well.
 
-Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (ex: stop/low/high) will remain invisible to all programs.
+Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (e.g. stop/low/high) will remain invisible to all programs.
 
 Currently the sensor manager is not able to discriminate between fixed-speed fans and PWM ones.
 
-The ``pulses`` attribute (ex: ``fan2_pulses``) tells how many of such pulses are generated per revolution of the fan.
+The ``pulses`` attribute (e.g. ``fan2_pulses``) tells how many of such pulses are generated per revolution of the fan.
 
 
 
@@ -409,7 +409,7 @@ The purpose of the US Communication Gateway is to enable (possibly two-way) exch
 
 Such communication is not to happen frow a web-based medium (see `US-Web <http://us-web.esperide.org>`_ for that), but through alternate modes such as SMS (relying then on `Ceylan-Mobile <http://mobile.esperide.org>`_, itself relying on `Ceylan-Seaplus <http://seaplus.esperide.org>`_) and/or e-mails (relying then on `the corresponding services of Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl>`_).
 
-For that, the correspondance between a US role (ex: ``administrator``) and actual user information is established thanks to the `contact directory`_ service.
+For that, the correspondance between a US role (e.g. ``administrator``) and actual user information is established thanks to the `contact directory`_ service.
 
 
 
@@ -443,7 +443,7 @@ Each service is tracked based on a set of information:
 
 - protocol: ``http``, ``https``, maybe in the future ``ftp`` or alike
 - base hostname, specified as a DNS name or an IP address
-- possibly a resource designator (ex: a specific URL) for the actual checking
+- possibly a resource designator (e.g. a specific URL) for the actual checking
 
 
 
@@ -644,6 +644,10 @@ one may use ``to_erl`` to connect directly; just remember that exiting the inter
 
 For further information one may refer to the `US-Main shell scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).
 
+Apparently, in some cases (not always), stopping the US-Main server (typically with ``systemctl stop us-main-as-native-build.service``) will *not* unregister it from its EPMD, which will not be stopped either. As a consequence, any next launching of the US-Main server is bound to fail after a time-out, and the VM log file (e.g. ``/opt/universal-server/us_main-native/us_main/log/erlang.log.1``) will confirm that a node with the same name (``us_main``) already exists (and thus prevents the new launch).
+
+In this case, the best solution is to kill that lingering EPMD (e.g. ``epmd -port 4507 -kill``) or, more brutally, to run the ``kill-us-main.sh`` script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.
+
 
 ------------------
 Monitoring US-Main
@@ -679,7 +683,7 @@ The ``Universal Server`` is licensed by its author (Olivier Boudeville) under th
 
 This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.
 
-We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.
+We hope indeed that enhancements will be back-contributed (e.g. thanks to merge requests), so that everyone will be able to benefit from them.
 
 
 -------
