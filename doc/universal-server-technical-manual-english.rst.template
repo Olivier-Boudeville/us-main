@@ -138,6 +138,7 @@ By default, the following single intra-day logical presence slots, controlling a
 
 More generally, the user is free, through the ``presence_simulation_settings``, either to select a default policy or to specify their own presence program (constant presence or absence, or a list of presence slots), with or without smart lighting.
 
+
 For example, in one's US-Main configuration file of interest, possibly named ``foobar-us-main-for-production.config``, as referenced in the ``us_main_config_filename`` key of ``us.config`` (both files being typically in ``/etc/xdg/universal-server``) one may go for the default program:
 
 .. code:: erlang
@@ -158,6 +159,8 @@ If a user-specific program is preferred, here with a single slot, with default s
  { presence_simulation_settings, [
   { presence_simulation_setting, undefined, undefined,
 	[ { { 6, 30, 0 }, { 8, 0, 0 } }, { { 19, 30, 00 }, { 23, 30, 00 } } ], true } ] }.
+
+Note that US-Main manages gracefully DST (*Daylight saving time*).
 
 
 

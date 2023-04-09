@@ -236,7 +236,7 @@ get_sensor_manager_bridge_spec( ExecTarget ) ->
 % integrating Oceanic):
 %
 -spec get_home_automation_bridge_spec( execution_target() ) -> child_spec().
-get_home_automation_bridge_spec( ExecTarget ) ->
+get_home_automation_bridge_spec( _ExecTarget ) ->
 
 	% Refer to get_config_bridge_spec/1 for comments:
 	#{ id => us_home_automation_server,
@@ -244,7 +244,9 @@ get_home_automation_bridge_spec( ExecTarget ) ->
 	   start => { _Mod=class_USHomeAutomationServer, _Fun=start_link,
 				  _Args=[] },
 
-	   restart => otp_utils:get_restart_setting( ExecTarget ),
+	   % Currently forcing any restart needed, as rather stable:
+	   restart => permanent,
+				  %otp_utils:get_restart_setting( ExecTarget ),
 
 	   shutdown => infinity,
 

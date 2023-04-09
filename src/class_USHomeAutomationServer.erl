@@ -289,6 +289,7 @@
 -type task_id() :: class_USScheduler:task_id().
 
 -type position() :: unit_utils:position().
+-type declination() :: unit_utils:declination().
 -type radians() :: unit_utils:radians().
 
 -type oceanic_server_pid() :: oceanic:oceanic_server_pid().
@@ -2136,8 +2137,8 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 
 
 % Not unit_utils:latitude(), as would be degrees:
--spec get_sun_rise_and_set_times( radians(), unit_utils:declination() ) ->
-			{ float(), float() }.
+-spec get_sun_rise_and_set_times( radians(), declination() ) ->
+										{ float(), float() }.
 get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ) ->
 
 	DeclinationRadians = math_utils:degree_to_radian( DeclinationDegrees ),
@@ -2153,19 +2154,22 @@ get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ) ->
 
 
 % @doc Converts a decimal hour to hours and minutes.
--spec from_decimal_hour( float() ) -> time_utils:time().
+-spec from_decimal_hour( float() ) -> time().
 from_decimal_hour( DecHour ) ->
 	Hours = math_utils:floor( DecHour ),
 	DecMinutes = 60 * ( DecHour - Hours ),
 	Minutes = math_utils:floor( DecMinutes ),
-	Seconds = round( 60 * ( DecMinutes - Minutes ) ),
+
+	% Not round/1, as could lead to (improper) 60 seconds:
+	Seconds = math_utils:floor( 60 * ( DecMinutes - Minutes ) ),
+
 	{ Hours, Minutes, Seconds }.
 
 
 
 % @doc Sends the specified telegram pair.
 -spec send_telegram_pair( telegram_pair(), wooper:state() ) -> void().
-send_telegram_pair( _Telegrams= { PressTelegram, ReleaseTelegram }, State ) ->
+send_telegram_pair( _Telegrams={ PressTelegram, ReleaseTelegram }, State ) ->
 
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
