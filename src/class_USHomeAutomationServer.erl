@@ -2167,18 +2167,42 @@ from_decimal_hour( DecHour ) ->
 
 
 
-% @doc Sends the specified telegram pair.
+% @doc Sends (presumably reliably) the specified telegram pair.
 -spec send_telegram_pair( telegram_pair(), wooper:state() ) -> void().
-send_telegram_pair( _Telegrams={ PressTelegram, ReleaseTelegram }, State ) ->
+send_telegram_pair( Telegrams, State ) ->
 
 	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	% Despite all robustification efforts, regularly at least some actuators do
+	% not trigger. So testing now multiple attempts (short of relying on actual
+	% state feedback yet):
+	%
+	% (multiple sending are not such a problem, as we are using rockers, not
+	% contact buttons that toggle, so the target operation is idempotent):
+	%
+	send_telegram_pair( Telegrams, _Count=3, OcSrvPid ).
+
+
+
+% @doc Sends the specified telegram pair the specified number of times.
+-spec send_telegram_pair( telegram_pair(), count(), oceanic_server_pid() ) ->
+											void().
+send_telegram_pair( _Telegrams, _Count=0, _OcSrvPid ) ->
+	ok;
+
+send_telegram_pair( Telegrams={ PressTelegram, ReleaseTelegram }, Count,
+					OcSrvPid ) ->
 
 	oceanic:send( PressTelegram, OcSrvPid ),
 
 	% Always better to separate telegrams:
-	timer:sleep( _Ms=200 ),
+	timer:sleep( _ShortMs=200 ),
 
-	oceanic:send( ReleaseTelegram, OcSrvPid ).
+	oceanic:send( ReleaseTelegram, OcSrvPid ),
+
+	timer:sleep( _LongerMs=1000 ),
+
+	send_telegram_pair( Telegrams, Count-1, OcSrvPid ).
 
 
 
