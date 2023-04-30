@@ -921,7 +921,7 @@ init_presence_simulation( _PresenceSimSettings=[
 	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
 		ActualSrcEurid, ActualTargetEurid, SwitchOffButton, released ),
 
-	DoSmartLighting = type_utils:ensure_boolean( SmartBool ),
+	DoSmartLighting = type_utils:check_boolean( SmartBool ),
 
 	PscSim = #presence_simulation{
 		id=NextPscId,
@@ -2025,21 +2025,21 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 
 	Date = erlang:date(),
 
-	LatRadians = math_utils:degree_to_radian( LatDegrees ),
-	% LongRadians = math_utils:degree_to_radian( LongDegrees ),
+	LatRadians = math_utils:degrees_to_radians( LatDegrees ),
+	% LongRadians = math_utils:degrees_to_radians( LongDegrees ),
 
 	% Refer to https://www.astrolabe-science.fr/duree-du-jour-et-latitude/; we
 	% compute based on universal, UTC time before converting to local time:
 
-	AngleRad = math_utils:degree_to_radian( 23.4 ),
+	AngleRad = math_utils:degrees_to_radians( 23.4 ),
 
 	DayInYear = time_utils:get_day_in_year( Date ),
 
 	Degrees = 360 * ( DayInYear - 81 ) / 365.2422,
 
-	DeclinationDegrees = math_utils:radian_to_degree(
+	DeclinationDegrees = math_utils:radians_to_degrees(
 		math:asin( math:sin( AngleRad )
-			* math:sin( math_utils:degree_to_radian( Degrees ) ) ) ),
+			* math:sin( math_utils:degrees_to_radians( Degrees ) ) ) ),
 
 	{ RiseHour, SetHour } =
 		get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ),
@@ -2141,10 +2141,10 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 										{ float(), float() }.
 get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ) ->
 
-	DeclinationRadians = math_utils:degree_to_radian( DeclinationDegrees ),
+	DeclinationRadians = math_utils:degrees_to_radians( DeclinationDegrees ),
 
 	% Decimal hour:
-	ZeroHourDegrees = math_utils:radian_to_degree( math:acos(
+	ZeroHourDegrees = math_utils:radians_to_degrees( math:acos(
 		-math:tan( LatRadians ) * math:tan( DeclinationRadians ) ) ),
 
 	ZeroHourFrac = ZeroHourDegrees / 15,
@@ -2173,6 +2173,16 @@ send_telegram_pair( Telegrams, State ) ->
 
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
+	SendCount = 1,
+	%SendCount = 3,
+
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		?debug_fmt( "Sending telegram pair ~B times; "
+			"for press: ~ts / for release: ~ts.",
+			[ SendCount,
+			  oceanic:telegram_to_hexastring( pair:first( Telegrams ) ),
+			  oceanic:telegram_to_hexastring( pair:second( Telegrams ) ) ] ) ),
+
 	% Despite all robustification efforts, regularly at least some actuators do
 	% not trigger. So testing now multiple attempts (short of relying on actual
 	% state feedback yet):
@@ -2180,7 +2190,7 @@ send_telegram_pair( Telegrams, State ) ->
 	% (multiple sending are not such a problem, as we are using rockers, not
 	% contact buttons that toggle, so the target operation is idempotent):
 	%
-	send_telegram_pair( Telegrams, _Count=3, OcSrvPid ).
+	send_telegram_pair( Telegrams, SendCount, OcSrvPid ).
 
 
 
