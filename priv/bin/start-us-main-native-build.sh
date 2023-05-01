@@ -56,7 +56,7 @@ else
 fi
 
 
-usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line, otherwise found through the default US search paths. The US-Main installation itself will be looked up in '${us_main_install_root}'. This script must be run as root."
+usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line (note that the final directory of this path must be 'universal-server'), otherwise found through the default US search paths. The US-Main installation itself will be looked up in '${us_main_install_root}'. This script must be run as root."
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -78,10 +78,20 @@ ${usage}" 1>&2
 fi
 
 
-# XDG_CONFIG_DIRS defined, so that the US server as well (not only these
-# scripts) can look it up:
+# XDG_CONFIG_DIRS defined, so that the US server as well can look it up (not
+# only these scripts):
 #
-xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
+# (avoiding empty path in list)
+#
+if [ -n "${XDG_CONFIG_DIRS}" ]; then
+
+	xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
+
+else
+
+	xdg_cfg_dirs="/etc/xdg"
+
+fi
 
 
 maybe_us_config_dir="$1"
@@ -114,12 +124,14 @@ if [ -n "${maybe_us_config_dir}" ]; then
 
 	# As a 'universal-server/us.config' suffix will be added to each candidate
 	# configuration directory, we remove the last directory:
-
-	candidate_dir="$(dirname $(realpath ${maybe_us_config_dir}))"
+	#
+	candidate_dir="$(dirname ${maybe_us_config_dir})"
 
 	xdg_cfg_dirs="${candidate_dir}:${xdg_cfg_dirs}"
 
 fi
+
+#echo "xdg_cfg_dirs = ${xdg_cfg_dirs}"
 
 
 #echo "Starting US-Main, to run as a native build with following user: $(id)"
@@ -190,18 +202,29 @@ fi
 echo
 echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, VM log expected in '${us_main_vm_log_dir}/erlang.log.1'..."
 
+# A correct way of passing environment variables (despite a sudo and an
+# authbind) proved finally to specify them prior to authbind, like in:
+#
+# '[...] XDG_CONFIG_DIRS="${xdg_cfg_dirs}" ${authbind} --deep make -s
+# us_main_exec_service [...]'
+#
+# Indeed, with:
+#
+#  - '[...] ${authbind} --deep make -s us_main_exec_service
+#    XDG_CONFIG_DIRS="${xdg_cfg_dirs}" [...]', XDG_CONFIG_DIRS was not set
+#
+#  - '[...] ${authbind} --deep XDG_CONFIG_DIRS="${xdg_cfg_dirs}" make -s
+#  us_main_exec_service [...]', XDG_CONFIG_DIRS was interpreted as a
+#  (non-existing) file
 
-# Apparently variables may be indifferently set prior to make, directly in the
-# environment (like 'XDG_CONFIG_DIRS=xxx make TARGET') or as arguments (like
-# 'make TARGET XDG_CONFIG_DIRS=xxx'), even if there are a sudo and an authbind
-# in the equation.
 
 # Previously the '--depth' authbind option was used, and apparently a depth of 6
 # was sufficient; but there is little interest in taking such risks.
 
-#echo Starting US-Main: /bin/sudo -u ${us_main_username} ${authbind} --deep make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}
+#echo Starting US-Main with: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service  ${cookie_env} ${epmd_make_opt}
 
-/bin/sudo -u ${us_main_username} ${authbind} --deep make -s us_main_exec_service XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${cookie_env} ${epmd_make_opt}
+
+/bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service  ${cookie_env} ${epmd_make_opt}
 
 res=$?
 
