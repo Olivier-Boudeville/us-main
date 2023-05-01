@@ -36,7 +36,6 @@
 % For update_code_path_for_myriad/0 and all:
 -include_lib("myriad/include/myriad_script_include.hrl").
 
-
 % For trace_aggregator_name:
 -include_lib("traces/include/class_TraceAggregator.hrl").
 
@@ -83,7 +82,7 @@ exec() ->
 						"~nIf the target node is really running and is named "
 						"like either of the two, check that the cookies match "
 						"and, finally, that no firewall is in the way "
-						"(ex: a server may filter the EPMD port of interest).",
+						"(e.g. a server may filter the EPMD port of interest).",
 						[ MainTargetNodeName, UserTargetNodeName ] ),
 
 					throw( { unable_to_connect_to,
@@ -133,7 +132,6 @@ exec() ->
 			app_facilities:display( "Trace listener closed." )
 
 	end,
-
 
 	% ?app_stop should not be used here as its wait_for_any_trace_supervisor
 	% macro would wait for a non-launched supervisor.
@@ -202,6 +200,9 @@ init_from_command_line() ->
 	trace_utils:debug_fmt( "Setting remote cookie: '~ts'.", [ RemoteCookie ] ),
 
 	net_utils:set_cookie( RemoteCookie ),
+
+	%trace_utils:debug_fmt( "Remaining arguments: ~ts",
+	%   [ shell_utils:argument_table_to_string( CookieShrunkTable ) ] ),
 
 	list_table:is_empty( CookieShrunkTable ) orelse
 		throw( { unexpected_arguments,
