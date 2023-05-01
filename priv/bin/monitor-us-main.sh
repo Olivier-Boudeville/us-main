@@ -35,6 +35,10 @@ fi
 if [ -n "$1" ]; then
 	um_cfg_filename="$1"
 	located_cfg_file="${um_cfg_filename}"
+
+	# Otherwise would remain in the extra arguments transmitted in CMD_LINE_OPT:
+	shift
+
 fi
 
 
@@ -63,7 +67,7 @@ if [ ! -f "${um_cfg_filename}" ]; then
 	else
 
 		# May resolve to /root, if run through sudo:
-		base_path="$HOME/.config"
+		base_path="${HOME}/.config"
 
 	fi
 
