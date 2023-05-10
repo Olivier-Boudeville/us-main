@@ -1500,7 +1500,8 @@ ensure_lighting( PscSim, _IsActivated=true, State ) ->
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug,
 			"Presence simulation #~B already activated, nothing to do.",
-			[ PscSim#presence_simulation.id ], State ) ),
+			[ PscSim#presence_simulation.id ], State ),
+		basic_utils:ignore_unused( State ) ),
 
 	PscSim;
 
@@ -1539,7 +1540,8 @@ ensure_not_lighting( PscSim, _IsActivated=false, State ) ->
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug,
 			"Presence simulation #~B already deactivated, nothing to do.",
-			[ PscSim#presence_simulation.id ], State ) ),
+			[ PscSim#presence_simulation.id ], State ),
+		basic_utils:ignore_unused( State ) ),
 
 	PscSim.
 
@@ -1587,7 +1589,8 @@ ensure_planned_presence_transition( PscSim, PlannedTime,
 		send_psc_trace_fmt( notice, "Switching, for presence simulation #~B, "
 			"planned time from ~ts to ~ts.", [ PscSim#presence_simulation.id,
 				time_utils:time_to_string( PrevPlannedTime ),
-				time_utils:time_to_string( PlannedTime ) ], State ) ),
+				time_utils:time_to_string( PlannedTime ) ], State ),
+		basic_utils:ignore_unused( [ State, PrevPlannedTime ] ) ),
 
 	% Clearer:
 	%ClearedPsim = ensure_no_planned_presence_transition( PscSim,
@@ -1756,7 +1759,8 @@ ensure_light_until( StopTime, CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 			"so lighting until ~ts.",
 			[ time_utils:time_to_string( StopTime ),
 			  time_utils:time_to_string( DawnTime ),
-			  time_utils:time_to_string( StopLightingTime ) ], State ) ),
+			  time_utils:time_to_string( StopLightingTime ) ], State ),
+		basic_utils:ignore_unused( [ State, StopLightingTime ] ) ),
 
 	LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 	ensure_planned_presence_transition( LitPscSim, DawnTime, MaybePscTaskInfo,
