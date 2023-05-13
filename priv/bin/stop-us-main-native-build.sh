@@ -3,7 +3,7 @@
 # Stops a US-Main instance, supposedly already running as a native build on the
 # current host.
 
-# Script typically meant to be:
+# Script possibly:
 # - placed in /usr/local/bin of a gateway
 # - run from systemctl, as root, as:
 # 'systemctl stop us-main-as-native-build.service'
@@ -45,6 +45,25 @@
 
 
 
+usage="Usage: $(basename $0) [US_CONF_DIR]: stops a US-Main server, running as a native build, based on a US configuration directory specified on the command-line (which must end by a 'universal-server' directory), otherwise found through the default US search paths.
+
+The US-Main installation itself will be looked up relatively to this script, otherwise in the standard path applied by our deploy-us-main-native-build.sh script.
+
+Example: '$0 /opt/test/universal-server' is to read /opt/test/universal-server/us.config."
+
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+
+	echo "${usage}"
+
+	exit 0
+
+fi
+
+
+# Not necessarily run as root.
+
+
 # Either this script is called during development, directly from within a
 # US-Main installation, in which case this installation shall be used, or
 # (typically if called through systemd) the standard US-Main base directory
@@ -55,21 +74,21 @@ this_script_dir="$(dirname $0)"
 # Possibly:
 local_us_main_install_root="${this_script_dir}/../.."
 
-# Check:
+# Checks based on the 'priv' subdirectory for an increased reliability:
 if [ -d "${local_us_main_install_root}/priv" ]; then
 
 	us_main_install_root="$(realpath ${local_us_main_install_root})"
-	echo "Selecting US-Main development native build in '${us_main_install_root}'."
+	echo "Selecting US-Main development native build in clone-local '${us_main_install_root}'."
 
 else
 
 	# The location enforced by deploy-us-main-native-build.sh:
 	us_main_install_root="/opt/universal-server/us_main-native/us_main"
-	echo "Selecting US-Main native build in standard location '${us_main_install_root}'."
+	echo "Selecting US-Main native build in standard server location '${us_main_install_root}'."
 
-	if [ ! -d "${us_main_install_root}" ]; then
+	if [ ! -d "${us_main_install_root}/priv" ]; then
 
-		echo "  Error, no US-Main native build found, neither locally (as '$(realpath ${local_us_main_install_root})') nor at the '${us_main_install_root}' standard location." 1>&2
+		echo "  Error, no valid US-Main native build found, neither locally (as '$(realpath ${local_us_main_install_root})') nor at the '${us_main_install_root}' standard server location." 1>&2
 
 		exit 15
 
@@ -77,14 +96,70 @@ else
 
 fi
 
-usage="Usage: $(basename $0) [US_CONF_DIR]: stops a US-Main server, running as a native build, based on a US configuration directory specified on the command-line, otherwise found through the default US search paths. The US-Main installation itself will be looked up in '$(realpath ${us_main_install_root})'."
+
+if [ $# -gt 1 ]; then
+
+	echo "  Error, extra argument expected.
+${usage}" 1>&2
+
+	exit 10
+
+fi
 
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+# XDG_CONFIG_DIRS defined, so that the US server as well can look it up (not
+# only these scripts):
+#
+# (avoiding empty path in list)
+#
+if [ -n "${XDG_CONFIG_DIRS}" ]; then
 
-	echo "${usage}"
+	xdg_cfg_dirs="${XDG_CONFIG_DIRS}:/etc/xdg"
 
-	exit 0
+else
+
+	xdg_cfg_dirs="/etc/xdg"
+
+fi
+
+
+maybe_us_config_dir="$1"
+
+if [ -n "${maybe_us_config_dir}" ]; then
+
+	# Otherwise would remain in the extra arguments transmitted in CMD_LINE_OPT:
+	shift
+
+	case "${maybe_us_config_dir}" in
+
+		/*)
+			# Already absolute, OK:
+			echo "Using specified absolute directory '${maybe_us_config_dir}'."
+			;;
+		*)
+			# Relative, to be made absolute:
+			maybe_us_config_dir="$(pwd)/${maybe_us_config_dir}"
+			echo "Transformed specified relative directory in '${maybe_us_config_dir}' absolute one."
+			;;
+	esac
+
+	if [ ! -d "${maybe_us_config_dir}" ]; then
+
+		echo "  Error, the specified US configuration directory, '${maybe_us_config_dir}', does not exist." 1>&2
+
+		exit 20
+
+	fi
+
+	# Better for messages output:
+	maybe_us_config_dir="$(realpath ${maybe_us_config_dir})"
+
+	# As a 'universal-server/us.config' suffix will be added to each candidate
+	# configuration directory, we remove the last directory:
+	#
+	candidate_dir="$(dirname ${maybe_us_config_dir})"
+
+	xdg_cfg_dirs="${candidate_dir}:${xdg_cfg_dirs}"
 
 fi
 
@@ -99,15 +174,6 @@ if [ ! -x "${epmd}" ]; then
 
 fi
 
-
-if [ $# -gt 1 ]; then
-
-	echo "  Error, extra argument expected.
-${usage}" 1>&2
-
-	exit 10
-
-fi
 
 
 #echo "Stopping US-Main native build, as following user: $(id)"
@@ -147,6 +213,7 @@ export us_launch_type="native"
 #echo "Sourcing '${us_main_common_script}'."
 . "${us_main_common_script}" #1>/dev/null
 
+# We expect a pre-installed US configuration file to exist:
 #echo "Reading US configuration file:"
 read_us_config_file "$1" #1>/dev/null
 
@@ -177,12 +244,12 @@ else
 	cookie_env=""
 fi
 
-cd src/apps
+cd src/apps || exit 17
 
 # No sudo or authbind necessary here, no US_* environment variables either:
-echo make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
+echo XDG_CONFIG_DIRS="${xdg_cfg_dirs}" make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
 
-make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
+XDG_CONFIG_DIRS="${xdg_cfg_dirs}" make -s us_main_stop_exec EPMD_PORT=${us_main_erl_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
 
 res=$?
 

@@ -7,7 +7,7 @@
 
 # The us_launch_type environment variable might have been set by the caller
 # (typically to the "native" value) so that these helper scripts can locate more
-# easily specific directories (ex: for the VM logs).
+# easily specific directories (e.g. for the VM logs).
 
 
 #echo "### US-Main script being sourced."
@@ -474,7 +474,7 @@ update_us_main_config_cookie()
 		# The original VM args (typically including a safe, dummy cookie):
 		original_vm_args_file="${base_rel_cfg_dir}/.vm.args.original"
 
-		# Do not overwrite original information (ex: if update was run twice
+		# Do not overwrite original information (e.g. if update was run twice
 		# with no restore in-between):
 		#
 		if [ ! -f "${original_vm_args_file}" ]; then

@@ -118,7 +118,7 @@ cd "${rel_root}/lib"
 
 /bin/ln -sf "${rel_dir}" us_main-latest
 
-# To facilitate finding vm.args (ex: for a proper stop w.r.t. cookie):
+# To facilitate finding vm.args (e.g. for a proper stop w.r.t. cookie):
 cd "${rel_root}/releases"
 
 /bin/ln -sf "${archive_version}" latest-release
