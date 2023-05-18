@@ -117,7 +117,7 @@
 	  "support is enabled and operational, notably to be able to send them" },
 
 	{ parent_comm_gateway_pid, maybe( gateway_pid() ),
-	  "the PID of any parent, authoritative gateway (ex: able to send SMS)" }
+	  "the PID of any parent, authoritative gateway (e.g. able to send SMS)" }
 
 						   ] ).
 

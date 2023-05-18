@@ -67,7 +67,7 @@ test_us_main_contact_management( OrderedAppNames ) ->
 	ContactDirectoryPid = class_USContactDirectory:get_contact_directory(),
 
 	% The top-level user process may not be aware that an OTP application fails
-	% (ex: because its main process crashed), which is a problem for a test. So
+	% (e.g. because its main process crashed), which is a problem for a test. So
 	% here we link explicitly this test process to the US-Main contact manager,
 	% to have a chance of detecting issues:
 	%

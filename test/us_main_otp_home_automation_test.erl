@@ -18,7 +18,9 @@
 %
 % Author: Olivier Boudeville (olivier.boudeville@esperide.com)
 % Creation date: Thursday, December 22, 2022.
-%
+
+
+% @doc Test of the <b>home automation</b> mechanisms.
 -module(us_main_otp_home_automation_test).
 
 
@@ -65,7 +67,7 @@ test_us_main_home_automation( OrderedAppNames ) ->
 	HomeAutoSrvPid = class_USHomeAutomationServer:get_home_automation_server(),
 
 	% The top-level user process may not be aware that an OTP application fails
-	% (ex: because its main process crashed), which is a problem for a test. So
+	% (e.g. because its main process crashed), which is a problem for a test. So
 	% here we link explicitly this test process to the US-Main home automation
 	% server, to have a chance of detecting issues:
 	%
