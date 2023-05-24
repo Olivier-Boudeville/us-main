@@ -1,7 +1,7 @@
 US_MAIN_TOP = .
 
 
-.PHONY: help help-intro help-us-main register-version-in-header            \
+.PHONY: help help-us-main register-version-in-header                       \
 		register-us-main                                                   \
 		list-beam-dirs add-prerequisite-plts link-plt stats                \
 		all all-rebar3 compile                                             \
@@ -72,11 +72,6 @@ VM_LOG_FILES := $(LOG_DIR)/erlang.log.*
 
 # Default target:
 help: help-intro help-us-main
-
-
-help-intro:
-	@echo " Following main make targets are available for package $(PACKAGE_NAME):"
-
 
 help-us-main:
 	@cd $(US_COMMON_TOP) && $(MAKE) -s help-us-common
