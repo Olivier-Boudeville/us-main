@@ -218,4 +218,4 @@ cd "${app_dir}"
 #
 #echo make -s us_main_monitor_exec CMD_LINE_OPT="$* --config-file ${um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
 
-make -s us_main_monitor_exec CMD_LINE_OPT="$* --config-file ${um_cfg_file} --target-cookie ${remote_vm_cookie}" #${epmd_opt}
+make -s us_main_monitor_exec CMD_LINE_OPT="$* --config-file ${um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
