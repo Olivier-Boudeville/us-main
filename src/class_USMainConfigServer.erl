@@ -610,7 +610,7 @@ us_main_mockup_srv() ->
 load_and_apply_configuration( State ) ->
 
 	CfgServerPid = class_USConfigServer:get_us_config_server(
-						_CreateIfNeeded=false, State ),
+		_CreateIfNeeded=false, State ),
 
 	% This main configuration server is not supposed to read more the US
 	% configuration file; it should request it to the overall configuration
