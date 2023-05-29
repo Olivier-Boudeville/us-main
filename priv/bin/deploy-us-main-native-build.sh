@@ -461,6 +461,9 @@ if [ ${do_build} -eq 0 ]; then
 		exit 90
 	fi
 
+	# Otherwise will not be found by US-Main:
+	ln -s _build/default/lib/jsx/ebin
+
 	cd ..
 
 	echo " - building US-Main"
