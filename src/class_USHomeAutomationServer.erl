@@ -37,6 +37,9 @@
 % For settings regarding name registration:
 -include("us_main_defines.hrl").
 
+% For the event records:
+-include_lib("oceanic/include/oceanic.hrl").
+
 
 % Design notes:
 %
@@ -167,6 +170,7 @@
 -define( time_equation_data_file, "time_equation_data.csv").
 
 
+
 % Internal information regarding an instance of presence simulation:
 -record( presence_simulation, {
 
@@ -258,6 +262,55 @@
 
 
 
+-type device_status() :: 'unknown' | single_input_contact_status().
+% A (higher-level) status of a device, as known by this server.
+%
+% It can be unset as not known or as not sufficiently relevant (e.g. any
+% reported temperature reported by a sensor should just be read from any last
+% event).
+
+
+% Rather than 'opened' | 'closed':
+-type single_input_contact_status() :: oceanic:contact_status().
+
+
+% Internal information regarding a known (Enoceanic) device:
+-record( device_state, {
+
+	% The identifier of this device:
+	eurid :: eurid(),
+
+	name :: device_name(),
+
+	% The (supposedly single) EEP identifier known (if any) for this device
+	% (e.g. 'double_rocker_multipress'):
+	%
+	eep_id :: maybe( eep_id() ),
+
+	% Records the initial event (if any) received from this device (a configured
+	% one being first seen, a taught-in one, or one not known a priori but
+	% discovered):
+	%
+	initial_event :: maybe( device_event() ),
+
+	% Records the last event (if any) sent by this device:
+	last_event :: maybe( device_event() ),
+
+	% The currently known status for this device:
+	current_status :: device_status() } ).
+
+
+-type device_state() :: #device_state{}.
+% Internal information regarding a known (Enoceanic) device.
+
+
+
+-type device_table() :: table( eurid(), device_state() ).
+% A table recording the information regarding the Enocean devices known by this
+% automation server, notably in order to detect state transitions and trigger
+% events.
+
+
 % Shorthands:
 
 -type count() :: basic_utils:count().
@@ -300,7 +353,7 @@
 -type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
 -type telegram() :: oceanic:telegram().
-
+-type eep_id() :: oceanic:eep_id().
 
 
 % The class-specific attributes:
@@ -337,7 +390,8 @@
 	  "tells whether the presence simulation service is currently enabled" },
 
 	{ presence_table, presence_table(),
-	  "referential of the presence simulations" },
+	  "referential of the presence simulations, recording all their "
+	  "setttings" },
 
 	{ next_presence_id, presence_sim_id(),
 	  "the next presence identifier that will be assigned" },
@@ -369,7 +423,11 @@
 
 	{ comm_gateway_pid, gateway_pid(),
 	  "the PID of the US communication gateway used to send user "
-	  "notifications" } ] ).
+	  "notifications" },
+
+	{ device_table, device_table(),
+	  "the table recording the current state of devices, notably to "
+	  "detect their state transitions" } ] ).
 
 
 
@@ -689,6 +747,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ oc_periodic_restart, true },
 		{ oc_base_id, MaybeBaseId },
 		{ us_config_server_pid, UsMainCfgSrvPid },
+		{ device_table, table:new() },
 
 		% Expecting to be launching this server while being at home:
 		{ actual_presence, true },
@@ -2383,9 +2442,11 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
 
-	NewState = manage_presence_switching( DeviceEvent, State ),
+	RecState = record_new_device( DeviceEvent, State ),
 
-	wooper:return_state( NewState );
+	PresState = manage_presence_switching( DeviceEvent, RecState ),
+
+	wooper:return_state( PresState );
 
 
 onEnoceanConfiguredDeviceFirstSeen( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -2422,10 +2483,12 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	class_TraceEmitter:send_named_emitter( warning, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
 
-	% If ever the device was not configured yet declared as presence-switching:
-	NewState = manage_presence_switching( DeviceEvent, State ),
+	RecState = record_new_device( DeviceEvent, State ),
 
-	wooper:return_state( NewState );
+	% If ever the device was not configured yet declared as presence-switching:
+	PresState = manage_presence_switching( DeviceEvent, RecState ),
+
+	wooper:return_state( PresState );
 
 
 onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -2435,6 +2498,42 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 		[ OtherEvent, OcSrvPid, BinDevDesc ] ),
 
 	wooper:const_return().
+
+
+
+% @doc Records the existence of a device not expected to be already known.
+-spec record_new_device( device_event(), wooper:state() ) -> wooper:state().
+record_new_device( DeviceEvent, State ) ->
+
+	DevTable = ?getAttr(device_table),
+
+	DevEurid = oceanic:get_source_eurid( DeviceEvent ),
+
+	MaybeEepId = oceanic:get_maybe_eep( DeviceEvent ),
+
+	DevState = #device_state{
+		eurid=DevEurid,
+		eep_id=MaybeEepId,
+		initial_event=DeviceEvent,
+		last_event=DeviceEvent,
+		current_status=interpret_status( DeviceEvent ) },
+
+	NewDevTable = table:add_entry( DevEurid, DevState, DevTable ),
+
+	setAttribute( State, device_table, NewDevTable ).
+
+
+
+% @doc Returns the higher-level status that can be deduced from the specified
+% event.
+%
+-spec interpret_status( device_event() ) -> device_status().
+interpret_status( _DeviceEvent=#single_input_contact_event{
+									contact=ContactStatus } ) ->
+	ContactStatus;
+
+interpret_status( _DeviceEvent ) ->
+	unknown.
 
 
 
@@ -2462,9 +2561,11 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 	class_TraceEmitter:send_named_emitter( info, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
 
-	NewState = manage_presence_switching( DeviceEvent, State ),
+	ProcessedState = process_device_event( DeviceEvent, State ),
 
-	wooper:return_state( NewState );
+	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
+
+	wooper:return_state( PresState );
 
 
 onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
@@ -2483,9 +2584,11 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
 
-	NewState = manage_presence_switching( DeviceEvent, State ),
+	ProcessedState = process_device_event( DeviceEvent, State ),
 
-	wooper:return_state( NewState );
+	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
+
+	wooper:return_state( PresState );
 
 
 onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
@@ -2497,11 +2600,50 @@ onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
 
 
 
+-spec process_device_event( device_event(), wooper:state() ) -> wooper:state().
+process_device_event( DeviceEvent, State ) ->
+
+	DevEurid = oceanic:get_source_eurid( DeviceEvent ),
+
+	NewStatus = interpret_status( DeviceEvent ),
+
+	DevTable = ?getAttr(device_table),
+
+	case table:lookup_entry( _K=DevEurid, DevTable ) of
+
+		key_not_found ->
+			?error_fmt( "No device found for ~ts, after event ~ts, "
+				"which is therefore ignored.", [
+					oceanic:eurid_to_string( DevEurid ),
+					oceanic:device_event_to_string( DeviceEvent ) ] ),
+			State;
+
+		% No state change:
+		{ value, #device_state{ current_status=NewStatus } } ->
+			State;
+
+		% State change; currently not doing much besides tracing and recording:
+		{ value, DevState=#device_state{ current_status=PrevStatus } } ->
+
+			?notice_fmt( "State transition from ~ts to ~ts.",
+						 [ PrevStatus, NewStatus ] ),
+
+			NewDevState =
+				DevState#device_state{ current_status=NewStatus },
+
+			NewDevTable = table:add_entry( DevEurid, NewDevState, DevTable ),
+
+			setAttribute( State, device_table, NewDevTable )
+
+	end.
+
+
+
 % @doc Handles a teach-in event of a device, as notified by the specified
 % Oceanic server.
 %
 -spec onEnoceanDeviceTeachIn( wooper:state(), device_event(),
-		device_description(), oceanic_server_pid() ) -> const_oneway_return().
+		device_description(), oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
 								when is_tuple( DeviceEvent ) ->
 
@@ -2519,11 +2661,12 @@ onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
 
-	wooper:const_return();
+	RecState = record_new_device( DeviceEvent, State ),
+
+	wooper:return_state( RecState );
 
 
 onEnoceanDeviceTeachIn( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
-
 	?error_fmt( "Received an invalid teach-in device event (~p) "
 		"from ~w for '~p', ignoring it.",
 		[ OtherEvent, OcSrvPid, BinDevDesc ] ),
@@ -2841,11 +2984,12 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts; the presence simulator is currently ~ts, "
-		"and ~ts; ~ts",
+		"gateway ~w, ~ts, ~ts; it is ~ts;"
+		"the presence simulator is currently ~ts, and ~ts; ~ts",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
-		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, PscStr, PscSwitchStr,
-		  MidTaskStr ] ).
+		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr,
+		  device_table_to_string( ?getAttr(device_table) ),
+		  PscStr, PscSwitchStr, MidTaskStr ] ).
 
 
 
@@ -2938,3 +3082,39 @@ slot_to_string( _Slot={ StartTime, StopTime } ) ->
 	text_utils:format( "from ~ts to ~ts", [
 		time_utils:time_to_string( StartTime ),
 		time_utils:time_to_string( StopTime ) ] ).
+
+
+
+% @doc Returns a textual description of the specified device state.
+-spec device_state_to_string( device_state() ) -> ustring().
+device_state_to_string( #device_state{
+		eurid=Eurid,
+		name=BinName,
+		eep_id=EEPId,
+		% Skipped: initial_event / last_event
+		current_status=Status } ) ->
+	text_utils:format( "device '~ts' (EURID: ~ts) implementing EEP ~ts, "
+		"whose current status is ~ts",
+		[ BinName, oceanic:eurid_to_string( Eurid ), EEPId, Status ] ).
+
+
+
+% @doc Returns a textual description of the specified device table.
+-spec device_table_to_string( device_table() ) -> ustring().
+device_table_to_string( DevTable ) ->
+	case table:enumerate( DevTable ) of
+
+		[] ->
+			"not registering any device";
+
+		[ SingleDev ] ->
+			text_utils:format( "registering a single device: ~ts",
+				[ device_state_to_string( SingleDev ) ] );
+
+		Devs ->
+			text_utils:format( "registering ~B devices: ~ts",
+				[ length( Devs ), text_utils:strings_to_string(
+					[ device_state_to_string( D )
+						|| D <- Devs ] ) ] )
+
+	end.
