@@ -2509,11 +2509,10 @@ record_new_device( DeviceEvent, State ) ->
 
 	DevEurid = oceanic:get_source_eurid( DeviceEvent ),
 
-	MaybeEepId = oceanic:get_maybe_eep( DeviceEvent ),
-
 	DevState = #device_state{
 		eurid=DevEurid,
-		eep_id=MaybeEepId,
+		name=oceanic:get_best_device_name_from( DeviceEvent ),
+		eep_id=oceanic:get_maybe_eep( DeviceEvent ),
 		initial_event=DeviceEvent,
 		last_event=DeviceEvent,
 		current_status=interpret_status( DeviceEvent ) },
@@ -2529,7 +2528,7 @@ record_new_device( DeviceEvent, State ) ->
 %
 -spec interpret_status( device_event() ) -> device_status().
 interpret_status( _DeviceEvent=#single_input_contact_event{
-									contact=ContactStatus } ) ->
+						contact=ContactStatus } ) ->
 	ContactStatus;
 
 interpret_status( _DeviceEvent ) ->
@@ -2620,13 +2619,18 @@ process_device_event( DeviceEvent, State ) ->
 
 		% No state change:
 		{ value, #device_state{ current_status=NewStatus } } ->
+			%?notice_fmt( "(still in status ~ts)", [ NewStatus ] ),
 			State;
 
 		% State change; currently not doing much besides tracing and recording:
-		{ value, DevState=#device_state{ current_status=PrevStatus } } ->
+		{ value, DevState=#device_state{ name=BinDevName,
+										 current_status=PrevStatus } } ->
 
-			?notice_fmt( "State transition from ~ts to ~ts.",
-						 [ PrevStatus, NewStatus ] ),
+			Msg = text_utils:format( "State transition from ~ts to ~ts.",
+									 [ PrevStatus, NewStatus ] ),
+
+			class_TraceEmitter:send_named_emitter( notice, State, Msg,
+				get_trace_emitter_name_from( BinDevName ) ),
 
 			NewDevState =
 				DevState#device_state{ current_status=NewStatus },
@@ -3102,7 +3106,7 @@ device_state_to_string( #device_state{
 % @doc Returns a textual description of the specified device table.
 -spec device_table_to_string( device_table() ) -> ustring().
 device_table_to_string( DevTable ) ->
-	case table:enumerate( DevTable ) of
+	case table:values( DevTable ) of
 
 		[] ->
 			"not registering any device";
