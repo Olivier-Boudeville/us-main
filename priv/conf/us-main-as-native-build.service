@@ -1,6 +1,9 @@
 [Unit]
 Description=Universal Server service (US-Main), as a native build
-Requires=network.target
+
+# Should for example an encrypted filesystem be needed right after boot:
+Requires=network.target local-fs.target
+
 After=network.target
 
 
