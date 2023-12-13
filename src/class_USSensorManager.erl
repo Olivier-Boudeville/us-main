@@ -1219,7 +1219,7 @@ vet_muted_sensor_points( _ReadMutedMeasurements=[
 		true ->
 			text_utils:string_to_binary( SensorNumber );
 
-		false ->
+		_False ->
 			?error_fmt( "Invalid sensor number ('~p' - not a string) "
 				"in muted measurement sensor identifier ~p.",
 				[ SensorNumber, ReadSensorId ] ),
@@ -1902,7 +1902,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 								input_attribute=AttrNameBin,
 								current=AttrValue };
 
-						false ->
+						_False ->
 
 							% Happens very often and duplicates a more general
 							% trace:
@@ -1947,7 +1947,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 							% Just ignored then:
 							TempData;
 
-						true ->
+						_True ->
 							TempData#temperature_data{ min_reached=AttrValue }
 
 					end;
@@ -1961,7 +1961,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 							% Just ignored then:
 							TempData;
 
-						true ->
+						_True ->
 							TempData#temperature_data{ max_reached=AttrValue }
 
 					end;
@@ -1975,7 +1975,7 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 							% Just ignored then:
 							TempData;
 
-						true ->
+						_True ->
 							NewHigh =
 									case TempData#temperature_data.alarm_high of
 
@@ -2042,7 +2042,7 @@ init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 			% Just ignored then:
 			TempData;
 
-		true ->
+		_True ->
 			NewCritHigh = case TempData#temperature_data.crit_high of
 
 				undefined ->
@@ -2239,9 +2239,12 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 					BinInputAttr = text_utils:string_to_binary( AttrName ),
 
-					case AttrValue of
+					Speed = AttrValue,
 
-						ZeroSpeed=0.0 ->
+					case math_utils:is_null( Speed ) of
+
+						true ->
+							ZeroSpeed = 0.0,
 							FanData#fan_data{ input_attribute=BinInputAttr,
 											  current=ZeroSpeed,
 											  % Supposingly normal:
@@ -2252,7 +2255,7 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 											  avg_sum=ZeroSpeed,
 											  avg_count=1 };
 
-						Speed ->
+						_False ->
 							Now = time_utils:get_timestamp(),
 							FanData#fan_data{ input_attribute=BinInputAttr,
 											  current=Speed,
@@ -2277,53 +2280,68 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				%
 				"alarm" ->
 
-					case AttrValue of
+					case math_utils:is_null( AttrValue ) of
 
 						% Normal case, no alarm initially:
-						0.0 ->
+						true ->
 							% Nothing special done:
 							FanData;
 
-						1.0 ->
-							?warning_fmt( "For fan measurement point "
-								"'~ts' of ~ts, attribute '~ts' already "
-								"reports initially an alarm.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrName ] ),
+						_False ->
+							case AttrValue of
 
-							% Nothing special done either:
-							FanData;
+								1.0 ->
+									?warning_fmt( "For fan measurement point "
+										"'~ts' of ~ts, attribute '~ts' already "
+										"reports initially an alarm.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrName ] ),
 
-						_Other ->
-							?error_fmt( "For fan measurement point '~ts' "
-								"of ~ts, attribute '~ts' reports an unexpected "
-								"alarm value ('~p'); disabling that point.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrName, AttrValue ] ),
+									% Nothing special done either:
+									FanData;
 
-							FanData#fan_data{ status=disabled }
+								_Other ->
+									?error_fmt( "For fan measurement point "
+										"'~ts' of ~ts, attribute '~ts' reports "
+										"an unexpected alarm value ('~p'); "
+										"disabling that point.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrName, AttrValue ] ),
+
+									FanData#fan_data{ status=disabled }
+
+							end
 
 					end;
 
 
 				"beep" ->
-					case AttrValue of
+					case math_utils:is_null( AttrValue ) of
 
-						0.0 ->
+						true ->
 							FanData#fan_data{ beep_on_alarm=false };
 
-						1.0 ->
-							FanData#fan_data{ beep_on_alarm=true };
+						_False ->
+							case AttrValue of
 
-						_Other ->
-							?warning_fmt( "For fan measurement point "
-								"'~ts' of ~ts, ignoring unexpected beep value "
-								"('~p') reported by attribute '~ts'.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrValue, AttrName ] ),
+								1.0 ->
+									FanData#fan_data{ beep_on_alarm=true };
 
-							% Nothing special done either:
-							FanData
+								_Other ->
+									?warning_fmt( "For fan measurement point "
+										"'~ts' of ~ts, ignoring unexpected "
+										"beep value ('~p') reported by "
+										"attribute '~ts'.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrValue, AttrName ] ),
+
+									% Nothing special done either:
+									FanData
+
+							end
 
 					end;
 
@@ -2504,10 +2522,10 @@ init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
 
 				"alarm" ->
 
-					case AttrValue of
+					case math_utils:is_null( AttrValue ) of
 
 						% Normal case, no intrusion initially:
-						0.0 ->
+						true ->
 							SetIntrusData = IntrusData#intrusion_data{
 								intrusion_reported=false,
 								intrusion_timestamp=Now },
@@ -2515,71 +2533,83 @@ init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
 							init_intrus_point( T, BinPointName, SetIntrusData,
 											   SensorId, State );
 
-						1.0 ->
+						_False ->
+							case AttrValue of
 
-							?warning_fmt( "For intrusion measurement point "
-								"'~ts' of ~ts, attribute '~ts' already "
-								"reports initially an intrusion; interpreting "
-								"it as a bogus value and disabling that point.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrName ] ),
+								1.0 ->
+									?warning_fmt( "For intrusion measurement "
+										"point '~ts' of ~ts, attribute '~ts' "
+										"already reports initially an "
+										"intrusion; interpreting it as a "
+										"bogus value and disabling that point.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrName ] ),
 
-							DisIntrusData =
-								IntrusData#intrusion_data{
-									status=disabled,
-									intrusion_reported=true,
-									intrusion_timestamp=Now },
+									DisIntrusData =
+										IntrusData#intrusion_data{
+											status=disabled,
+											intrusion_reported=true,
+											intrusion_timestamp=Now },
 
-							init_intrus_point( T, BinPointName, DisIntrusData,
-											   SensorId, State );
+									init_intrus_point( T, BinPointName,
+										DisIntrusData, SensorId, State );
 
-						_Other ->
-							?error_fmt( "For intrusion measurement point '~ts' "
-								"of ~ts, attribute '~ts' reports an unexpected "
-								"value ('~p'); disabling that point.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrName, AttrValue ] ),
+								_Other ->
+									?error_fmt( "For intrusion measurement "
+										"point '~ts' of ~ts, attribute '~ts' "
+										"reports an unexpected value ('~p'); "
+										"disabling that point.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrName, AttrValue ] ),
 
-							DisIntrusData =
-								IntrusData#intrusion_data{
-									status=disabled,
-									intrusion_reported=false,
-									intrusion_timestamp=Now },
+									DisIntrusData = IntrusData#intrusion_data{
+										status=disabled,
+										intrusion_reported=false,
+										intrusion_timestamp=Now },
 
-							init_intrus_point( T, BinPointName, DisIntrusData,
-											   SensorId, State )
+									init_intrus_point( T, BinPointName,
+										DisIntrusData, SensorId, State )
+
+							end
 
 					end;
 
 
 				"beep" ->
-					case AttrValue of
+					case math_utils:is_null( AttrValue ) of
 
-						0.0 ->
+						true ->
 							SetIntrusData = IntrusData#intrusion_data{
-												beep_on_intrusion=false },
+								beep_on_intrusion=false },
 
 							init_intrus_point( T, BinPointName, SetIntrusData,
 											   SensorId, State );
 
+						_False ->
+							case AttrValue of
 
-						1.0 ->
-							SetIntrusData = IntrusData#intrusion_data{
-												beep_on_intrusion=true },
+								1.0 ->
+									SetIntrusData = IntrusData#intrusion_data{
+										beep_on_intrusion=true },
 
-							init_intrus_point( T, BinPointName, SetIntrusData,
-											   SensorId, State );
+									init_intrus_point( T, BinPointName,
+										SetIntrusData, SensorId, State );
 
+								_Other ->
+									?warning_fmt( "For intrusion measurement "
+										"point '~ts' of ~ts, ignoring "
+										"unexpected value ('~p') reported by "
+										"attribute '~ts'.",
+										[ BinPointName,
+										  sensor_id_to_string( SensorId ),
+										  AttrValue, AttrName ] ),
 
-						_Other ->
-							?warning_fmt( "For intrusion measurement point "
-								"'~ts' of ~ts, ignoring unexpected value "
-								"('~p') reported by attribute '~ts'.",
-								[ BinPointName, sensor_id_to_string( SensorId ),
-								  AttrValue, AttrName ] ),
+									init_intrus_point( T, BinPointName,
+										IntrusData, SensorId, State )
 
-							init_intrus_point( T, BinPointName, IntrusData,
-											   SensorId, State )
+							end
 
 					end;
 
@@ -2770,7 +2800,7 @@ update_data_table( PointsDataTable,
 							examine_temperature( PointNameBin, CurrentTemp,
 								SyncTempData, SensorId, State );
 
-						false ->
+						_False ->
 							% Was a non-disabling warning:
 							?error_fmt( "Read for ~ts, temperature "
 								"measurement point '~ts', a value considered "
@@ -2842,12 +2872,13 @@ update_data_table( PointsDataTable,
 							NewAvgSum = AvgSum + CurrentSpeed,
 							NewAvgCount = AvgCount + 1,
 
-							NewLastSpinTimestamp = case CurrentSpeed of
+							NewLastSpinTimestamp = case
+									math_utils:is_null( CurrentSpeed ) of
 
-								0.0 ->
+								true ->
 									MaybeLastSpinTimestamp;
 
-								_ ->
+								_False ->
 									time_utils:get_timestamp()
 
 							end,
@@ -2864,7 +2895,7 @@ update_data_table( PointsDataTable,
 							examine_fan_speed( PointNameBin, CurrentSpeed,
 											   SyncFanData, SensorId, State );
 
-						false ->
+						_False ->
 							% If wanting to be stricter, to be promoted to a
 							% disabling error:
 							%
@@ -3029,7 +3060,7 @@ examine_temperature( PointNameBin, CurrentTemp,
 			end;
 
 		% Still a very serious worry, as we are alarm_high here:
-		false ->
+		_False ->
 
 			% We react to all state changes, aggravations like "improvements":
 			case AlertState of
@@ -3096,7 +3127,7 @@ examine_temperature( PointNameBin, CurrentTemp,
 			end;
 
 		% Still a very serious worry apparently, as we are alarm_low here:
-		false ->
+		_False ->
 			case AlertState of
 
 				alarm_low ->
@@ -3257,7 +3288,7 @@ get_fan_state( CurrentSpeed, _FanType=unknown, AlarmLowSpeed,
 
 get_fan_state( CurrentSpeed, _FanType=unknown, _AlarmLowSpeed,
 			   AlarmHighSpeed ) when is_float( AlarmHighSpeed )
-										andalso CurrentSpeed > AlarmHighSpeed ->
+									 andalso CurrentSpeed > AlarmHighSpeed ->
 	excessive_speed;
 
 get_fan_state( _CurrentSpeed, _FanType=unknown, _AlarmLowSpeed,
@@ -3429,7 +3460,7 @@ filter_cpu_json(
 
 % Ignored entries are typically:
 filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
-						TempAcc, OtherAcc ) ->
+				 TempAcc, OtherAcc ) ->
 
 	Desc = text_utils:bin_format( "uncategorised CPU sensor '~ts'", [ Name ] ),
 
@@ -3442,8 +3473,8 @@ filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 % @doc Filters te JSON content corresponding to a motherboard.
 -spec filter_motherboard_json( decoded_json() ) ->
-	 { [ json_triple() ], [ json_triple() ], [ json_triple() ],
-	   [ json_triple() ] }.
+	    { [ json_triple() ], [ json_triple() ], [ json_triple() ],
+		  [ json_triple() ] }.
 filter_motherboard_json( SensorJSON ) ->
 
 	BasicTriples = [ { text_utils:binary_to_string( BinStr ), BinStr, V }
@@ -3955,6 +3986,7 @@ parse_sensor_output_from_file( OutputFilePath, State ) ->
 			?error_fmt( "The file '~ts' from which sensor output is to be read "
 				"does not exist (current directory: '~ts').",
 				[ OutputFilePath, file_utils:get_current_directory() ] ),
+
 			throw( { sensor_output_file_not_found, OutputFilePath } )
 
 		end,
@@ -4101,15 +4133,15 @@ point_data_to_string( #fan_data{ input_attribute=InputAttr,
 			"was never detected spinning";
 
 		LastSpinTimestamp ->
-			case CurrentSpeed of
+			case math_utils:is_null( CurrentSpeed ) of
 
-				0.0 ->
+				true ->
 					Now = time_utils:get_timestamp(),
 					% Implied: not currently spinning.
 					"last spinned " ++ time_utils:get_textual_duration(
-										LastSpinTimestamp, Now ) ++ " ago";
+						LastSpinTimestamp, Now ) ++ " ago";
 
-				_ ->
+				_False ->
 					text_utils:format( "is currently spinning at ~ts",
 						[ unit_utils:rpm_to_string( CurrentSpeed ) ] )
 
@@ -4300,7 +4332,7 @@ to_string( State ) ->
 			text_utils:format( "tracking ~ts",
 				[ sensor_table_to_string( ?getAttr(sensor_table) ) ] );
 
-		false ->
+		_False ->
 			"with no sensor tracking enabled"
 
 	end,
@@ -4323,8 +4355,7 @@ to_string( State ) ->
 			"no US configuration server";
 
 		CfgSrvPid ->
-			text_utils:format( "US configuration server ~w",
-							   [ CfgSrvPid ] )
+			text_utils:format( "US configuration server ~w", [ CfgSrvPid ] )
 
 	end,
 
