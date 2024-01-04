@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
-<title>Welcome to the Universal Server documentation</title>
+<meta name="generator" content="Docutils 0.20.1: https://docutils.sourceforge.io/" />
 <meta content="Universal Server" name="keywords" />
+<title>Welcome to the Universal Server documentation</title>
 <link rel="stylesheet" href="pygments-default.css" type="text/css" />
 <link rel="stylesheet" href="us-main.css" type="text/css" />
 <link href="us-main-icon.png" rel="icon">
@@ -23,7 +23,7 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2023 Olivier Boudeville</p>
+<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2024 Olivier Boudeville</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Contact:</th><td class="field-body"><p class="first">about (dash) universal-server (at) esperide (dot) com</p>
@@ -32,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Wednesday, February 22, 2023</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Thursday, January 4, 2024</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.12</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.16</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -160,6 +160,7 @@
  </span><span class="p">{</span><span class="w"> </span><span class="n">presence_simulation_setting</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w"> </span><span class="n">undefined</span><span class="p">,</span><span class="w">
    </span><span class="p">[</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">19</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">00</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="mi">23</span><span class="p">,</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">00</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">],</span><span class="w"> </span><span class="n">true</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">]</span><span class="w"> </span><span class="p">}.</span>
 </pre>
+<p>Note that US-Main manages gracefully DST (<em>Daylight saving time</em>).</p>
 </div>
 <div class="section" id="alarm-system">
 <h3><a class="toc-backref" href="#toc-entry-6">Alarm System</a></h3>
@@ -180,7 +181,7 @@
 <p>The objective here is to track the various (and numerous) sensors of interest that most modern computers include; should abnormal feedback be detected, it is to be automatically reported thanks to the <a class="reference internal" href="#communication-gateway">communication gateway</a> service.</p>
 <p>The <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USSensorManager.erl">US Sensor Manager</a> tracks automatically many <strong>hardware sensors</strong>; at start-up it detects the main available ones, regarding:</p>
 <ul class="simple">
-<li><strong>temperatures</strong> at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (ex: NVME); in the future, adding GPU and RAM modules is considered</li>
+<li><strong>temperatures</strong> at various locations: the CPU socket, the CPU package and cores themselves, any APU, the motherboard, the chipset, ACPI, some disks (e.g. NVME); in the future, adding GPU and RAM modules is considered</li>
 <li>the <strong>speed of the fans</strong> known of the motherboard (as opposed to any case fan that would be directly connected to the power supply and that would remain invisible)</li>
 <li><strong>chassis intrusion</strong>, should such sensors be available</li>
 </ul>
@@ -216,15 +217,15 @@ name and relying on <a class="reference external" href="https://github.com/lm-se
 <li>GPU, thanks to XNVCtrl for NVidia ones, or ADL SDK for ATI ones</li>
 </ul>
 <p>Refer to R5 for further details.</p>
-<p>Note that <a class="reference external" href="https://en.wikipedia.org/wiki/Platform_Controller_Hub">Platform Controller Hub</a> (ex: <tt class="docutils literal"><span class="pre">pch_cannonlake-virtual-*</span></tt>, <tt class="docutils literal"><span class="pre">pch_skylake-virtual-*</span></tt>, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.</p>
+<p>Note that <a class="reference external" href="https://en.wikipedia.org/wiki/Platform_Controller_Hub">Platform Controller Hub</a> (e.g. <tt class="docutils literal"><span class="pre">pch_cannonlake-virtual-*</span></tt>, <tt class="docutils literal"><span class="pre">pch_skylake-virtual-*</span></tt>, etc. ) are Intel's single-chip chipsets; they tend to run hotter than CPUs.</p>
 <p>They may be reported as autonomous first-level entries, or as measurement points of the motherboard.</p>
 </div>
 <div class="section" id="fan-control">
 <h4>Fan Control</h4>
 <p>The rotation speed of the fans can be measured thanks to <tt class="docutils literal"><span class="pre">lm-sensors</span></tt> as well.</p>
-<p>Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (ex: stop/low/high) will remain invisible to all programs.</p>
+<p>Note that not all fans are known of the motherboard, notably the ones that are directly controlled by the user through a button (e.g. stop/low/high) will remain invisible to all programs.</p>
 <p>Currently the sensor manager is not able to discriminate between fixed-speed fans and PWM ones.</p>
-<p>The <tt class="docutils literal">pulses</tt> attribute (ex: <tt class="docutils literal">fan2_pulses</tt>) tells how many of such pulses are generated per revolution of the fan.</p>
+<p>The <tt class="docutils literal">pulses</tt> attribute (e.g. <tt class="docutils literal">fan2_pulses</tt>) tells how many of such pulses are generated per revolution of the fan.</p>
 </div>
 <div class="section" id="chassis-intrusion">
 <h4>Chassis Intrusion</h4>
@@ -320,7 +321,7 @@ $<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/sy
 <span id="communication-gateway"></span><h2><a class="toc-backref" href="#toc-entry-13">Communication Gateway</a></h2>
 <p>The purpose of the US Communication Gateway is to enable (possibly two-way) exchanges with the US users.</p>
 <p>Such communication is not to happen frow a web-based medium (see <a class="reference external" href="http://us-web.esperide.org">US-Web</a> for that), but through alternate modes such as SMS (relying then on <a class="reference external" href="http://mobile.esperide.org">Ceylan-Mobile</a>, itself relying on <a class="reference external" href="http://seaplus.esperide.org">Ceylan-Seaplus</a>) and/or e-mails (relying then on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad/blob/master/src/utils/email_utils.erl">the corresponding services of Ceylan-Myriad</a>).</p>
-<p>For that, the correspondance between a US role (ex: <tt class="docutils literal">administrator</tt>) and actual user information is established thanks to the <a class="reference internal" href="#contact-directory">contact directory</a> service.</p>
+<p>For that, the correspondance between a US role (e.g. <tt class="docutils literal">administrator</tt>) and actual user information is established thanks to the <a class="reference internal" href="#contact-directory">contact directory</a> service.</p>
 </div>
 <div class="section" id="network-support-monitoring">
 <span id="network-infrastructure-tracker"></span><h2><a class="toc-backref" href="#toc-entry-14">Network Support Monitoring</a></h2>
@@ -340,7 +341,7 @@ $<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/sy
 <ul class="simple">
 <li>protocol: <tt class="docutils literal">http</tt>, <tt class="docutils literal">https</tt>, maybe in the future <tt class="docutils literal">ftp</tt> or alike</li>
 <li>base hostname, specified as a DNS name or an IP address</li>
-<li>possibly a resource designator (ex: a specific URL) for the actual checking</li>
+<li>possibly a resource designator (e.g. a specific URL) for the actual checking</li>
 </ul>
 </div>
 <div class="section" id="next-services">
@@ -462,6 +463,8 @@ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-
 </pre>
 <p>one may use <tt class="docutils literal">to_erl</tt> to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means <em>killing</em> that node; prefer CTRL-D (once).</p>
 <p>For further information one may refer to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main shell scripts</a>, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).</p>
+<p>Apparently, in some cases (not always), stopping the US-Main server (typically with <tt class="docutils literal">systemctl stop <span class="pre">us-main-as-native-build.service</span></tt>) will <em>not</em> unregister it from its EPMD, which will not be stopped either. As a consequence, any next launching of the US-Main server is bound to fail after a time-out, and the VM log file (e.g. <tt class="docutils literal"><span class="pre">/opt/universal-server/us_main-native/us_main/log/erlang.log.1</span></tt>) will confirm that a node with the same name (<tt class="docutils literal">us_main</tt>) already exists (and thus prevents the new launch).</p>
+<p>In this case, the best solution is to kill that lingering EPMD (e.g. <tt class="docutils literal">epmd <span class="pre">-port</span> 4507 <span class="pre">-kill</span></tt>) or, more brutally, to run the <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.</p>
 </div>
 <div class="section" id="monitoring-us-main">
 <h1><a class="toc-backref" href="#toc-entry-24">Monitoring US-Main</a></h1>
@@ -481,7 +484,7 @@ $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><
 <span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-26">Licence</a></h1>
 <p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
 <p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
-<p>We hope indeed that enhancements will be back-contributed (ex: thanks to merge requests), so that everyone will be able to benefit from them.</p>
+<p>We hope indeed that enhancements will be back-contributed (e.g. thanks to merge requests), so that everyone will be able to benefit from them.</p>
 </div>
 <div class="section" id="credits">
 <h1><a class="toc-backref" href="#toc-entry-27">Credits</a></h1>
