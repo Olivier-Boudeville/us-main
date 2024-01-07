@@ -110,7 +110,7 @@ stats:
 #all: compile
 
 
-compile: rebar3-create-app-file
+compile: create-app-file
 	@echo "  Compiling us_main from $$(pwd)"
 	@$(MYRIAD_REBAR_EXEC) compile
 
@@ -138,7 +138,7 @@ release: release-prod
 #
 # ('compile' is not needed either: same happens because of 'release')
 #
-release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile #update-release
+release-dev: clean-otp-build-tree create-app-file rebar.config #compile #update-release
 	@echo "  Generating OTP us_main release in development mode, using $(shell rebar3 -v)"
 	@$(MYRIAD_REBAR_EXEC) release
 	@cd $(US_MAIN_DEFAULT_REL_DIR)/releases && /bin/ln -sf $(US_MAIN_VERSION) latest-release
@@ -147,7 +147,7 @@ release-dev: clean-otp-build-tree rebar3-create-app-file rebar.config #compile #
 # Rebuilding all dependencies ('compile' implied):
 # (yes, 'tar', not 'release')
 #
-release-prod: real-clean rebar3-create-app-file set-rebar-conf
+release-prod: real-clean create-app-file set-rebar-conf
 	@echo "  Generating OTP us_main release $(US_MAIN_VERSION) from scratch in production mode, using $(shell rebar3 -v)"
 	@$(MYRIAD_REBAR_EXEC) as prod tar
 

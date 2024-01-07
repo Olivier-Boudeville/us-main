@@ -89,7 +89,7 @@
 {relx, [
 
   % Not 'us_main_release', otherwise plenty of paths will be cluttered:
-  {release, {us_main, "VERSION_FOR_REBAR"},
+  {release, {us_main, "VERSION_FOR_OTP"},
 
 	% Listing an application here seems necessary (otherwise its .app file will
 	% not be found), however it will also result in its automatic starting with

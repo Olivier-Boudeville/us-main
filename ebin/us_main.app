@@ -10,8 +10,8 @@
 % ./ebin/us_main.app
 % ./src/us_main.app.src -> ../ebin/us_main.app
 %
-% For more information see the Ceylan-Myriad 'rebar3-create-app-file' make
-% target and its associated comments.
+% For more information see the Ceylan-Myriad 'create-app-file' make target and
+% its associated comments.
 
 % See also:
 % - http://erlang.org/doc/man/app.html
@@ -20,7 +20,7 @@
 
 {application, us_main,
  [{description, "US-Main, the OTP active application corresponding to the Universal Server (see http://us-main.esperide.org)"},
-  {vsn, "0.0.16"},
+  {vsn, "0.0.17"},
   {registered, [us_main]},
 
  % Active application:
