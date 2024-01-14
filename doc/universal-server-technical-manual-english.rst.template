@@ -584,6 +584,10 @@ Rebar3-based Build
 
 .. We recommend, for all Erlang-related software, to rely on rebar3.
 
+.. The rebar-based build broke one time too many, and we do not plan to restore it anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky). Our piece of advice is to stick to our perfectly suitable build instead.
+
+.. Note:: With rebar3 we encountered *a lot* of difficulties regarding build and release. So, at least for the moment, we dropped the use of rebar3 and focused instead on our native build/run system, which is perfectly suitable and fully sufficient. We do not plan to restore the rebar3 build anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky).
+
 One may prefer relying on rebar3, even if it is by far the less frequent approach taken here.
 
 If wanting to be able to operate on the source code of the dependencies, appropriate symbolic links may be defined in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant Git clones (typically sibling ones).
