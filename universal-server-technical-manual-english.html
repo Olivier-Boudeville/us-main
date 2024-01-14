@@ -32,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Thursday, January 4, 2024</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Sunday, January 14, 2024</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.16</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.18</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -422,6 +422,10 @@ $<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span
 </div>
 <div class="section" id="rebar3-based-build">
 <h2><a class="toc-backref" href="#toc-entry-21">Rebar3-based Build</a></h2>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">With rebar3 we encountered <em>a lot</em> of difficulties regarding build and release. So, at least for the moment, we dropped the use of rebar3 and focused instead on our native build/run system, which is perfectly suitable and fully sufficient. We do not plan to restore the rebar3 build anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky).</p>
+</div>
 <p>One may prefer relying on rebar3, even if it is by far the less frequent approach taken here.</p>
 <p>If wanting to be able to operate on the source code of the dependencies, appropriate symbolic links may be defined in a <tt class="docutils literal">_checkouts</tt> directory created at the root of <tt class="docutils literal"><span class="pre">us-main</span></tt>, these links pointing to relevant Git clones (typically sibling ones).</p>
 <p><span class="raw-html"><a name="otp"></a></span></p>
