@@ -36,6 +36,11 @@ test_us_main_home_automation( OrderedAppNames ) ->
 	test_facilities:display( "Testing the services related to home automation: "
 		"for that starting the US-Main OTP active application." ),
 
+	test_facilities:display( "The version of this currently tested US-Main "
+		"library is ~ts (i.e. ~w).", [
+			class_USMainConfigServer:get_us_main_version_string(),
+			class_USMainConfigServer:get_us_main_version() ] ),
+
 	% We did not trap EXIT messages, as we wanted this test to crash (thanks to
 	% the links below) in case of problem (and not to receive an EXIT message
 	% bound not to be read, as it happened when no US configuration file was

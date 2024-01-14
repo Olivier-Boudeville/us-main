@@ -63,7 +63,8 @@ ifeq ($(EXECUTION_TARGET),development)
 endif
 
 
-ERLANG_COMPILER_OPT_BASE += $(US_MAIN_DEBUG_FLAGS)    \
+ERLANG_COMPILER_OPT_BASE += -Dus_main_version=\"$(US_MAIN_VERSION)\" \
+							$(US_MAIN_DEBUG_FLAGS)    \
 							$(US_MAIN_CHECK_FLAGS)
 
 
@@ -97,8 +98,11 @@ ifndef PROJECT_NAME_FOR_OTP
 endif
 
 
-# The uniquely-defined version of this layer, for all uses, including rebar:
-US_MAIN_VERSION := 0.0.17
+# The uniquely-defined version of this layer, for all uses (including rebar, hex
+# and the code itself, see
+# class_USMainConfigServer:get_us_main_version{_string,}/0):
+#
+US_MAIN_VERSION := 0.0.18
 
 
 # PROJECT_VERSION should be defined on a per-project basis:

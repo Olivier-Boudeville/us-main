@@ -197,6 +197,7 @@
 % Shorthands:
 
 -type execution_context() :: basic_utils:execution_context().
+-type three_digit_version() :: basic_utils:three_digit_version().
 
 -type ustring() :: text_utils:ustring().
 
@@ -523,6 +524,23 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 
 % Static section.
+
+
+% Version-related static methods.
+
+% @doc Returns the version of the US-Main library being used.
+-spec get_us_main_version() -> static_return( three_digit_version() ).
+get_us_main_version() ->
+	wooper:return_static(
+		basic_utils:parse_version( get_us_main_version_string() ) ).
+
+
+% @doc Returns the version of the US-Main library being used, as a string.
+-spec get_us_main_version_string() -> static_return( ustring() ).
+get_us_main_version_string() ->
+	% As defined (uniquely) in GNUmakevars.inc:
+	wooper:return_static( ?us_main_version ).
+
 
 
 % @doc Returns the PID of the US-Main configuration server, waiting (up to a few
