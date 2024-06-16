@@ -19,12 +19,14 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Saturday, June 5, 2021.
 
-
-% @doc US server in charge of the <b>monitoring of the sensors available on a
-% local host</b> (notably the temperatures, chassis intrusion status and the
-% operation of fans), and of reporting any abnormal situation.
-%
 -module(class_USSensorManager).
+
+-moduledoc """
+US server in charge of the **monitoring of the sensors available on a local
+host** (notably the temperatures, chassis intrusion status and the operation of
+fans), and of reporting any abnormal situation.
+""".
+
 
 
 -define( class_description, "US server in charge of the monitoring of the
@@ -100,30 +102,43 @@ fans), and of reporting any abnormal situation" ).
 % intrusion.
 
 
+
+-doc "PID of a sensor manager.".
 -type sensor_manager_pid() :: class_USServer:server_pid().
 
+
+
+-doc "To designate values read from JSON keys.".
 -type json_read_value() :: float().
-% To designate values read from JSON keys.
 
 
+
+-doc """
+Table associating, to a measurement point (e.g. `<<"Core 0">>`), a table of the
+corresponding attributes (that is a point_attribute_map/0).
+""".
 -type json_point_map() :: map_hashtable( measurement_point_name(),
 										 point_attribute_map() ).
-% Table associating, to a measurement point (e.g. `<<"Core 0">>'), a table of
-% the corresponding attributes (that is a point_attribute_map/0).
 
 
+
+-doc "An entry of a json_point_map/0.".
 -type json_point_entry() :: { measurement_point_name(), point_attribute_map() }.
 % An entry of a json_point_map/0.
 
 
+
+-doc """
+An entry corresponding to the top-level information read from JSON, in a
+corresponding map.
+""".
 -type json_sensor_entry() :: { raw_sensor_id(), json_point_map() }.
-% An entry corresponding to the top-level information read from JSON, in a
-% corresponding map.
 
 
+
+-doc "Defined just for convenience.".
 -type json_triple() :: { measurement_point_name(),
 	measurement_point_description(), point_attribute_map() }.
-% Defined just for convenience.
 
 
 
@@ -131,16 +146,24 @@ fans), and of reporting any abnormal situation" ).
 % Section about sensors.
 
 
+-doc """
+The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
+"radeon", etc.; many exist as they correspond to different chips (e.g.
+"nct6792") on motherboards.
+""".
 -type raw_sensor_type() :: ustring().
-% The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
-% "radeon", etc.; many exist as they correspond to different chips (e.g.
-% "nct6792") on motherboards.
 
 
+
+-doc "Atom-based version of a raw sensor type (e.g. 'coretemp').".
 -type atom_sensor_type() :: atom().
-% Atom-based version of a raw sensor type (e.g. 'coretemp').
 
 
+
+-doc """
+A higher-level (potentially less precise), clearer (US-assigned) category for a
+sensor, deriving from a raw sensor type.
+""".
 -type sensor_category() ::
 	'cpu' % Also includes APU (e.g. Atom+Radeon)
   | 'cpu_socket' % Often less reliable than 'cpu'.
@@ -153,130 +176,186 @@ fans), and of reporting any abnormal situation" ).
   | 'network' % Network interface, like the iwlwifi wireless adapter.
   | 'bus' % Typically USB
   | 'unknown'.
-% A higher-level (potentially less precise), clearer (US-assigned) category for
-% a sensor, deriving from a raw sensor type.
 
 
+
+-doc "The reported hardware interface for a sensor.".
 -type sensor_interface() ::
 	'isa' | 'acpi' | 'pci' | 'virtual' | 'unknown' | atom().
-% The reported hardware interface for a sensor.
 
 
+
+-doc """
+For example "0a20", in `{nct6792, isa, "0a20"}`.
+""".
 -type user_sensor_number() :: ustring().
-% For example "0a20", in {nct6792, isa, "0a20"}.
 
+
+
+-doc """
+Kept as a (binary) string (even if is an hexadecimal value), for clarity.
+
+For example `<<"0a20">>`.
+""".
 -type sensor_number() :: bin_string().
-% Kept as a (binary) string (even if is an hexadecimal value), for clarity.
-% For example `<<"0a20">>'.
 
 
+
+-doc """
+Full identifier of a sensor, directly as read from JSON; e.g.
+`<<"coretemp-isa-0000">>`, `<<"nct6792-isa-0a20">>`, `<<"nvme-pci-0200">>`,
+`<<"radeon-pci-0008">>`, etc.; structure is
+`<<"RawSensorType-SensorInterface-SensorNumber">>`.
+""".
 -type raw_sensor_id() :: bin_string().
-% Full identifier of a sensor, directly as read from JSON; e.g.
-% `<<"coretemp-isa-0000">>', `<<"nct6792-isa-0a20">>', `<<"nvme-pci-0200">>',
-% `<<"radeon-pci-0008">>', etc.; structure is
-% `<<"RawSensorType-SensorInterface-SensorNumber">>'.
 
+
+
+-doc """
+Table registering all information regarding all local sensors; useful when
+parsing a global (JSON) sensor report.
+""".
 -type sensor_table() :: table( raw_sensor_id(), sensor_info() ).
-% Table registering all information regarding all local sensors; useful when
-% parsing a global (JSON) sensor report.
 
 
+
+-doc """
+Full internal identifier of a sensor, directly deriving from a raw one.
+
+For example `{coretemp, isa, <<"0a20">>}`.
+""".
 -type sensor_id() ::
 		{ atom_sensor_type(), sensor_interface(), sensor_number() }.
-% Full internal identifier of a sensor, directly deriving from a raw one.
-% For example `{coretemp, isa, <<"0a20">>}'.
+
 
 
 
 % Section about measurement points.
 
 
+-doc """
+The (raw) name of a measurement point (e.g. '<<"temp1">>' or '<<"Core 0">>') of
+a sensor (which may provide multiple points), as read from JSON.
+""".
 -type measurement_point_name() :: bin_string().
-% The (raw) name of a measurement point (e.g. `<<"temp1">>' or `<<"Core 0">>')
-% of a sensor (which may provide multiple points), as read from JSON.
 
 
+
+-doc """
+A description of a measurement point that is more user-friendly than its raw
+name.
+""".
 -type measurement_point_description() :: bin_string().
-% A description of a measurement point that is more user-friendly than its raw
-% name.
 
 
+
+-doc """
+The enable status of a measurement point. Those that report bogus values shall
+be disabled.
+""".
 -type point_status() :: 'enabled' | 'disabled'.
-% The enable status of a measurement point. Those that report bogus values shall
-% be disabled.
 
 
+
+-doc "The name of an attribute at a measurement point, as read from JSON.".
 -type point_attribute() :: bin_string().
-% The name of an attribute at a measurement point, as read from JSON.
 
+
+
+-doc """
+The value associated to a read JSON key, e.g. a key that is an attribute at a
+measurement point.
+""".
 -type point_value() :: json_read_value().
-% The value associated to a read JSON key, e.g. a key that is an attribute at a
-% measurement point.
 
 
+
+-doc """
+Table associating, to an attribute (e.g. `<<"temp1_crit">>`) of a measurement
+point, a value (e.g. 105.0).
+""".
 -type point_attribute_map() ::
 	map_hashtable( point_attribute(), point_value() ).
-% Table associating, to an attribute (e.g. `<<"temp1_crit">>') of a measurement
-% point, a value (e.g. 105.0).
 
+
+
+%-doc "An entry of a point_attribute_map/0.".
 %-type point_attribute_entry() :: { point_attribute(), point_value() }.
-% An entry of a point_attribute_map/0.
 
 
 
+-doc """
+User specification of a sensor whose measurements may be muted.
+
+For example `{nct6792, isa, "0a20"}`.
+""".
 -type user_muted_sensor_spec() ::
 	{ atom_sensor_type(), sensor_interface(), user_sensor_number() }.
-% User specification of a sensor whose measurements may be muted.
-% For example {nct6792, isa, "0a20"}.
 
 
+-doc """
+A measurement point specified in the configuration (e.g. "AUXTIN1").
+""".
 -type user_specified_point() :: ustring().
-% A measurement point specified in the configuration (e.g. "AUXTIN1").
 
 
+
+-doc """
+User specification of measurement points to be muted for a given sensor (they
+shall not be taken into account, typically because they are known to report
+bogus values).
+
+At least currently, this mostly applies to temperature sensors.
+""".
 -type user_muted_points() :: [ user_specified_point() ]
 						   | 'all_points'. % of a given sensor
-% User specification of measurement points to be muted for a given sensor (they
-% shall not be taken into account, typically because they are known to report
-% bogus values).
-%
-% At least currently, this mostly applies to temperature sensors.
 
 
+
+-doc """
+User specification of sensor measurements to be muted.
+
+At least currently, this mostly applies to temperature sensors.
+
+Corresponds to the legit settings expected as
+class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+```
+[{nct6792, isa, "0a20"}, ["AUXTIN1"]},
+ {acpitz, acpi, "0"}, all_points}].
+```
+""".
 -type user_muted_sensor_measurements() ::
 	[ { user_muted_sensor_spec(), user_muted_points() } ].
-% User specification of sensor measurements to be muted.
-%
-% At least currently, this mostly applies to temperature sensors.
-%
-% Corresponds to the legit settings expected as
-% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
-% [{nct6792, isa, "0a20"}, ["AUXTIN1"]},
-%  {acpitz, acpi, "0"}, all_points}].
 
 
+
+-doc """
+Specification of measurement points (as binaries) to be muted for a given sensor
+(they shall not be taken into account, typically because they are known to
+report bogus values).
+
+For example `[<<"AUXTIN1">>]` or all_points.
+
+At least currently, this mostly applies to temperature sensors.
+""".
 -type muted_points() :: [ measurement_point_name() ]
 					  | 'all_points'. % of a given sensor
-% Specification of measurement points (as binaries) to be muted for a given
-% sensor (they shall not be taken into account, typically because they are known
-% to report bogus values).
-%
-% For example `[<<"AUXTIN1">>]' or all_points.
-%
-% At least currently, this mostly applies to temperature sensors.
 
 
+
+-doc """
+Specification of sensor measurements to be muted.
+
+At least currently, this mostly applies to temperature sensors.
+
+Corresponds to the legit settings expected as
+class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+```
+[{nct6792, isa, <<"0a20">>}, [<<"AUXTIN1">>]},
+ {acpitz, acpi, <<"0">>}, all_points}]
+```.
+""".
 -type muted_sensor_measurements() :: [ { sensor_id(), muted_points() } ].
-% Specification of sensor measurements to be muted.
-%
-% At least currently, this mostly applies to temperature sensors.
-%
-% Corresponds to the legit settings expected as
-% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
-% ```
-% [{nct6792, isa, <<"0a20">>}, [<<"AUXTIN1">>]},
-%  {acpitz, acpi, <<"0">>}, all_points}]
-% '''.
 
 
 
@@ -295,22 +374,29 @@ fans), and of reporting any abnormal situation" ).
 % to stop the alarm when the temperature falls to 75°C.)
 
 
+-doc """
+The description of a temperature (e.g. "alarm").
+""".
 -type temperature_description() :: ustring().
-% The description of a temperature (e.g. "alarm").
 
 
+-doc """
+The description of a temperature range (e.g. "bogus").
+""".
 -type range_description() :: ustring().
-% The description of a temperature range (e.g. "bogus").
+
 
 
 % By decreasing temperature:
+-doc """
+The temperature-related alert state of a measurement point. Allows to report
+issues once, rather than repeatedly.
+""".
 -type temp_alert_state() :: 'critical_high'
 						  | 'alarm_high'
 						  | 'nominal'
 						  | 'alarm_low'
 						  | 'critical_low'.
-% The temperature-related alert state of a measurement point. Allows to report
-% issues once, rather than repeatedly.
 
 
 % Stores information about the temperature measured by a given measurement point
@@ -405,9 +491,12 @@ fans), and of reporting any abnormal situation" ).
 	crit_high = undefined :: celsius() } ).
 
 
+
+-doc """
+Stores information about the temperature measured by a given measurement point
+of a sensor.
+""".
 -type temperature_data() :: #temperature_data{}.
-% Stores information about the temperature measured by a given measurement point
-% of a sensor.
 
 
 
@@ -415,18 +504,23 @@ fans), and of reporting any abnormal situation" ).
 % Section regarding fan sensors.
 
 
+-doc "The detected type of a given fan.".
 -type fan_type() :: 'fixed_speed' % Fans are rotated at a fixed speed,
 								  % regardless of temperature
 				  | 'pwm' % Pulse-Width modulation (controlled fan speed)
 				  | 'unknown'.
-% The detected type of a given fan.
 
 
--type fan_pulse() :: maybe( float() ).
-% The (floating-point) number of pulses generated per revolution of the fan
-% (typically 2).
+
+-doc """
+The (floating-point) number of pulses generated per revolution of the fan
+(typically 2).
+""".
+-type fan_pulse() :: option( float() ).
 
 
+
+-doc "The state condition of a given fan.".
 -type fan_state() :: 'nominal'
 				   | 'inactive' % If a fan is reported as non-operational
 								% (possibly not even existing)
@@ -434,8 +528,6 @@ fans), and of reporting any abnormal situation" ).
 				   | 'insufficient_speed' % If a fan spins too slowly
 				   | 'excessive_speed' % If a fan spins too fast
 				   | 'unknown'.
-% The state condition of a given fan.
-
 
 
 -record( fan_data, {
@@ -457,7 +549,7 @@ fans), and of reporting any abnormal situation" ).
 	type = 'unknown' :: fan_type(),
 
 	% Tells how many of pulses are generated per revolution of the fan:
-	pulses = 'undefined' :: maybe( fan_pulse() ),
+	pulses = 'undefined' :: option( fan_pulse() ),
 
 	% Tells whether this fan was ever detected as moving:
 	% (useless; see min_reached field)
@@ -468,48 +560,50 @@ fans), and of reporting any abnormal situation" ).
 	state = 'unknown' :: fan_state(),
 
 	% The timestamp of the last time this fan was detected as spinning:
-	last_spin_timestamp = undefined :: maybe( timestamp() ),
+	last_spin_timestamp = undefined :: option( timestamp() ),
 
 	% The current fan speed (if any):
-	current :: maybe( rpm() ),
+	current :: option( rpm() ),
 
 	% The lowest fan speed (if any) measured since start:
-	min_reached :: maybe( rpm() ),
+	min_reached :: option( rpm() ),
 
 	% The highest fan speed (if any) measured since start:
-	max_reached :: maybe( rpm() ),
+	max_reached :: option( rpm() ),
 
 
 	% To compute the average fan speed:
 
 	% The sum of all (vetted) fan speeds measured since start:
-	avg_sum = 0.0 :: maybe( rpm() ),
+	avg_sum = 0.0 :: option( rpm() ),
 
 	% The number of all (vetted) fan measurements since start:
-	avg_count = 0 :: maybe( count() ),
+	avg_count = 0 :: option( count() ),
 
 
 	% Tells, if defined, what is the speed threshold below which an alarm shall
 	% be raised regarding that fan (e.g. a fixed-speed fan that would halt for
 	% any reason).
 	%
-	alarm_low = undefined :: maybe( rpm() ),
+	alarm_low = undefined :: option( rpm() ),
 
 
 	% Tells, if defined, what is the speed threshold above which an alarm shall
 	% be raised regarding that fan (e.g. a PWM fan having to speed because of
 	% excessive heat).
 	%
-	alarm_high = undefined :: maybe( rpm() ),
+	alarm_high = undefined :: option( rpm() ),
 
 
 	% Tells whether the motherboard is to beep in case of (presumably) alarm:
 	beep_on_alarm = false :: boolean() } ).
 
 
+-doc """
+Stores information about the fan measured by a given measurement point of a
+sensor.
+""".
 -type fan_data() :: #fan_data{}.
-% Stores information about the fan measured by a given measurement point
-% of a sensor.
 
 
 
@@ -517,9 +611,11 @@ fans), and of reporting any abnormal situation" ).
 % Section regarding intrusion sensors.
 
 
+-doc """
+A status regarding the detection of a chassis intrusion: false if nothing
+detected, true if an intrusion apparently happened.
+""".
 -type intrusion_detected_status() :: boolean().
-% A status regarding the detection of a chassis intrusion: false if nothing
-% detected, true if an intrusion apparently happened.
 
 
 -record( intrusion_data, {
@@ -547,9 +643,11 @@ fans), and of reporting any abnormal situation" ).
 	beep_on_intrusion = false :: boolean() } ).
 
 
+-doc """
+Stores information about any chassis intrusion detected by a given measurement
+point of a sensor.
+""".
 -type intrusion_data() :: #intrusion_data{}.
-% Stores information about any chassis intrusion detected by a given measurement
-% point of a sensor.
 
 
 % For a point P, intrusionP_alarm tells whether a chassis intrusion was detected
@@ -565,13 +663,16 @@ fans), and of reporting any abnormal situation" ).
 			   raw_sensor_id/0, sensor_id/0 ]).
 
 
+-doc "The data that is associated to a measurement point.".
 -type point_data() :: temperature_data() | intrusion_data().
-% The data that is associated to a measurement point.
 
 
+
+-doc """
+A table associating, for a given sensor, to each of its measurement points, its
+data (e.g. regarding temperature, intrusion, etc.).
+""".
 -type points_data_table() :: table( measurement_point_name(), point_data() ).
-% A table associating, for a given sensor, to each of its measurement points,
-% its data (e.g. regarding temperature, intrusion, etc.).
 
 
 % All information regarding a known sensor.
@@ -589,11 +690,11 @@ fans), and of reporting any abnormal situation" ).
 	% All data (of all sorts; and if any, as the category of this sensor must be
 	% known in order to be interpreted) monitored by that sensor:
 	%
-	data :: maybe( points_data_table() ) } ).
+	data :: option( points_data_table() ) } ).
 
 
+-doc "All information regarding a known sensor.".
 -type sensor_info() :: #sensor_info{}.
-% All information regarding a known sensor.
 
 
 
@@ -655,7 +756,7 @@ fans), and of reporting any abnormal situation" ).
 
 
 
-% Shorthands:
+% Type shorthands:
 
 -type count() :: basic_utils:count().
 
@@ -745,12 +846,14 @@ fans), and of reporting any abnormal situation" ).
 % tree.
 
 
-% @doc Starts and links a supervision bridge for the sensor management.
-%
-% Note: typically spawned as a supervised child of the US-Main root supervisor
-% (see us_main_sup:init/1), hence generally triggered by the application
-% initialisation.
-%
+
+-doc """
+Starts and links a supervision bridge for the sensor management.
+
+Note: typically spawned as a supervised child of the US-Main root supervisor
+(see us_main_sup:init/1), hence generally triggered by the application
+initialisation.
+""".
 -spec start_link() -> term().
 start_link() ->
 
@@ -763,9 +866,10 @@ start_link() ->
 
 
 
-% @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/0 being executed.
-%
+-doc """
+Callback to initialise this supervisor bridge, typically in answer to
+start_link/0 being executed.
+""".
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 						| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
@@ -780,7 +884,7 @@ init( _Args=[] ) ->
 
 
 
-% @doc Callback to terminate this supervisor bridge.
+-doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=SensorManagerPid )
 								when is_pid( SensorManagerPid ) ->
@@ -804,7 +908,7 @@ terminate( Reason, _BridgeState=SensorManagerPid )
 % Actual implementation of the sensor manager.
 
 
-% @doc Constructs a sensor manager, for the local host.
+-doc "Constructs a sensor manager, for the local host.".
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 
@@ -850,15 +954,17 @@ construct( State ) ->
 
 
 
-% @doc Constructs a minimal sensor manager in order to test whether the sensor
-% JSON output stored in the specified file can be propertly interpreted.
-%
-% Such a file is typically obtained thanks to:
-%      $ sensors --no-adapter -j > my_sensor_output.txt
-%
-% Useful to support sensors from third-party computers (transmitting such a file
-% just suffice to update this module accordingly). Applies only for testing.
-%
+-doc """
+Constructs a minimal sensor manager in order to test whether the sensor JSON
+output stored in the specified file can be propertly interpreted.
+
+Such a file is typically obtained thanks to:
+	  `$ sensors --no-adapter -j > my_sensor_output.txt`
+
+Useful to support sensors from third-party computers (transmitting such a file
+just suffice to update this module accordingly). Applies only for testing.
+
+""".
 -spec construct( wooper:state(), file_path() ) -> wooper:state().
 construct( State, SensorOutputFilePath ) ->
 
@@ -904,7 +1010,7 @@ construct( State, SensorOutputFilePath ) ->
 
 
 
-% @doc Overridden destructor.
+-doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
@@ -919,10 +1025,11 @@ destruct( State ) ->
 % Method section.
 
 
-% @doc Reads the local sensors.
-%
-% Typically triggered periodically by the scheduler.
-%
+-doc """
+Reads the local sensors.
+
+Typically triggered periodically by the scheduler.
+""".
 -spec readSensors( wooper:state() ) -> oneway_return().
 readSensors( State ) ->
 
@@ -939,9 +1046,10 @@ readSensors( State ) ->
 
 
 
-% @doc Callback triggered, if this server enabled the trapping of exits,
-% whenever a linked process terminates.
-%
+-doc """
+Callback triggered, if this server enabled the trapping of exits, whenever a
+linked process terminates.
+""".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
@@ -952,8 +1060,8 @@ onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
 onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 
 	% Typically: "Received exit message '{{nocatch,
-	%						{wooper_oneway_failed,<0.44.0>,class_XXX,
-	%							FunName,Arity,Args,AtomCause}}, [...]}"
+	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
+	%      FunName,Arity,Args,AtomCause}}, [...]}"
 
 	% Redundant information yet useful for console outputs:
 	?warning_fmt( "US Sensor Manager ~w received and ignored following exit "
@@ -967,9 +1075,10 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 % Static subsection.
 
 
-% @doc Returns the PID of the supposedly already-launched sensor manager; waits
-% for it if needed.
-%
+-doc """
+Returns the PID of the supposedly already-launched sensor manager; waits for it
+if needed.
+""".
 -spec get_sensor_manager() -> static_return( sensor_manager_pid() ).
 get_sensor_manager() ->
 
@@ -985,7 +1094,7 @@ get_sensor_manager() ->
 % Helper section.
 
 
-% @doc Initialises the sensor management.
+-doc "Initialises the sensor management.".
 -spec init_sensors( wooper:state() ) ->
 						{ SensorEnabled :: boolean(), wooper:state() }.
 init_sensors( State ) ->
@@ -1000,7 +1109,7 @@ init_sensors( State ) ->
 
 
 
-% @doc Returns how 'sensors' shall be run.
+-doc "Returns how 'sensors' shall be run.".
 -spec get_sensor_execution_pair( wooper:state() ) ->
 										system_utils:execution_pair().
 get_sensor_execution_pair( State ) ->
@@ -1040,7 +1149,7 @@ get_sensor_execution_pair( State ) ->
 
 
 
-% @doc Returns a proper initial state of the JSON parser.
+-doc "Returns a proper initial state of the JSON parser.".
 -spec initialise_json_support( wooper:state() ) -> parser_state().
 initialise_json_support( State ) ->
 
@@ -1068,9 +1177,10 @@ initialise_json_support( State ) ->
 
 
 
-% @doc Initialises and integrates the first data (e.g. temperatures and fan
-% speeds) read from sensors.
-%
+-doc """
+Initialises and integrates the first data (e.g. temperatures and fan speeds)
+read from sensors.
+""".
 -spec initialise_sensor_data( wooper:state() ) ->
 								{ SensorEnabled :: boolean(), wooper:state() }.
 initialise_sensor_data( State ) ->
@@ -1093,9 +1203,10 @@ initialise_sensor_data( State ) ->
 
 
 
-% @doc Returns the output of the corresponding sensor command (may crash on
-% systematic, non-recoverable errors).
-%
+-doc """
+Returns the output of the corresponding sensor command (may crash on systematic,
+non-recoverable errors).
+""".
 -spec fetch_sensor_data( wooper:state() ) -> fallible( ustring() ).
 fetch_sensor_data( State ) ->
 
@@ -1142,9 +1253,10 @@ fetch_sensor_data( State ) ->
 
 
 
-% @doc Parses the specified sensor JSON output, returns a state with a
-% corresponding initial sensor table.
-%
+-doc """
+Parses the specified sensor JSON output, returns a state with a corresponding
+initial sensor table.
+""".
 -spec parse_initial_sensor_output( string_json(), wooper:state() ) ->
 										wooper:state().
 parse_initial_sensor_output( SensorJsonStr, State ) ->
@@ -1178,7 +1290,7 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 
 
 
-% @doc Vets the user-configured measurements to be muted.
+-doc "Vets the user-configured measurements to be muted.".
 -spec vet_muted_sensor_points( user_muted_sensor_points(),
 							   wooper:state() ) -> muted_sensor_measurements().
 vet_muted_sensor_points( ReadMutedMeasurements, State ) ->
@@ -1205,13 +1317,11 @@ vet_muted_sensor_points( _ReadMutedMeasurements=[
 
 	is_atom( SensorInterface ) orelse
 		begin
-
 			?error_fmt( "Invalid sensor interface ('~p' - not an atom) "
 				"in muted measurement sensor identifier ~p.",
 				[ SensorInterface, ReadSensorId ] ),
 
 			throw( { invalid_muted_sensor_interface, SensorInterface } )
-
 		end,
 
 	BinSensorNumber = case text_utils:is_string( SensorNumber ) of
@@ -1247,7 +1357,7 @@ vet_muted_sensor_points( _ReadMutedMeasurements=[ Other | _T ] , _Acc,
 
 
 
-% @doc Vets the user-specified measurement points to be muted.
+-doc "Vets the user-specified measurement points to be muted.".
 -spec vet_user_points( any(), wooper:state() ) -> muted_points().
 vet_user_points( _UserPoints=all_points, _State ) ->
 	all_points;
@@ -1264,7 +1374,7 @@ vet_user_points( Other, State ) ->
 
 
 
-% @doc Parses in turn the specified initial sensor JSON entries.
+-doc "Parses in turn the specified initial sensor JSON entries.".
 parse_initial_sensors( _SensorPairs=[], SensorTable, _MutedMeasurements=[],
 					   State ) ->
 	setAttributes( State, [ { sensor_table, SensorTable },
@@ -1354,10 +1464,9 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 
 
 
-
-% @doc Returns a pair to categorise specified sensor, deriving from its raw
-% type.
-%
+-doc """
+Returns a pair to categorise specified sensor, deriving from its raw type.
+""".
 -spec categorise_sensor( raw_sensor_type() ) ->
 								{ atom_sensor_type(), sensor_category() }.
 % Internal temperature sensor of Intel Family:
@@ -1403,7 +1512,7 @@ categorise_sensor( RawSensorType ) ->
 
 
 
-% @doc Returns the sensor interface corresponding to the specified string.
+-doc "Returns the sensor interface corresponding to the specified string.".
 -spec get_interface( ustring() ) -> sensor_interface().
 get_interface( _InterfStr="isa" ) ->
 	isa;
@@ -1422,10 +1531,11 @@ get_interface( _InterfStr ) ->
 
 
 
-% @doc Parses specified JSON information regarding specified sensor, in order to
-% detect initially the various measurement points that it supports, and returns
-% the corresponding data table.
-%
+-doc """
+Parses specified JSON information regarding specified sensor, in order to detect
+initially the various measurement points that it supports, and returns the
+corresponding data table.
+""".
 -spec parse_initial_sensor_data( decoded_json(), sensor_category(), sensor_id(),
 			muted_points(), wooper:state() ) -> points_data_table().
 parse_initial_sensor_data( SensorJSON, _SensorCateg=cpu_socket, SensorId,
@@ -1632,13 +1742,13 @@ parse_initial_sensor_data( SensorJSON, SensorCateg, SensorId,
 % Temperature section.
 
 
-% @doc Registers the specified temperature points in the specified data table,
-% for the initialisation of the specified sensor, from the specified JSON
-% content.
-%
-% Only point triples that are already filtered for temperature are expected,
-% thus no need to accumulate unexpected points.
-%
+-doc """
+Registers the specified temperature points in the specified data table, for the
+initialisation of the specified sensor, from the specified JSON content.
+
+Only point triples that are already filtered for temperature are expected, thus
+no need to accumulate unexpected points.
+""".
 -spec register_temperature_points( [ json_triple() ], points_data_table(),
 		sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
 register_temperature_points( _PointTriples, DataTable, _SensorId,
@@ -1705,11 +1815,12 @@ register_temperature_points(
 
 
 
-% @doc Returns a new temperature data initialised from the specified JSON
-% content for the specified measurement point, ready to be updated with the
-% future next current temperatures (knowing it is not muted, as now muted points
-% are filtered upfront).
-%
+-doc """
+Returns a new temperature data initialised from the specified JSON content for
+the specified measurement point, ready to be updated with the future next
+current temperatures (knowing it is not muted, as now muted points are filtered
+upfront).
+""".
 -spec create_temperature_data( point_attribute_map(), measurement_point_name(),
 		measurement_point_description(), sensor_id(), wooper:state() ) ->
 			temperature_data().
@@ -2030,9 +2141,10 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 
 
-% @doc Initialises the specified measurement point with the specified critical
-% temperature.
-%
+-doc """
+Initialises the specified measurement point with the specified critical
+temperature.
+""".
 init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 
 	case vet_initial_temperature( AttrValue, Suffix, BinPointName, SensorId,
@@ -2071,12 +2183,13 @@ init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 % Fan section.
 
 
-% @doc Registers the specified fan points in the specified data table, for the
-% initialisation of the specified sensor, from the specified JSON content.
-%
-% Only point triples that are already filtered for fans are expected, thus no
-% need to accumulate unexpected points.
-%
+-doc """
+Registers the specified fan points in the specified data table, for the
+initialisation of the specified sensor, from the specified JSON content.
+
+Only point triples that are already filtered for fans are expected, thus no need
+to accumulate unexpected points.
+""".
 -spec register_fan_points( [ json_triple() ], points_data_table(),
 	sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
 register_fan_points( _PointTriples, DataTable, _SensorId,
@@ -2141,9 +2254,10 @@ register_fan_points(
 
 
 
-% @doc Returns a new fan data initialised from the specified JSON content,
-% ready to be updated with the future next current fan notifications.
-%
+-doc """
+Returns a new fan data initialised from the specified JSON content, ready to be
+updated with the future next current fan notifications.
+""".
 -spec create_fan_data( point_attribute_map(), measurement_point_name(),
 		measurement_point_description(), sensor_id(), wooper:state() ) ->
 									fan_data().
@@ -2367,12 +2481,13 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 
 
 
-% @doc Registers the specified intrusion points in the specified data table, for
-% the initialisation of the specified sensor, from the specified JSON content.
-%
-% Only point triples that are already filtered for intrusion are expected,
-% thus no need to accumulate unexpected points.
-%
+-doc """
+Registers the specified intrusion points in the specified data table, for the
+initialisation of the specified sensor, from the specified JSON content.
+
+Only point triples that are already filtered for intrusion are expected, thus no
+need to accumulate unexpected points.
+""".
 -spec register_intrusion_points( [ json_triple() ], points_data_table(),
 	sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
 register_intrusion_points( _PointTriples, DataTable, _SensorId,
@@ -2441,11 +2556,12 @@ register_intrusion_points(
 
 
 
-% @doc Returns a new intrusion data initialised from the specified JSON content
-% for the specified measurement point, ready to be updated with the future next
-% current intrusion notifications (knowing it is not muted, as now muted points
-% are filtered upfront).
-%
+-doc """
+Returns a new intrusion data initialised from the specified JSON content for the
+specified measurement point, ready to be updated with the future next current
+intrusion notifications (knowing it is not muted, as now muted points are
+filtered upfront).
+""".
 -spec create_intrusion_data( point_attribute_map(), measurement_point_name(),
 		measurement_point_description(), sensor_id(), wooper:state() ) ->
 			intrusion_data().
@@ -2629,7 +2745,7 @@ init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
 
 
 
-% @doc Returns a term corresponding to specified JSON text.
+-doc "Returns a term corresponding to specified JSON text.".
 -spec decode_sensor_json( string_json(), wooper:state() ) -> decoded_json().
 decode_sensor_json( SensorJsonStr, State ) ->
 
@@ -2645,9 +2761,10 @@ decode_sensor_json( SensorJsonStr, State ) ->
 
 
 
-% @doc Updates the sensor data (e.g. temperatures and fan speeds), as read from
-% sensors.
-%
+-doc """
+Updates the sensor data (e.g. temperatures and fan speeds), as read from
+sensors.
+""".
 update_sensor_data( State ) ->
 
 	case fetch_sensor_data( State ) of
@@ -2663,9 +2780,10 @@ update_sensor_data( State ) ->
 
 
 
-% @doc Parses the specified sensor JSON output, returns a state with an updated
-% sensor table.
-%
+-doc """
+Parses the specified sensor JSON output, returns a state with an updated sensor
+table.
+""".
 -spec update_from_sensor_output( string_json(), wooper:state() ) ->
 										wooper:state().
 update_from_sensor_output( SensorJsonStr, State ) ->
@@ -2681,11 +2799,12 @@ update_from_sensor_output( SensorJsonStr, State ) ->
 
 
 
-% @doc Updates all active sensors based on the specified JSON-decoded map.
-%
-% We iterate through the JSON content rather than through the known sensors
-% (more logical); we just update the sensor table.
-%
+-doc """
+Updates all active sensors based on the specified JSON-decoded map.
+
+We iterate through the JSON content rather than through the known sensors (more
+logical); we just update the sensor table.
+""".
 -spec update_active_sensors( [ json_sensor_entry() ], sensor_table(),
 							 wooper:state() ) -> wooper:state().
 update_active_sensors( _JSONDecodedEntries=[], SensorTable, State ) ->
@@ -2740,10 +2859,10 @@ update_active_sensors(
 
 
 
-% @doc Updates, for the specified sensor, its specified data table of points of
-% all sorts (temperature, intrusion, fan, etc.) from the specified JSON point
-% entries.
-%
+-doc """
+Updates, for the specified sensor, its specified data table of points of all
+sorts (temperature, intrusion, fan, etc.) from the specified JSON point entries.
+""".
 -spec update_data_table( points_data_table(), [ json_point_entry() ],
 						 sensor_id(), wooper:state() ) -> points_data_table().
 update_data_table( PointsDataTable, _PointEntries=[], _SensorId, _State ) ->
@@ -2989,11 +3108,12 @@ update_data_table( PointsDataTable,
 
 
 
-% @doc Examines the specified reported, current (runtime) temperature and takes
-% any appropriate action.
-%
-% (sensor expected to be enabled)
-%
+-doc """
+Examines the specified reported, current (runtime) temperature and takes any
+appropriate action.
+
+(sensor expected to be enabled)
+""".
 -spec examine_temperature( measurement_point_name(), celsius(),
 		temperature_data(), sensor_id(), wooper:state() ) -> temperature_data().
 examine_temperature( PointNameBin, CurrentTemp,
@@ -3156,11 +3276,12 @@ examine_temperature( PointNameBin, CurrentTemp,
 
 
 
-% @doc Examines the specified reported, current fan speed and takes any
-% appropriate action.
-%
-% (sensor expected to be enabled)
-%
+-doc """
+Examines the specified reported, current fan speed and takes any appropriate
+action.
+
+(sensor expected to be enabled)
+""".
 -spec examine_fan_speed( measurement_point_name(), rpm(), fan_data(),
 						 sensor_id(), wooper:state() ) -> fan_data().
 examine_fan_speed( PointNameBin, CurrentSpeed,
@@ -3249,8 +3370,8 @@ examine_fan_speed( PointNameBin, CurrentSpeed,
 
 
 
-% Returns the (new) fan state corresponding to specified parameters.
--spec get_fan_state( rpm(), fan_type(), maybe( rpm() ), maybe( rpm() ) ) ->
+-doc "Returns the (new) fan state corresponding to specified parameters.".
+-spec get_fan_state( rpm(), fan_type(), option( rpm() ), option( rpm() ) ) ->
 							fan_state().
 % Later, if fan types are detected, more fan states may be returned:
 get_fan_state( CurrentSpeed, _FanType=fixed_speed, AlarmLowSpeed,
@@ -3298,11 +3419,12 @@ get_fan_state( _CurrentSpeed, _FanType=unknown, _AlarmLowSpeed,
 
 
 
-% @doc Examines the specified reported, current intrusion status and takes any
-% appropriate action.
-%
-% (sensor expected to be enabled)
-%
+-doc """
+Examines the specified reported, current intrusion status and takes any
+appropriate action.
+
+(sensor expected to be enabled)
+""".
 -spec examine_intrusion_status( measurement_point_name(),
 		intrusion_detected_status(), intrusion_data(), sensor_id(),
 		wooper:state() ) -> intrusion_data().
@@ -3352,7 +3474,7 @@ examine_intrusion_status( PointNameBin, _CurrentIntrusStatus=false,
 % to the category to which the corresponding sensor belongs.
 
 
-% @doc Filters the specified JSON content corresponding to a CPU socket.
+-doc "Filters the specified JSON content corresponding to a CPU socket.".
 -spec filter_cpu_socket_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_cpu_socket_json( SensorJSON ) ->
@@ -3363,7 +3485,7 @@ filter_cpu_socket_json( SensorJSON ) ->
 	% course be of fixed length.
 	%
 	BasicTriples = [ { text_utils:binary_to_string( BinStr ), BinStr, V }
-				|| { BinStr, V } <- map_hashtable:enumerate( SensorJSON ) ],
+		|| { BinStr, V } <- map_hashtable:enumerate( SensorJSON ) ],
 
 	filter_cpu_socket_json( BasicTriples, _TempAcc=[], _OtherAccc=[] ).
 
@@ -3400,7 +3522,7 @@ filter_cpu_socket_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Filters the specified JSON content corresponding to a CPU.
+-doc "Filters the specified JSON content corresponding to a CPU.".
 -spec filter_cpu_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_cpu_json( SensorJSON ) ->
@@ -3471,9 +3593,9 @@ filter_cpu_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Filters te JSON content corresponding to a motherboard.
+-doc "Filters te JSON content corresponding to a motherboard.".
 -spec filter_motherboard_json( decoded_json() ) ->
-	    { [ json_triple() ], [ json_triple() ], [ json_triple() ],
+		{ [ json_triple() ], [ json_triple() ], [ json_triple() ],
 		  [ json_triple() ] }.
 filter_motherboard_json( SensorJSON ) ->
 
@@ -3538,7 +3660,7 @@ filter_motherboard_json( _BasicTriples=[
 						 TempAcc, FanAcc, IntrusionAcc, OtherAcc ) ->
 
 	Desc = integrate_any_number(
-			"platform control hub chipset max temperature sensor", Num ),
+		"platform control hub chipset max temperature sensor", Num ),
 
 	JSONTriple = { BinPointName, Desc, V },
 
@@ -3688,7 +3810,7 @@ filter_motherboard_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Filters the specified JSON content corresponding to a disk.
+-doc "Filters the specified JSON content corresponding to a disk.".
 -spec filter_disk_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_disk_json( SensorJSON ) ->
@@ -3715,7 +3837,7 @@ filter_disk_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Filters the specified JSON content corresponding to a chipset.
+-doc "Filters the specified JSON content corresponding to a chipset.".
 -spec filter_chipset_json( decoded_json() ) ->
 									{ [ json_triple() ], [ json_triple() ] }.
 filter_chipset_json( SensorJSON ) ->
@@ -3743,9 +3865,10 @@ filter_chipset_json( _BasicTriples=[ { Name, BinPointName, V } | T ],
 
 
 
-% @doc Integrates to the specified base name of a measurement point a
-% corresponding number (if any).
-%
+-doc """
+Integrates to the specified base name of a measurement point a corresponding
+number (if any).
+""".
 -spec integrate_any_number( ustring(), ustring() ) -> bin_string().
 integrate_any_number( BaseStr, _Num="" ) ->
 	text_utils:string_to_binary( BaseStr );
@@ -3761,7 +3884,7 @@ integrate_any_number( BaseStr, NumStr ) ->
 
 
 
-% @doc Inits the polling of the sensors.
+-doc "Inits the polling of the sensors.".
 -spec init_polling( class_USScheduler:user_periodicity(), wooper:state() ) ->
 							wooper:state().
 init_polling( SensorPollPeriodicity, State ) ->
@@ -3796,7 +3919,9 @@ init_polling( SensorPollPeriodicity, State ) ->
 
 
 
-% @doc Vets the specified initial (stricter) temperature regarding bogus range.
+-doc """
+Vets the specified initial (stricter) temperature regarding bogus range.
+""".
 -spec vet_initial_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
 vet_initial_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
@@ -3807,7 +3932,7 @@ vet_initial_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 
 
 
-% @doc Vets the specified runtime temperature regarding the bogus range.
+-doc "Vets the specified runtime temperature regarding the bogus range.".
 -spec vet_runtime_temperature( celsius(), temperature_description(),
 		measurement_point_name(), sensor_id(), wooper:state() ) -> boolean().
 vet_runtime_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
@@ -3817,12 +3942,13 @@ vet_runtime_temperature( Temp, TempDesc, BinPointName, SensorId, State ) ->
 
 
 
-% @doc Vets the specified temperature regarding the specified range.
-%
-% Note that this check is applied to all kinds of temperatures (e.g. crit ones -
-% not only the measured ones), so no need to raise too serious alerts here
-% (could be misleading).
-%
+-doc """
+Vets the specified temperature regarding the specified range.
+
+Note that this check is applied to all kinds of temperatures (e.g. crit ones -
+not only the measured ones), so no need to raise too serious alerts here (could
+be misleading).
+""".
 -spec vet_temperature( celsius(), temperature_description(), celsius(),
 		celsius(), range_description(), measurement_point_name(), sensor_id(),
 		wooper:state() ) -> boolean().
@@ -3874,7 +4000,7 @@ vet_temperature( _Temp, _TempDesc, _Min, _Max, _RangeDesc, _BinPointName,
 
 
 
-% @doc Vets specified temperature regarding specified range.
+-doc "Vets specified temperature regarding specified range.".
 -spec vet_fan_speed( rpm(), bin_string(), measurement_point_name(), sensor_id(),
 					 wooper:state() ) -> boolean().
 vet_fan_speed( Speed, _Desc, _PointNameBin, _SensorId, _State )
@@ -3887,9 +4013,10 @@ vet_fan_speed( _Speed, _Desc, _PointNameBin, _SensorId, _State )  ->
 
 
 
-% @doc Checks that the static information of specified temperature data is
-% legit, and returns it.
-%
+-doc """
+Checks that the static information of specified temperature data is legit, and
+returns it.
+""".
 -spec check_temperature_data( temperature_data() ) -> temperature_data().
 check_temperature_data( TempData=#temperature_data{ status=disabled } ) ->
 	TempData;
@@ -3917,9 +4044,10 @@ check_temperature_data( TempData=#temperature_data{
 
 
 
-% @doc Checks that the static information of specified fan data is legit, and
-% returns it.
-%
+-doc """
+Checks that the static information of specified fan data is legit, and returns
+it.
+""".
 -spec check_fan_data( fan_data() ) -> fan_data().
 check_fan_data( FanData=#fan_data{ status=disabled } ) ->
 	FanData;
@@ -3950,9 +4078,10 @@ check_fan_data( FanData=#fan_data{ input_attribute=InputAttr,
 
 
 
-% @doc Checks that the static information of specified intrusion data is legit,
-% and returns it.
-%
+-doc """
+Checks that the static information of specified intrusion data is legit, and
+returns it.
+""".
 -spec check_intrusion_data( intrusion_data() ) -> intrusion_data().
 check_intrusion_data( IntrusData=#intrusion_data{ status=disabled } ) ->
 	IntrusData;
@@ -3973,9 +4102,10 @@ check_intrusion_data( IntrusData=#intrusion_data{
 
 
 
-% @doc Parses the sensor JSON output stored in the specified file, returns a
-% state with a corresponding initial sensor table.
-%
+-doc """
+Parses the sensor JSON output stored in the specified file, returns a state with
+a corresponding initial sensor table.
+""".
 -spec parse_sensor_output_from_file( file_path(), wooper:state() ) ->
 											wooper:state().
 parse_sensor_output_from_file( OutputFilePath, State ) ->
@@ -3998,7 +4128,7 @@ parse_sensor_output_from_file( OutputFilePath, State ) ->
 
 
 
-% @doc Returns a textual description of the specified temperature alert state.
+-doc "Returns a textual description of the specified temperature alert state.".
 -spec temp_alert_state_to_string( temp_alert_state() ) -> ustring().
 temp_alert_state_to_string( _AlertState=critical_high ) ->
 	"critical high temperature";
@@ -4017,7 +4147,7 @@ temp_alert_state_to_string( _AlertState=critical_low ) ->
 
 
 
-% @doc Returns a textual description of the specified fan state.
+-doc "Returns a textual description of the specified fan state.".
 -spec fan_state_to_string( fan_state() ) -> ustring().
 fan_state_to_string( _State=nominal ) ->
 	"nominal";
@@ -4040,7 +4170,7 @@ fan_state_to_string( _State=unknown ) ->
 
 
 
-% @doc Returns a textual description of the specified fan type.
+-doc "Returns a textual description of the specified fan type.".
 -spec fan_type_to_string( fan_type() ) -> ustring().
 fan_type_to_string( _Type=fixed_speed ) ->
 	"fixed-speed";
@@ -4053,7 +4183,7 @@ fan_type_to_string( _Type=unknown ) ->
 
 
 
-% @doc Returns a textual description of the specified measurement data.
+-doc "Returns a textual description of the specified measurement data.".
 -spec point_data_to_string( point_data() ) -> ustring().
 % First, temperature-related clauses:
 point_data_to_string( #temperature_data{ input_attribute=InputAttr,
@@ -4215,13 +4345,14 @@ point_data_to_string( #intrusion_data{
 
 
 
-% @doc Returns a textual description of the specified measurement point table.
+-doc "Returns a textual description of the specified measurement point table.".
 -spec measurement_points_to_string( points_data_table() ) -> ustring().
 measurement_points_to_string( PointsDataTable ) ->
 	measurement_points_to_string( PointsDataTable, _IndentationLevel=0 ).
 
 
-% @doc Returns a textual description of the specified measurement point table.
+
+-doc "Returns a textual description of the specified measurement point table.".
 -spec measurement_points_to_string( points_data_table(),
 									indentation_level() ) -> ustring().
 measurement_points_to_string( PointsDataTable, IndentationLevel ) ->
@@ -4249,9 +4380,9 @@ measurement_points_to_string( PointsDataTable, IndentationLevel ) ->
 
 
 
-% @doc Returns a textual description of the specified intrusion detection
-% status.
-%
+-doc """
+Returns a textual description of the specified intrusion detection status.
+""".
 -spec intrusion_status_to_string( intrusion_detected_status() ) -> ustring().
 intrusion_status_to_string( _IntrusStatus=true ) ->
 	"intrusion detected";
@@ -4261,7 +4392,7 @@ intrusion_status_to_string( _IntrusStatus=false ) ->
 
 
 
-% @doc Returns a textual description of the specified sensor identifier.
+-doc "Returns a textual description of the specified sensor identifier.".
 -spec sensor_id_to_string( sensor_id() ) -> ustring().
 sensor_id_to_string( { AtomSensorType, SensorInterface, SensorNumber } ) ->
 	text_utils:format( "sensor of type ~ts, on interface ~ts, "
@@ -4270,7 +4401,7 @@ sensor_id_to_string( { AtomSensorType, SensorInterface, SensorNumber } ) ->
 
 
 
-% @doc Returns a textual description of the specified sensor information.
+-doc "Returns a textual description of the specified sensor information.".
 -spec sensor_info_to_string( sensor_info() ) -> ustring().
 sensor_info_to_string( #sensor_info{ raw_id=RawIdBinStr,
 									 id={ _RawType, Interface, _NumBinStr },
@@ -4292,7 +4423,7 @@ sensor_info_to_string( #sensor_info{ raw_id=RawIdBinStr,
 
 
 
-% @doc Returns a textual description of the specified JSON triple.
+-doc "Returns a textual description of the specified JSON triple.".
 -spec json_triple_to_string( json_triple() ) -> ustring().
 json_triple_to_string( { BinPointName, BinDesc, PointValueMap } ) ->
 	text_utils:format( "measurement point '~ts' (~ts) whose value map is ~p",
@@ -4300,7 +4431,7 @@ json_triple_to_string( { BinPointName, BinDesc, PointValueMap } ) ->
 
 
 
-% @doc Returns a textual description of the specified sensor table.
+-doc "Returns a textual description of the specified sensor table.".
 -spec sensor_table_to_string( sensor_table() ) -> ustring().
 sensor_table_to_string( SensorTable ) ->
 
@@ -4322,7 +4453,7 @@ sensor_table_to_string( SensorTable ) ->
 
 
 
-% @doc Returns a textual description of this manager.
+-doc "Returns a textual description of this manager.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 

@@ -19,11 +19,12 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Wednesday, November 23, 2022.
 
-
-% @doc US server in charge of the <b>providing home automation services</b>,
-% based on Enocean, thanks to Ceylan-Oceanic.
-%
 -module(class_USHomeAutomationServer).
+
+-moduledoc """
+US server in charge of the **providing home automation services**, based on
+Enocean, thanks to Ceylan-Oceanic.
+""".
 
 
 -define( class_description, "US server in charge of the providing home "
@@ -74,7 +75,10 @@
 -define( bridge_name, ?MODULE ).
 
 
+
+-doc "US-Server for home automation.".
 -type home_automation_server_pid() :: class_USServer:server_pid().
+
 
 
 % For the presence_simulation_setting record:
@@ -84,48 +88,60 @@
 -include_lib("myriad/include/utils/time_utils.hrl").
 
 
+-doc "Setting of a given instance of presence simulation.".
 -type presence_simulation_setting() :: #presence_simulation_setting{}.
-% Setting of a given instance of presence simulation.
 
 
+
+-doc "All (user-level) settings for a whole presence simulation service.".
 -type presence_simulation_settings() ::
-	{ 'default', MaybeTargetActuatorEurid :: maybe( eurid() ) }
+	{ 'default', MaybeTargetActuatorEurid :: option( eurid() ) }
   | [ presence_simulation_setting() ].
-% All (user-level) settings for a whole presence simulation service.
 
 
+
+-doc "Describes a start/stop logical moment to simulate presence.".
 -type presence_milestone() ::
 	time()  % A time in the day
   | 'dawn'  % First light (if any) of the day
   | 'dusk'. % Last light (if any) of the day
-% Describes a start/stop logical moment to simulate presence.
 
 
+
+-doc "A time slot during which a presence shall be simulated.".
 -type presence_slot() ::
 	{ Start :: presence_milestone(), Stop :: presence_milestone() }.
-% A time slot during which a presence shall be simulated.
 
 
+
+-doc """
+A intra-day general program regarding a presence to simulate.
+
+If slots are used, at least one shall be defined (otherwise one of the
+constant_* atoms shall be used).
+""".
 -type presence_program() :: [ presence_slot() ]
 						  | 'constant_presence'
 						  | 'constant_absence'.
-% A intra-day general program regarding a presence to simulate.
-%
-% If slots are used, at least one shall be defined (otherwise one of the
-% constant_* atoms shall be used).
 
 
--type celestial_timing() :: { Dawn :: maybe( time() ), Dusk :: maybe( time() ) }
+
+-doc """
+The time for dawn and dusk (if any - think to the extreme latitudes), at a given
+(implicit) location and date.
+
+Dawn and dusk are defined as actual transitions between darkness/daylight.
+""".
+-type celestial_timing() :: { Dawn :: option( time() ), Dusk :: option( time() ) }
 						  | 'constant_daylight' | 'constant_darkness'.
-% The time for dawn and dusk (if any - think to the extreme latitudes), at a
-% given (implicit) location and date.
-%
-% Dawn and dusk are defined as actual transitions between darkness/daylight.
 
 
+
+-doc """
+The time for dawn and dusk (if any - think to the extreme latitudes), at a given
+(implicit) location, for the specified date.
+""".
 -type celestial_info() :: { date(), celestial_timing() }.
-% The time for dawn and dusk (if any - think to the extreme latitudes), at a
-% given (implicit) location, for the specified date.
 
 
 -export_type([ home_automation_server_pid/0,
@@ -139,29 +155,39 @@
 % Local types:
 
 
+-doc "Internal identifier of a registered presence simulation instance.".
 -type presence_sim_id() :: count().
-% Internal identifier of a registered presence simulation instance.
 
 
+
+-doc "A pair of telegrams corresponding to a press/release transaction.".
 -type telegram_pair() :: { Press :: telegram(), Release :: telegram() }.
-% A pair of telegrams corresponding to a press/release transaction.
 
 
+
+-doc """
+Information regarding a planned (presence) task, to be able to check/control it.
+""".
 -type task_info() :: { task_id(), time() }.
-% Information regarding a planned (presence) task, to be able to check/control
-% it.
 
+
+
+-doc """
+An hour in the day or duration, as a floating-point value (e.g. 12.5 for 30
+minutes past noon).
+""".
 -type decimal_hour() :: float().
-% An hour in the day or duration, as a floating-point value (e.g. 12.5 for 30
-% minutes past noon).
 
 
+
+-doc """
+Time equation table, to correct sunrise/sunset times based on day rank.
+
+A simpler indexed list would have been sufficient.
+
+See also <https://en.wikipedia.org/wiki/Equation_of_time>.
+""".
 -type time_equation_table() :: table( day_in_the_year(), decimal_hour() ).
-% Time equation table, to correct sunrise/sunset times based on day rank.
-%
-% A simpler indexed list would have been sufficient.
-%
-% See also https://en.wikipedia.org/wiki/Equation_of_time
 
 
 % Originally in
@@ -225,7 +251,7 @@
 
 	% The next planned action (if any) that shall happen:
 	% Not used, as relying now on a "stateless" algorithm.
-	%next_action :: maybe( { timestamp(), presence_action() } ),
+	%next_action :: option( { timestamp(), presence_action() } ),
 
 	% Tells whether lighting shall be switched off during a presence slot when
 	% the light of day should be available (provided that the geographical
@@ -248,26 +274,32 @@
 	% The identifier and planned time of the currently-pending scheduling task
 	% (if any) declared to manage that presence during the current day:
 	%
-	presence_task_info :: maybe( task_info() ) } ).
+	presence_task_info :: option( task_info() ) } ).
 
 
+
+-doc """
+Internal information regarding an instance of presence simulation.
+
+Counterpart of the user-level presence_simulation_setting().
+""".
 -type presence_simulation() :: #presence_simulation{}.
-% Internal information regarding an instance of presence simulation.
-%
-% Counterpart of the user-level presence_simulation_setting().
 
 
+
+-doc "A table keeping track of the known presence simulations.".
 -type presence_table() :: table( presence_sim_id(), presence_simulation() ).
-% A table keeping track of the known presence simulations.
 
 
 
+-doc """
+A (higher-level) status of a device, as known by this server.
+
+It can be unset as not known or as not sufficiently relevant (e.g. any reported
+temperature reported by a sensor should just be read from any last event).
+""".
 -type device_status() :: 'unknown' | single_input_contact_status().
-% A (higher-level) status of a device, as known by this server.
-%
-% It can be unset as not known or as not sufficiently relevant (e.g. any
-% reported temperature reported by a sensor should just be read from any last
-% event).
+
 
 
 % Rather than 'opened' | 'closed':
@@ -285,33 +317,35 @@
 	% The (supposedly single) EEP identifier known (if any) for this device
 	% (e.g. 'double_rocker_multipress'):
 	%
-	eep_id :: maybe( eep_id() ),
+	eep_id :: option( eep_id() ),
 
 	% Records the initial event (if any) received from this device (a configured
 	% one being first seen, a taught-in one, or one not known a priori but
 	% discovered):
 	%
-	initial_event :: maybe( device_event() ),
+	initial_event :: option( device_event() ),
 
 	% Records the last event (if any) sent by this device:
-	last_event :: maybe( device_event() ),
+	last_event :: option( device_event() ),
 
 	% The currently known status for this device:
 	current_status :: device_status() } ).
 
 
+-doc "Internal information regarding a known (Enoceanic) device.".
 -type device_state() :: #device_state{}.
-% Internal information regarding a known (Enoceanic) device.
 
 
 
+-doc """
+A table recording the information regarding the Enocean devices known by this
+automation server, notably in order to detect state transitions and trigger
+events.
+""".
 -type device_table() :: table( eurid(), device_state() ).
-% A table recording the information regarding the Enocean devices known by this
-% automation server, notably in order to detect state transitions and trigger
-% events.
 
 
-% Shorthands:
+% Type shorthands:
 
 -type count() :: basic_utils:count().
 -type user_data() :: basic_utils:user_data().
@@ -356,17 +390,18 @@
 -type eep_id() :: oceanic:eep_id().
 
 
+
 % The class-specific attributes:
 -define( class_attributes, [
 
-	{ oc_srv_pid, maybe( oceanic_server_pid() ),
+	{ oc_srv_pid, option( oceanic_server_pid() ),
 	  "the PID of the Oceanic server (if any can exist) used by this server" },
 
 	{ oc_periodic_restart, boolean(), "tells whether Oceanic shall be "
 	  "periodically restarted, in order to overcome any risk of freeze of "
 	  "the USB-based serial interface" },
 
-	{ oc_base_id, maybe( eurid() ), "the base identifier (if any) of "
+	{ oc_base_id, option( eurid() ), "the base identifier (if any) of "
 	  "the local Enocean gateway to use, as determined by Oceanic" },
 
 	{ us_config_server_pid, server_pid(),
@@ -396,29 +431,29 @@
 	{ next_presence_id, presence_sim_id(),
 	  "the next presence identifier that will be assigned" },
 
-	{ time_equation_table, maybe( time_equation_table() ),
+	{ time_equation_table, option( time_equation_table() ),
 	  "a table (if any) allowing to correct sunrise/sunset times, for smart "
 	  "lighting" },
 
-	{ midnight_task_id, maybe( task_id() ),
+	{ midnight_task_id, option( task_id() ),
 	  "a task to be triggered, if the presence simulation is activated, "
 	  "each day at midnight to determine and update the activity of the "
 	  "presence simulations for the next day (and to ensure that any "
 	  "potential switching discrepancy does not linger, and if enabled to "
 	  "restart the serial interface)" },
 
-	{ server_location, maybe( position() ),
+	{ server_location, option( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
 
-	{ presence_switching_device, maybe( eurid() ),
+	{ presence_switching_device, option( eurid() ),
 	  "the device (typically any that can be interpreted as being pressed and "
 	  "released, like a push-button or a double-rocker), if any, used as "
 	  "first-level indicator about whether somebody is at home" },
 
-	{ presence_switching_device_desc, maybe( bin_string() ),
+	{ presence_switching_device_desc, option( bin_string() ),
 	  "a textual description of the presence switching device (if any)" },
 
-	{ celestial_info, maybe( celestial_info() ),
+	{ celestial_info, option( celestial_info() ),
 	  "any precomputed dawn/dusk time, for the current day" },
 
 	{ comm_gateway_pid, gateway_pid(),
@@ -493,12 +528,13 @@
 % supervision tree.
 
 
-% @doc Starts and links a supervision bridge for the home automation system.
-%
-% Note: typically spawned as a supervised child of the US-Main root supervisor
-% (see us_main_sup:init/1), hence generally triggered by the application
-% initialisation.
-%
+-doc """
+Starts and links a supervision bridge for the home automation system.
+
+Note: typically spawned as a supervised child of the US-Main root supervisor
+(see us_main_sup:init/1), hence generally triggered by the application
+initialisation.
+""".
 -spec start_link() -> term().
 start_link() ->
 
@@ -511,9 +547,10 @@ start_link() ->
 
 
 
-% @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/0 being executed.
-%
+-doc """
+Callback to initialise this supervisor bridge, typically in answer to
+start_link/0 being executed.
+""".
 -spec init( list() ) -> { 'ok', pid(), State :: term() } | 'ignore'
 					  | { 'error', Error :: term() }.
 init( _Args=[] ) ->
@@ -528,7 +565,7 @@ init( _Args=[] ) ->
 
 
 
-% @doc Callback to terminate this supervisor bridge.
+-doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=HomeAutomSrvPid )
 								when is_pid( HomeAutomSrvPid ) ->
@@ -552,55 +589,63 @@ terminate( Reason, _BridgeState=HomeAutomSrvPid )
 % Actual implementation of the home automation server.
 
 
-% @doc Constructs an home automation server, based on the default, local TTY
-% allocated to the USB Enocean gateway, whose base identifier will be used as
-% source EURID for telegram sendings, and not providing a presence simulator.
-%
+-doc """
+Constructs an home automation server, based on the default, local TTY allocated
+to the USB Enocean gateway, whose base identifier will be used as source EURID
+for telegram sendings, and not providing a presence simulator.
+""".
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 	construct( State, oceanic:get_default_tty_path() ).
 
 
-% @doc Constructs an home automation server, based on the specified local TTY
-% allocated to the USB Enocean gateway, whose base identifier will be used as
-% source EURID for telegram sendings, and not providing a presence simulator.
-%
+
+-doc """
+Constructs an home automation server, based on the specified local TTY allocated
+to the USB Enocean gateway, whose base identifier will be used as source EURID
+for telegram sendings, and not providing a presence simulator.
+""".
 -spec construct( wooper:state(), device_path() ) -> wooper:state().
 construct( State, TtyPath ) ->
 	construct( State, TtyPath, _MaybePresenceSimSettings=undefined ).
 
 
-% @doc Constructs an home automation server, based on the specified local TTY
-% allocated to the USB Enocean gateway.
-%
-% Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
-% performed, specified either as a complete list of presence settings, or only
-% through the EURID of the target actuator(s) - in which case a default presence
-% policy will apply; the source used for the sent telegrams will be the base
-% identifier of the gateway.
-%
+
+-doc """
+Constructs an home automation server, based on the specified local TTY allocated
+to the USB Enocean gateway.
+
+Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
+performed, specified either as a complete list of presence settings, or only
+through the EURID of the target actuator(s) - in which case a default presence
+policy will apply; the source used for the sent telegrams will be the base
+identifier of the gateway.
+
+""".
 -spec construct( wooper:state(), device_path(),
-				 maybe( presence_simulation_settings() | eurid_string() ) ) ->
+				 option( presence_simulation_settings() | eurid_string() ) ) ->
 										wooper:state().
 construct( State, TtyPath, MaybePresenceSimSettings ) ->
 	construct( State, TtyPath, MaybePresenceSimSettings,
 			   _MaybeSourceEuridStr=undefined ).
 
 
-% @doc Constructs an home automation server, based on the specified local TTY
-% allocated to the USB Enocean gateway.
-%
-% Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
-% performed, specified either as a complete list of presence settings, or only
-% through the EURID of the target actuator(s) - in which case a default presence
-% policy will apply; the source used for the sent telegrams will be the
-% specified one (if any), otherwise the base identifier of the gateway.
-%
-% (most complete constructor)
-%
+
+-doc """
+Constructs an home automation server, based on the specified local TTY allocated
+to the USB Enocean gateway.
+
+Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
+performed, specified either as a complete list of presence settings, or only
+through the EURID of the target actuator(s) - in which case a default presence
+policy will apply; the source used for the sent telegrams will be the specified
+one (if any), otherwise the base identifier of the gateway.
+
+(most complete constructor)
+""".
 -spec construct( wooper:state(), device_path(),
-	maybe( presence_simulation_settings() | eurid_string() ),
-	maybe( eurid_string() ) ) -> wooper:state().
+	option( presence_simulation_settings() | eurid_string() ),
+	option( eurid_string() ) ) -> wooper:state().
 construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	ServerTraceName = "Home automation server",
@@ -772,11 +817,15 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 
 
-% (helper)
--spec init_presence_simulation( maybe( presence_simulation_settings() ),
-	maybe( oceanic_server_pid() ), maybe( eurid_string() ), wooper:state() ) ->
-		{ presence_table(), presence_sim_id(), maybe( time_equation_table() ),
-		  maybe( task_id() ) }.
+-doc """
+Initialises the overall presence simulation.
+
+(helper)
+""".
+-spec init_presence_simulation( option( presence_simulation_settings() ),
+	option( oceanic_server_pid() ), option( eurid_string() ), wooper:state() ) ->
+		{ presence_table(), presence_sim_id(), option( time_equation_table() ),
+		  option( task_id() ) }.
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 						  MaybeSrcEuridStr, State ) ->
 	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
@@ -785,8 +834,6 @@ init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 
 
 
-% @doc Initialises the overall presence simulation.
-%
 % (helper)
 %
 % No presence simulation wanted:
@@ -1015,7 +1062,7 @@ init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEuridStr,
 
 
 
-% @doc Vets the specified user program.
+-doc "Vets the specified user program.".
 -spec vet_program( user_data() ) -> presence_program().
 vet_program( _PresenceProgram=constant_presence ) ->
 	constant_presence;
@@ -1065,11 +1112,12 @@ vet_program( Other, _MaybeLastStop, _AccSlots ) ->
 
 
 
-% @doc Applies, from the current moment, the intra-day presence program.
-%
-% Defined for reuse (at creation or afterwards, if toggling this service as a
-% whole, updating presence simulations, etc.).
-%
+-doc """
+Applies, from the current moment, the intra-day presence program.
+
+Defined for reuse (at creation or afterwards, if toggling this service as a
+whole, updating presence simulations, etc.).
+""".
 -spec apply_presence_simulation( wooper:state() ) -> wooper:state().
 apply_presence_simulation( State ) ->
 
@@ -1098,11 +1146,12 @@ apply_presence_simulation( State ) ->
 
 
 
-% @doc Updates, in turn and if necessary, from scratch, the specified presence
-% simulations.
-%
-% Defined for reuse.
-%
+-doc """
+Updates, in turn and if necessary, from scratch, the specified presence
+simulations.
+
+Defined for reuse.
+""".
 -spec update_presence_simulations( [ presence_simulation() ],
 								   wooper:state() ) -> wooper:state().
 update_presence_simulations( PscSims, State ) ->
@@ -1136,13 +1185,14 @@ update_presence_simulations( PscSims, State ) ->
 
 
 
-% @doc Updates, in turn and if necessary, from scratch, the specified presence
-% simulations.
-%
-% If defined, the celestial times are expected to be correct here.
-%
+-doc """
+Updates, in turn and if necessary, from scratch, the specified presence
+simulations.
+
+If defined, the celestial times are expected to be correct here.
+""".
 -spec update_presence_simulations( [ presence_simulation() ], time(),
-		maybe( celestial_info() ), presence_table(), wooper:state() ) ->
+		option( celestial_info() ), presence_table(), wooper:state() ) ->
 			wooper:state().
 update_presence_simulations( _PscSims=[], _CurrentTime, MaybeCelestialInfo,
 							 PscTable, State ) ->
@@ -1180,15 +1230,15 @@ update_presence_simulations(
 
 
 
+-doc """
+Manages the specified presence simulation from scratch (callable at any time),
+covering all cases, and acting accordingly iff necessary.
 
-% @doc Manages the specified presence simulation from scratch (callable at any
-% time), covering all cases, and acting accordingly iff necessary.
-%
-% A large function, but defined only once.
-%
+A large function, but defined only once.
+""".
 -spec manage_presence_simulation( presence_simulation(), time(),
-								  maybe( celestial_info() ), wooper:state() ) ->
-		{ presence_simulation(), maybe( celestial_info() ) }.
+								  option( celestial_info() ), wooper:state() ) ->
+		{ presence_simulation(), option( celestial_info() ) }.
 % Not enabled:
 manage_presence_simulation( PscSim=#presence_simulation{
 		enabled=false,
@@ -1512,9 +1562,10 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 
 
-% @doc Returns whether, for the specified time, a presence shall be simulated,
-% and what is the transition (if any) to plan next this day.
-%
+-doc """
+Returns whether, for the specified time, a presence shall be simulated, and what
+is the transition (if any) to plan next this day.
+""".
 -spec get_programmed_presence( [ presence_slot() ], time() ) ->
 		'always_present' | 'always_absent'
 	| { 'present_until', time() } | { 'absent_until', time() }.
@@ -1551,7 +1602,7 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 
 
 
-% @doc Ensures that the lighting is on for this presence simulation.
+-doc "Ensures that the lighting is on for this presence simulation.".
 -spec ensure_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_lighting( PscSim, _IsActivated=true, State ) ->
@@ -1578,7 +1629,7 @@ ensure_lighting( PscSim=#presence_simulation{
 
 
 
-% @doc Ensures that the lighting is off for this presence simulation.
+-doc "Ensures that the lighting is off for this presence simulation.".
 -spec ensure_not_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_not_lighting( PscSim=#presence_simulation{
@@ -1606,11 +1657,12 @@ ensure_not_lighting( PscSim, _IsActivated=false, State ) ->
 
 
 
-% @doc Ensures that the specified presence task (and only it) is planned for an
-% update at the specified time.
-%
+-doc """
+Ensures that the specified presence task (and only it) is planned for an update
+at the specified time.
+""".
 -spec ensure_planned_presence_transition( presence_simulation(), time(),
-			maybe( task_info() ), wooper:state() ) -> presence_simulation().
+			option( task_info() ), wooper:state() ) -> presence_simulation().
 % Plan if not already planned:
 ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
 		PlannedTime, _MaybePscTaskInfo=undefined, State ) ->
@@ -1662,9 +1714,9 @@ ensure_planned_presence_transition( PscSim, PlannedTime,
 
 
 
-% @doc Ensures that there is no planned presence task.
+-doc "Ensures that there is no planned presence task.".
 -spec ensure_no_planned_presence_transition( presence_simulation(),
-				maybe( task_id() ), wooper:state() ) -> presence_simulation().
+				option( task_id() ), wooper:state() ) -> presence_simulation().
 ensure_no_planned_presence_transition( PscSim, _MaybePscTaskInfo=undefined,
 									   _State ) ->
 	PscSim;
@@ -1676,14 +1728,15 @@ ensure_no_planned_presence_transition( PscSim, { PscTaskId, _TaskTime },
 
 
 
-% @doc Ensures that constant light is available from the specified current time:
-% lights iff no daylight.
-%
-% Note that we just plan the next transition, not any next one that could be
-% determined here.
-%
--spec ensure_constant_light( time(), maybe( time() ), maybe( time() ),
-	presence_simulation(), boolean(), maybe( task_info() ), wooper:state() ) ->
+-doc """
+Ensures that constant light is available from the specified current time: lights
+iff no daylight.
+
+Note that we just plan the next transition, not any next one that could be
+determined here.
+""".
+-spec ensure_constant_light( time(), option( time() ), option( time() ),
+	presence_simulation(), boolean(), option( task_info() ), wooper:state() ) ->
 			presence_simulation().
 % No dawn, supposedly no dusk either, constant darkness, hence constant lighting
 % needed:
@@ -1780,14 +1833,15 @@ ensure_constant_light( _CurrentTime, _DawnTime, DuskTime, PscSim,
 
 
 
-% @doc Ensures that light is available until the specified stop time, expected
-% to be in the future of the specified current time.
-%
-% Note that we just plan the next transition, not any next one that could be
-% determined here.
-%
--spec ensure_light_until( time(), time(), maybe( time() ), maybe( time() ),
-	presence_simulation(), boolean(), maybe( task_info() ), wooper:state() ) ->
+-doc """
+Ensures that light is available until the specified stop time, expected to be in
+the future of the specified current time.
+
+Note that we just plan the next transition, not any next one that could be
+determined here.
+""".
+-spec ensure_light_until( time(), time(), option( time() ), option( time() ),
+	presence_simulation(), boolean(), option( task_info() ), wooper:state() ) ->
 			presence_simulation().
 % No dawn, supposedly no dusk either, constant darkness, hence lighting needed
 % until stop time:
@@ -1895,14 +1949,15 @@ ensure_light_until( StopTime, _CurrentTime, _DawnTime, _DuskTime, PscSim,
 
 
 
-% @doc Ensures that light is available from the specified start time, expected
-% to be in the future of the specified current time.
-%
-% Note that we just plan the next transition, not any next one that could be
-% determined here.
-%
--spec ensure_light_from( time(), time(), maybe( time() ), maybe( time() ),
-	presence_simulation(), boolean(), maybe( task_info() ), wooper:state() ) ->
+-doc """
+Ensures that light is available from the specified start time, expected to be in
+the future of the specified current time.
+
+Note that we just plan the next transition, not any next one that could be
+determined here.
+""".
+-spec ensure_light_from( time(), time(), option( time() ), option( time() ),
+	presence_simulation(), boolean(), option( task_info() ), wooper:state() ) ->
 			presence_simulation().
 % No dawn, supposedly no dusk either, constant darkness, hence lighting (only)
 % needed from that start time:
@@ -2049,14 +2104,13 @@ ensure_light_from( StartTime, _CurrentTime, _DawnTime, DuskTime, PscSim,
 
 
 
+-doc """
+Returns the relevent celestial times, once computed if necessary.
 
-
-% @doc Returns the relevent celestial times, once computed if necessary.
-%
-% If defined, celestial times are expected to be correct (deprecated times shall
-% have been set to 'undefined').
-%
--spec get_celestial_info( maybe( celestial_info() ), wooper:state() ) ->
+If defined, celestial times are expected to be correct (deprecated times shall
+have been set to 'undefined').
+""".
+-spec get_celestial_info( option( celestial_info() ), wooper:state() ) ->
 								celestial_info().
 get_celestial_info( _MaybeCelestialTimes=undefined, State ) ->
 	resolve_logical_milestones( ?getAttr(server_location), State );
@@ -2066,11 +2120,12 @@ get_celestial_info( CelestialTimes, _State ) ->
 
 
 
-% Computes (if possible) the actual dawn/dusk times.
-%
-% (helper)
-%
--spec resolve_logical_milestones( maybe( position() ), wooper:state() ) ->
+-doc """
+Computes (if possible) the actual dawn/dusk times.
+
+(helper)
+""".
+-spec resolve_logical_milestones( option( position() ), wooper:state() ) ->
 									celestial_info().
 resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
 
@@ -2216,7 +2271,7 @@ get_sun_rise_and_set_times( LatRadians, DeclinationDegrees ) ->
 
 
 
-% @doc Converts a decimal hour to hours and minutes.
+-doc "Converts a decimal hour to hours and minutes.".
 -spec from_decimal_hour( float() ) -> time().
 from_decimal_hour( DecHour ) ->
 	Hours = math_utils:floor( DecHour ),
@@ -2230,7 +2285,7 @@ from_decimal_hour( DecHour ) ->
 
 
 
-% @doc Sends (presumably reliably) the specified telegram pair.
+-doc "Sends (presumably reliably) the specified telegram pair.".
 -spec send_telegram_pair( telegram_pair(), wooper:state() ) -> void().
 send_telegram_pair( Telegrams, State ) ->
 
@@ -2257,7 +2312,7 @@ send_telegram_pair( Telegrams, State ) ->
 
 
 
-% @doc Sends the specified telegram pair the specified number of times.
+-doc "Sends the specified telegram pair the specified number of times.".
 -spec send_telegram_pair( telegram_pair(), count(), oceanic_server_pid() ) ->
 											void().
 send_telegram_pair( _Telegrams, _Count=0, _OcSrvPid ) ->
@@ -2279,7 +2334,7 @@ send_telegram_pair( Telegrams={ PressTelegram, ReleaseTelegram }, Count,
 
 
 
-% @doc Overridden destructor.
+-doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
@@ -2304,9 +2359,10 @@ destruct( State ) ->
 % Method section.
 
 
-% @doc Requests the specified presence simulation to be updated, typically after
-% a milestone, as planned through a scheduler.
-%
+-doc """
+Requests the specified presence simulation to be updated, typically after a
+milestone, as planned through a scheduler.
+""".
 -spec updatePresenceSimulation( wooper:state(), presence_sim_id() ) ->
 											oneway_return().
 updatePresenceSimulation( State, PscId ) ->
@@ -2333,11 +2389,12 @@ updatePresenceSimulation( State, PscId ) ->
 
 
 
-% @doc Called whenever having to update presence programs, typically at midnight
-% for this new day.
-%
-% See also the midnight_task_id attribute.
-%
+-doc """
+Called whenever having to update presence programs, typically at midnight for
+this new day.
+
+See also the midnight_task_id attribute.
+""".
 -spec updatePresencePrograms( wooper:state() ) -> oneway_return().
 updatePresencePrograms( State ) ->
 
@@ -2398,7 +2455,9 @@ updatePresencePrograms( State ) ->
 
 
 
-% @doc Ensures that no past presence task lingers in the specified simulation.
+-doc """
+Ensures that no past presence task lingers in the specified simulation.
+""".
 -spec clear_any_presence_task( presence_simulation(), scheduler_pid(),
 							   wooper:state() ) -> presence_simulation().
 clear_any_presence_task( Psc=#presence_simulation{
@@ -2416,12 +2475,14 @@ clear_any_presence_task( Psc, _SchedPid, _State ) ->
 
 
 
+
 % Management of messages sent by the Oceanic server:
 
 
-% @doc Handles a device-related first detection of a configured device
-% (typically a sensor report) notified by the specified Oceanic server.
-%
+-doc """
+Handles a device-related first detection of a configured device (typically a
+sensor report) notified by the specified Oceanic server.
+""".
 -spec onEnoceanConfiguredDeviceFirstSeen( wooper:state(), device_event(),
 		device_description(), oceanic_server_pid() ) -> oneway_return().
 onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
@@ -2459,10 +2520,10 @@ onEnoceanConfiguredDeviceFirstSeen( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
-% @doc Handles a device-related discovery of a device (typically a sensor
-% report) that was not in the configuration, as notified by the specified
-% Oceanic server.
-%
+-doc """
+Handles a device-related discovery of a device (typically a sensor report) that
+was not in the configuration, as notified by the specified Oceanic server.
+""".
 -spec onEnoceanDeviceDiscovery( wooper:state(), device_event(),
 		device_description(), oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
@@ -2501,7 +2562,9 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
-% @doc Records the existence of a device not expected to be already known.
+-doc """
+Records the existence of a device not expected to be already known.
+""".
 -spec record_new_device( device_event(), wooper:state() ) -> wooper:state().
 record_new_device( DeviceEvent, State ) ->
 
@@ -2523,9 +2586,9 @@ record_new_device( DeviceEvent, State ) ->
 
 
 
-% @doc Returns the higher-level status that can be deduced from the specified
-% event.
-%
+-doc """
+Returns the higher-level status that can be deduced from the specified event.
+""".
 -spec interpret_status( device_event() ) -> device_status().
 interpret_status( _DeviceEvent=#single_input_contact_event{
 						contact=ContactStatus } ) ->
@@ -2536,15 +2599,16 @@ interpret_status( _DeviceEvent ) ->
 
 
 
-% @doc Handles a device-related event (typically a sensor report) notified by
-% the specified Oceanic server.
-%
-% This device has been already discovered; tells whether this device was
-% considered lost until now.
-%
-% This is by far the most frequent device-related message (once a
-% discovery-related message has been received first).
-%
+-doc """
+Handles a device-related event (typically a sensor report) notified by the
+specified Oceanic server.
+
+This device has been already discovered; tells whether this device was
+considered lost until now.
+
+This is by far the most frequent device-related message (once a
+discovery-related message has been received first).
+""".
 -spec onEnoceanDeviceEvent( wooper:state(), device_event(), back_online_info(),
 							oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
@@ -2643,9 +2707,10 @@ process_device_event( DeviceEvent, State ) ->
 
 
 
-% @doc Handles a teach-in event of a device, as notified by the specified
-% Oceanic server.
-%
+-doc """
+Handles a teach-in event of a device, as notified by the specified Oceanic
+server.
+""".
 -spec onEnoceanDeviceTeachIn( wooper:state(), device_event(),
 		device_description(), oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
@@ -2679,9 +2744,10 @@ onEnoceanDeviceTeachIn( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
-% @doc Handles the detection of the vanishing of the specified device by the
-% specified Oceanic server.
-%
+-doc """
+Handles the detection of the vanishing of the specified device by the specified
+Oceanic server.
+""".
 -spec onEnoceanDeviceLost( wooper:state(), eurid(), device_name(),
 		device_description(), boolean(), timestamp(), milliseconds(),
 		oceanic_server_pid() ) -> const_oneway_return().
@@ -2719,9 +2785,10 @@ onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
 
 
 
-% @doc Handles a possible jamming attempt, as suspected and reported by the
-% specified Oceanic server.
-%
+-doc """
+Handles a possible jamming attempt, as suspected and reported by the specified
+Oceanic server.
+""".
 -spec onEnoceanJamming( wooper:state(), bytes_per_second(),
 						oceanic_server_pid() ) -> const_oneway_return().
 onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
@@ -2737,16 +2804,18 @@ onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
 
 
 
-% @doc Returns a suitable name for a trace emitter for the specified device.
+-doc """
+Returns a suitable name for a trace emitter for the specified device.
+""".
 -spec get_trace_emitter_name_from( device_name() ) -> bin_string().
 get_trace_emitter_name_from( BinDevName ) ->
 	text_utils:bin_concatenate( <<"Devices.">>, BinDevName ).
 
 
 
-% @doc Checks whether an actual presence switching (somebody being at home or
-% not)
-%
+-doc """
+Checks whether an actual presence switching (somebody being at home or not)
+""".
 -spec manage_presence_switching( device_event(), wooper:state() ) ->
 										wooper:state().
 manage_presence_switching( DevEvent, State ) ->
@@ -2819,9 +2888,10 @@ manage_presence_switching( DevEvent, State ) ->
 
 
 
-% @doc Callback triggered, if this server enabled the trapping of exits,
-% whenever a linked process terminates.
-%
+-doc """
+Callback triggered, if this server enabled the trapping of exits, whenever a
+linked process terminates.
+""".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
@@ -2848,9 +2918,10 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 % Static subsection.
 
 
-% @doc Returns the PID of the supposedly already-launched home automation
-% server; waits for it if needed.
-%
+-doc """
+Returns the PID of the supposedly already-launched home automation server; waits
+for it if needed.
+""".
 -spec get_home_automation_server() ->
 			static_return( home_automation_server_pid() ).
 get_home_automation_server() ->
@@ -2864,12 +2935,13 @@ get_home_automation_server() ->
 
 
 
+
 % Helper section.
 
 
-% @doc Sends the specified presence simulation trace, to have it correctly
-% categorised.
-%
+-doc """
+Sends the specified presence simulation trace, to have it correctly categorised.
+""".
 -spec send_psc_trace( trace_severity(), trace_message(), wooper:state() ) ->
 								void().
 send_psc_trace( TraceSeverity, TraceMsg, State ) ->
@@ -2877,9 +2949,11 @@ send_psc_trace( TraceSeverity, TraceMsg, State ) ->
 		<<"Presence simulation">> ).
 
 
-% @doc Sends the specified presence simulation formatted trace, to have it
-% correctly categorised.
-%
+
+-doc """
+Sends the specified presence simulation formatted trace, to have it correctly
+categorised.
+""".
 -spec send_psc_trace_fmt( trace_severity(), trace_format(), trace_values(),
 						  wooper:state() ) -> void().
 send_psc_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
@@ -2888,7 +2962,7 @@ send_psc_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
 
 
 
-% @doc Returns a textual description of this server.
+-doc "Returns a textual description of this server.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
@@ -2997,9 +3071,10 @@ to_string( State ) ->
 
 
 
-% @doc Returns a textual description of the specified presence simulation
-% internal record.
-%
+-doc """
+Returns a textual description of the specified presence simulation internal
+record.
+""".
 -spec presence_simulation_to_string( presence_simulation() ) -> ustring().
 presence_simulation_to_string( #presence_simulation{
 		id=Id,
@@ -3080,7 +3155,7 @@ presence_simulation_to_string( #presence_simulation{
 
 
 
-% @doc Returns a textual description of the specified presence slot.
+-doc "Returns a textual description of the specified presence slot.".
 -spec slot_to_string( presence_slot() ) -> ustring().
 slot_to_string( _Slot={ StartTime, StopTime } ) ->
 	text_utils:format( "from ~ts to ~ts", [
@@ -3089,7 +3164,7 @@ slot_to_string( _Slot={ StartTime, StopTime } ) ->
 
 
 
-% @doc Returns a textual description of the specified device state.
+-doc "Returns a textual description of the specified device state.".
 -spec device_state_to_string( device_state() ) -> ustring().
 device_state_to_string( #device_state{
 		eurid=Eurid,
@@ -3103,7 +3178,7 @@ device_state_to_string( #device_state{
 
 
 
-% @doc Returns a textual description of the specified device table.
+-doc "Returns a textual description of the specified device table.".
 -spec device_table_to_string( device_table() ) -> ustring().
 device_table_to_string( DevTable ) ->
 	case table:values( DevTable ) of

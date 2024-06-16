@@ -19,11 +19,12 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Wednesday, September 15, 2021.
 
-
-% @doc Singleton server holding the <b>configuration information</b> of the
-% US-Main framework.
-%
 -module(class_USMainConfigServer).
+
+-moduledoc """
+Singleton server holding the **configuration information** of the US-Main
+framework.
+""".
 
 
 -define( class_description,
@@ -55,28 +56,39 @@
 % For the general_main_settings records:
 -include("class_USMainConfigServer.hrl").
 
+
+
+-doc "General US-Main settings".
 -type general_main_settings() :: #general_main_settings{}.
 
 
+
+-doc """
+A list expected to contain muted sensor measurement points, typically as read
+from the sensor monitoring section of the US-Main configuration.
+
+Expected to be specified in the form [user_muted_sensor_measurements()]:
+```
+UserMutedMeasurements = [
+   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
+   { { acpitz, acpi, "0" }, all_points } ].
+```
+""".
 -type user_muted_sensor_points() :: list().
-% A list expected to contain muted sensor measurement points, typically as read
-% from the sensor monitoring section of the US-Main configuration.
-%
-% Expected to be specified in the form [user_muted_sensor_measurements()]:
-% UserMutedMeasurements = [
-%   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
-%   { { acpitz, acpi, "0" }, all_points } ].
 
 
--type home_automation_settings() :: { maybe( user_server_location() ),
+
+-doc "Settings gathered on behalf of the home automation server.".
+-type home_automation_settings() :: { option( user_server_location() ),
 	BinAppBaseDirectoryPath :: bin_directory_path(),
-	MaybePscSwitchEurid :: maybe( eurid() ), oceanic_settings() }.
-% Settings gathered on behalf of the home automation server.
+	MaybePscSwitchEurid :: option( eurid() ), oceanic_settings() }.
 
 
+
+-doc "Checked more precisely as a position() in the home automation server.".
 -type user_server_location() ::
 	{ LatDegrees :: float(), LongDegrees :: float() }.
-% Checked more precisely as a position() in the home automation server.
+
 
 
 % For default_us_main_config_server_registration_name:
@@ -187,14 +199,14 @@
 % all US-Main configuration information.
 
 
+-doc "A table holding US-Main configuration information.".
 -type us_main_config_table() :: table( atom(), term() ).
-% A table holding US-Main configuration information.
 
 
 -include_lib("myriad/include/spawn_utils.hrl").
 
 
-% Shorthands:
+% Type shorthands:
 
 -type execution_context() :: basic_utils:execution_context().
 -type three_digit_version() :: basic_utils:three_digit_version().
@@ -237,10 +249,10 @@
 	{ us_main_supervisor_pid, supervisor_pid(),
 	  "the PID of the OTP supervisor of US-Main, as defined in us_main_sup" },
 
-	{ contact_directory_pid, maybe( contact_directory_pid() ),
+	{ contact_directory_pid, option( contact_directory_pid() ),
 	  "the PID (if any) of the US-Main server managing the contact directory" },
 
-	{ sensor_manager_pid, maybe( sensor_manager_pid() ),
+	{ sensor_manager_pid, option( sensor_manager_pid() ),
 	  "the PID (if any) of the US-Main server managing the local sensors" },
 
 	{ muted_sensor_measurements, user_muted_sensor_points(),
@@ -248,12 +260,12 @@
 	  "to be vetted by the sensor manager when it will request it" },
 
 	% Multi-purpose information (not only for home-automation):
-	{ server_location, maybe( user_server_location() ),
+	{ server_location, option( user_server_location() ),
 	  "the user-specified location of this US-Main server" },
 
 	% Home-automation specific:
-	{ home_automation_core_settings, { maybe( eurid() ),
-		maybe( presence_simulation_settings() ), oceanic_settings() },
+	{ home_automation_core_settings, { option( eurid() ),
+		option( presence_simulation_settings() ), oceanic_settings() },
 	  "any home automation core settings read (and not specifically checked) "
 	  "on behalf of the house automation server" },
 
@@ -305,13 +317,14 @@
 % supervision tree.
 
 
-% @doc Starts and links a supervision bridge for the US-Main configuration
-% server.
-%
-% Note: typically spawned as a supervised child of the US-Main root supervisor
-% (see us_main_sup:init/1), hence generally triggered by the application
-% initialisation.
-%
+-doc """
+Starts and links a supervision bridge for the US-Main configuration server.
+
+Note: typically spawned as a supervised child of the US-Main root supervisor
+(see us_main_sup:init/1), hence generally triggered by the application
+initialisation.
+
+""".
 -spec start_link( supervisor_pid(), application_run_context() ) -> term().
 start_link( SupervisorPid, AppRunContext ) ->
 
@@ -324,9 +337,10 @@ start_link( SupervisorPid, AppRunContext ) ->
 
 
 
-% @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/2 above being executed.
-%
+-doc """
+Callback to initialise this supervisor bridge, typically in answer to
+start_link/2 above being executed.
+""".
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[ SupervisorPid, AppRunContext ] ) ->
@@ -343,7 +357,7 @@ init( _Args=[ SupervisorPid, AppRunContext ] ) ->
 
 
 
-% @doc Callback to terminate this supervisor bridge.
+-doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
 
@@ -362,12 +376,12 @@ terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
 
 
 
+-doc """
+Constructs the US-Main configuration server.
 
-% @doc Constructs the US-Main configuration server.
-%
-% SupervisorPid is the PID of the main US-Main OTP supervisor, and AppRunContext
-% tells how US-Web is being run.
-%
+SupervisorPid is the PID of the main US-Main OTP supervisor, and AppRunContext
+tells how US-Web is being run.
+""".
 -spec construct( wooper:state(), supervisor_pid(),
 				 application_run_context() ) -> wooper:state().
 construct( State, SupervisorPid, AppRunContext ) ->
@@ -427,7 +441,7 @@ construct( State, SupervisorPid, AppRunContext ) ->
 
 
 
-% @doc Overridden destructor.
+-doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
@@ -442,9 +456,10 @@ destruct( State ) ->
 % Method section.
 
 
-% @doc Returns basic, general main configuration settings (typically for the
-% us_main supervisor).
-%
+-doc """
+Returns basic, general main configuration settings (typically for the us_main
+supervisor).
+""".
 -spec getMainConfigSettings( wooper:state() ) ->
 								const_request_return( general_main_settings() ).
 getMainConfigSettings( State ) ->
@@ -460,7 +475,7 @@ getMainConfigSettings( State ) ->
 
 
 
-% @doc Returns suitable sensor settings (typically for the sensor manager).
+-doc "Returns suitable sensor settings (typically for the sensor manager).".
 -spec getSensorSettings( wooper:state() ) ->
 			const_request_return( user_muted_sensor_points() ).
 getSensorSettings( State ) ->
@@ -468,9 +483,10 @@ getSensorSettings( State ) ->
 
 
 
-% @doc Returns suitable home automation settings, read from the configuration
-% (typically on behalf of the home automation server).
-%
+-doc """
+Returns suitable home automation settings, read from the configuration
+(typically on behalf of the home automation server).
+""".
 -spec getHomeAutomationSettings( wooper:state() ) ->
 			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
@@ -484,7 +500,7 @@ getHomeAutomationSettings( State ) ->
 
 
 
-% @doc Returns suitable contact settings (typically for the contact directory).
+-doc "Returns suitable contact settings (typically for the contact directory).".
 -spec getContactSettings( wooper:state() ) ->
 	const_request_return(
 		{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
@@ -497,7 +513,7 @@ getContactSettings( State ) ->
 
 
 
-% @doc Callback triggered whenever a linked process exits.
+-doc "Callback triggered whenever a linked process exits.".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 						basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
@@ -528,14 +544,16 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 % Version-related static methods.
 
-% @doc Returns the version of the US-Main library being used.
+
+-doc "Returns the version of the US-Main library being used.".
 -spec get_us_main_version() -> static_return( three_digit_version() ).
 get_us_main_version() ->
 	wooper:return_static(
 		basic_utils:parse_version( get_us_main_version_string() ) ).
 
 
-% @doc Returns the version of the US-Main library being used, as a string.
+
+-doc "Returns the version of the US-Main library being used, as a string.".
 -spec get_us_main_version_string() -> static_return( ustring() ).
 get_us_main_version_string() ->
 	% As defined (uniquely) in GNUmakevars.inc:
@@ -543,13 +561,14 @@ get_us_main_version_string() ->
 
 
 
-% @doc Returns the PID of the US-Main configuration server, waiting (up to a few
-% seconds, as all US-Main servers are bound to be launched mostly
-% simultaneously) if needed.
-%
-% Typically useful for the various other US-Main servers, so that they can
-% easily access to their configuration information.
-%
+-doc """
+Returns the PID of the US-Main configuration server, waiting (up to a few
+seconds, as all US-Main servers are bound to be launched mostly simultaneously)
+if needed.
+
+Typically useful for the various other US-Main servers, so that they can easily
+access to their configuration information.
+""".
 -spec get_us_main_config_server() -> static_return( server_pid() ).
 get_us_main_config_server() ->
 
@@ -569,9 +588,10 @@ get_us_main_config_server() ->
 
 
 
-% @doc Creates a mockup of the US-Main configuration server, notably for the
-% testing of the other servers.
-%
+-doc """
+Creates a mockup of the US-Main configuration server, notably for the testing of
+the other servers.
+""".
 -spec create_mockup_for_test() -> static_return( server_pid() ).
 create_mockup_for_test() ->
 
@@ -617,13 +637,14 @@ us_main_mockup_srv() ->
 % Helper section.
 
 
-% @doc Loads and applies the relevant configuration settings first from the
-% overall US configuration file, then from the more main/vhost specific one.
-%
-% As a result, the US configuration file is not fully checked as such (e.g. no
-% extracting and check that no entry remains), we just select the relevant
-% information from it.
-%
+-doc """
+Loads and applies the relevant configuration settings first from the overall US
+configuration file, then from the more main/vhost specific one.
+
+As a result, the US configuration file is not fully checked as such (e.g. no
+extracting and check that no entry remains), we just select the relevant
+information from it.
+""".
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
@@ -655,11 +676,12 @@ load_and_apply_configuration( State ) ->
 
 
 
-% @doc Loads the US-Main configuration information (that is the corresponding
-% US-Main configuration file, as identified from the US one), on behalf of the
-% various services that it offers.
-%
--spec load_main_config( bin_directory_path(), maybe( bin_file_path() ),
+-doc """
+Loads the US-Main configuration information (that is the corresponding US-Main
+configuration file, as identified from the US one), on behalf of the various
+services that it offers.
+""".
+-spec load_main_config( bin_directory_path(), option( bin_file_path() ),
 			wooper:state() ) -> wooper:state().
 load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined, State ) ->
 
@@ -742,12 +764,13 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 
-% @doc Manages any US-Main level user-configured EPMD port.
-%
-% The port may be already set at the US overall level, but it can be overridden
-% on a per-US application basis, as it may be convenient to share one's
-% us.config between multiple applications (e.g. US-Main and US-Web).
-%
+-doc """
+Manages any US-Main level user-configured EPMD port.
+
+The port may be already set at the US overall level, but it can be overridden on
+a per-US application basis, as it may be convenient to share one's us.config
+between multiple applications (e.g. US-Main and US-Web).
+""".
 -spec manage_epmd_port( us_main_config_table(), wooper:state() ) ->
 										wooper:state().
 manage_epmd_port( ConfigTable, State ) ->
@@ -792,9 +815,10 @@ manage_epmd_port( ConfigTable, State ) ->
 
 
 
-% @doc Manages any user-configured registration names for this instance, for the
-% US-Main server and their related services, which may be created here.
-%
+-doc """
+Manages any user-configured registration names for this instance, for the
+US-Main server and their related services, which may be created here.
+""".
 -spec manage_registrations( us_main_config_table(), wooper:state() ) ->
 									wooper:state().
 manage_registrations( _ConfigTable, State ) ->
@@ -818,9 +842,10 @@ manage_registrations( _ConfigTable, State ) ->
 
 
 
-% @doc Manages any user-configured specification regarding the (operating-system
-% level) US-Main user.
-%
+-doc """
+Manages any user-configured specification regarding the (operating-system level)
+US-Main user.
+""".
 -spec manage_os_user( us_main_config_table(), wooper:state() ) ->
 									wooper:state().
 manage_os_user( ConfigTable, State ) ->
@@ -866,10 +891,10 @@ manage_os_user( ConfigTable, State ) ->
 
 
 
-
-% @doc Manages any user-configured application base directory, and sets related
-% directories.
-%
+-doc """
+Manages any user-configured application base directory, and sets related
+directories.
+""".
 -spec manage_app_base_directories( us_main_config_table(), wooper:state() ) ->
 										wooper:state().
 manage_app_base_directories( ConfigTable, State ) ->
@@ -1048,7 +1073,7 @@ manage_app_base_directories( ConfigTable, State ) ->
 
 
 
-% @doc Tries to guess the US-Main application directory.
+-doc "Tries to guess the US-Main application directory.".
 guess_app_dir( AppRunContext, State ) ->
 
 	CurrentDir = file_utils:get_current_directory(),
@@ -1094,9 +1119,9 @@ guess_app_dir( AppRunContext, State ) ->
 
 
 
-% @doc Manages any user-configured data directory to rely on, creating it if
-% necessary.
-%
+-doc """
+Manages any user-configured data directory to rely on, creating it if necessary.
+""".
 -spec manage_data_directory( us_main_config_table(), wooper:state() ) ->
 									wooper:state().
 manage_data_directory( ConfigTable, State ) ->
@@ -1170,9 +1195,9 @@ manage_data_directory( ConfigTable, State ) ->
 
 
 
-% @doc Manages any user-configured log directory to rely on, creating it if
-% necessary.
-%
+-doc """
+Manages any user-configured log directory to rely on, creating it if necessary.
+""".
 -spec manage_log_directory( us_main_config_table(), wooper:state() ) ->
 								wooper:state().
 manage_log_directory( ConfigTable, State ) ->
@@ -1241,7 +1266,7 @@ manage_log_directory( ConfigTable, State ) ->
 
 
 
-% @doc Manages any user-configured contact files.
+-doc "Manages any user-configured contact files.".
 -spec manage_contacts( us_main_config_table(), wooper:state() ) ->
 			wooper:state().
 manage_contacts( ConfigTable, State ) ->
@@ -1279,7 +1304,7 @@ manage_contacts( ConfigTable, State ) ->
 
 
 
-% @doc Manages any user settings regarding sensors.
+-doc "Manages any user settings regarding sensors.".
 -spec manage_sensors( us_main_config_table(), wooper:state() ) ->
 										wooper:state().
 manage_sensors( ConfigTable, State ) ->
@@ -1346,7 +1371,7 @@ manage_sensors( ConfigTable, State ) ->
 
 
 
-% @doc Manages any user settings regarding home automation.
+-doc "Manages any user settings regarding home automation.".
 -spec manage_home_automation( us_main_config_table(), wooper:state() ) ->
 										wooper:state().
 manage_home_automation( ConfigTable, State ) ->
@@ -1426,7 +1451,7 @@ manage_home_automation( ConfigTable, State ) ->
 
 
 
-% @doc Returns a textual description of this configuration server.
+-doc "Returns a textual description of this configuration server.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 

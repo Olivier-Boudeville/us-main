@@ -19,15 +19,16 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Sunday, January 19, 2020.
 
-
-% @doc Actual US-Main <b>trace monitoring logic</b>, as a (Myriad) application.
-%
-% Typically called through the us_main/priv/bin/monitor-us-main.sh script.
-%
-% Designed to monitor a US-Main instance typically from any remote host able to
-% connect to the VM hosting that instance.
-%
 -module(us_main_monitor_app).
+
+-moduledoc """
+Actual US-Main **trace monitoring logic**, as a (Myriad) application.
+
+Typically called through the us_main/priv/bin/monitor-us-main.sh script.
+
+Designed to monitor a US-Main instance typically from any remote host able to
+connect to the VM hosting that instance.
+""".
 
 
 -export([ exec/0 ]).
@@ -41,7 +42,7 @@
 
 
 
-% @doc Runs this monitoring app.
+-doc "Runs this monitoring app.".
 -spec exec() -> no_return().
 exec() ->
 
@@ -143,7 +144,7 @@ exec() ->
 
 
 
-% @doc Initialises this application from the command line.
+-doc "Initialises this application from the command line.".
 init_from_command_line() ->
 
 	% To force options for testing:
@@ -212,12 +213,12 @@ init_from_command_line() ->
 
 
 
-% @doc Returns the possible node names (main or user-based one) corresponding to
-% the target server US-Main instance.
-%
-% Two names are considered, as two approaches can be used to launch US-Main
-% nodes.
-%
+-doc """
+Returns the possible node names (main or user-based one) corresponding to the
+target server US-Main instance.
+
+Two names are considered, as two approaches can be used to launch US-Main nodes.
+""".
 get_target_node_names( Cfg ) ->
 
 	RemoteHostname = list_table:get_value( us_main_hostname, Cfg ),
@@ -245,11 +246,11 @@ get_target_node_names( Cfg ) ->
 
 
 
-% @doc Returns the TCP port range to use (if any).
+-doc "Returns the TCP port range to use (if any).".
 get_tcp_port_range( Cfg ) ->
 
 	MaybePortRange = list_table:get_value_with_default( _K=tcp_port_range,
-												_Default=undefined, Cfg ),
+		_Default=undefined, Cfg ),
 
 	%trace_utils:debug_fmt( "TCP port range: ~p.", [ MaybePortRange ] ),
 

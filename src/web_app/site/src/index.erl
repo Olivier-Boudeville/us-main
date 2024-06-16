@@ -1,8 +1,8 @@
 %% -*- mode: nitrogen -*-
 
-% @doc This is both the entry point and the login page of the US-Main web
-% application.
-%
+-doc """
+This is both the entry point and the login page of the US-Main web application.
+""".
 -module(index).
 
 -include_lib("nitrogen_core/include/wf.hrl").
@@ -142,7 +142,7 @@ auth_failed() ->
 
 
 
-% @doc Returns the expected password for the specified login.
+-doc "Returns the expected password for the specified login.".
 -spec get_password_for( text_utils:ustring() ) ->
 			basic_utils:maybe( text_utils:ustring() ).
 get_password_for( _Login="foo@bar.com" ) ->

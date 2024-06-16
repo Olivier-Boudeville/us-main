@@ -19,19 +19,18 @@
 % Author: Olivier Boudeville (olivier.boudeville@esperide.com)
 % Creation date: Saturday, August 21, 2021.
 
-
-% @doc Reads and interprets specified ETF text file containing <b>contact
-% information</b>.
-%
 -module(read_contact_file_test).
+
+-moduledoc """
+Reads and interprets specified ETF text file containing **contact information**.
+""".
 
 
 % Test target:
 -include_lib("traces/include/traces_for_tests.hrl").
 
 
-
-% @doc Runs the tests.
+-doc "Runs the tests.".
 -spec run() -> no_return().
 run() ->
 

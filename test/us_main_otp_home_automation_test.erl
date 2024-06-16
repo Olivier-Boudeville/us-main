@@ -19,9 +19,11 @@
 % Author: Olivier Boudeville (olivier.boudeville@esperide.com)
 % Creation date: Thursday, December 22, 2022.
 
-
-% @doc Test of the <b>home automation</b> mechanisms.
 -module(us_main_otp_home_automation_test).
+
+-moduledoc """
+Test of the **home automation** mechanisms.
+""".
 
 
 -include("us_main_defines.hrl").
@@ -30,7 +32,7 @@
 
 
 
-% Actual test:
+-doc "Actual test.".
 test_us_main_home_automation( OrderedAppNames ) ->
 
 	test_facilities:display( "Testing the services related to home automation: "
@@ -118,13 +120,14 @@ test_us_main_home_automation( OrderedAppNames ) ->
 
 
 
-% Runs the tests.
-%
-% Note that the {oceanic, us_main, us_common, traces, wooper, myriad}.app files
-% will have to be found and used for this test to succeed: Oceanic, US-Web,
-% US-Common, Traces, WOOPER and Myriad must be already available as
-% prerequisite, fully-built OTP applications.
-%
+-doc """
+Runs the tests.
+
+Note that the {oceanic, us_main, us_common, traces, wooper, myriad}.app files
+will have to be found and used for this test to succeed: Oceanic, US-Web,
+US-Common, Traces, WOOPER and Myriad must be already available as prerequisite,
+fully-built OTP applications.
+""".
 -spec run() -> no_return().
 run() ->
 

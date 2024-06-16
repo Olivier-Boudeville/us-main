@@ -30,7 +30,7 @@
 	% If left to 'undefined', the base identifier of the Enocean gateway will be
 	% used.
 	%
-	source_eurid :: maybe( oceanic:eurid_string() ),
+	source_eurid :: option( oceanic:eurid_string() ),
 
 
 	% The EURID of the target actuator (typically a smart plug controlling a
@@ -38,7 +38,7 @@
 	%
 	% (possibly a broadcast address; the default if not set)
 	%
-	target_eurid :: maybe( oceanic:eurid_string() ),
+	target_eurid :: option( oceanic:eurid_string() ),
 
 
 	% A chronologically-ordered intra-day (from midnight to midnight) time

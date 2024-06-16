@@ -19,18 +19,20 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Wednesday, June 16, 2021.
 
-
-% @doc The <b>main entry point</b> of the US-Main (Universal Server) active OTP
-% application.
-%
-% Typically triggered:
-%
-%  - through OTP/rebar3, by ebin/us_main.app (as obtained from
-%  conf/us_main.app.src; see start/2)
-%
-%  - directly, with the help of Myriad's otp_utils (see exec/0)
-%
 -module(us_main_app).
+
+-moduledoc """
+The **main entry point** of the US-Main (Universal Server) active OTP
+application.
+
+Typically triggered:
+
+ - through OTP/rebar3, by ebin/us_main.app (as obtained from
+  conf/us_main.app.src; see start/2)
+
+ - directly, with the help of Myriad's otp_utils (see exec/0)
+""".
+
 
 -behaviour(application).
 
@@ -38,7 +40,8 @@
 -export([ exec/0, start/2, stop/1 ]).
 
 
-% Shorthands:
+% Type shorthand:
+
 -type application_name() :: otp_utils:application_name().
 
 
@@ -62,9 +65,10 @@
 
 
 
-% @doc Runs US-Main, directly (e.g. as 'make us_main_exec') rather than as an
-% OTP release.
-%
+-doc """
+Runs US-Main, directly (e.g. as 'make us_main_exec') rather than as an OTP
+release.
+""".
 -spec exec() -> void().
 exec() ->
 
@@ -101,18 +105,19 @@ exec() ->
 
 
 
-% @doc Called when US-Main itself is started as an OTP release (as opposed to
-% natively, "manually", see exec/0).
-%
-% The setup and dependency management shall have been done already by the OTP
-% release system. So here no ebin path to set or prerequisite applications to
-% start for applications listed in US-Main's .app file, we focus only on the
-% applications not listed whereas possibly useful in this context and on us_main
-% itself.
-%
-% Note that it may easier/more reliable to add these applications directly in
-% the OTP release / rebar configuration.
-%
+-doc """
+Called when US-Main itself is started as an OTP release (as opposed to natively,
+"manually", see exec/0).
+
+The setup and dependency management shall have been done already by the OTP
+release system. So here no ebin path to set or prerequisite applications to
+start for applications listed in US-Main's .app file, we focus only on the
+applications not listed whereas possibly useful in this context and on us_main
+itself.
+
+Note that it may easier/more reliable to add these applications directly in the
+OTP release / rebar configuration.
+""".
 start( StartType, StartArgs ) ->
 
 	% Myriad may be already available in this branch as well, though:
@@ -137,21 +142,21 @@ start( StartType, StartArgs ) ->
 
 
 
-% @doc Stops the US-Main application.
+-doc "Stops the US-Main application.".
 stop( _State ) ->
-	trace_bridge:info( "Stopping the us_main application." ),
 
 	% In native context, explicit stopping should be done, with the same
 	% blacklisting.
 
-	ok.
+	trace_bridge:info( "Stopping the us_main application." ).
+
 
 
 
 % Internal functions:
 
 
-% @doc Starts required applications (not used currently).
+-doc "Starts required applications (not used currently).".
 -spec start_application( application_name() ) -> void().
 start_application( App ) ->
 	otp_utils:start_application( App ).

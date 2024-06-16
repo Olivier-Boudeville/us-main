@@ -102,7 +102,7 @@ endif
 # and the code itself, see
 # class_USMainConfigServer:get_us_main_version{_string,}/0):
 #
-US_MAIN_VERSION := 0.0.18
+US_MAIN_VERSION := 0.0.19
 
 
 # PROJECT_VERSION should be defined on a per-project basis:

@@ -19,14 +19,15 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Sunday, August 8, 2021.
 
-
-% @doc US server in charge of <b>managing the communication of the US
-% infrastructure</b>, typically with associated users, through emails and/or
-% SMS.
-%
-% Such gateways rely on a contact directory.
-%
 -module(class_USCommunicationGateway).
+
+-moduledoc """
+US server in charge of **managing the communication of the US infrastructure**,
+typically with associated users, through emails and/or SMS.
+
+Such gateways rely on a contact directory.
+""".
+
 
 
 -define( class_description, "US server in charge of managing the "
@@ -79,28 +80,16 @@
 -define( bridge_name, ?MODULE ).
 
 
+-doc "The PID of a communication gateway.".
 -type gateway_pid() :: class_USServer:server_pid().
-% The PID of a communication gateway.
 
 
 
-
-% Shorthands:
-
-%-type count() :: basic_utils:count().
+% Type shorthands:
 
 -type ustring() :: text_utils:ustring().
-%-type bin_string() :: text_utils:bin_string().
-
-%-type bin_mobile_number() :: mobile:bin_mobile_number().
-
-%-type bin_address() :: email_utils:bin_address().
 
 %-type directory_pid() :: class_USContactDirectory:directory_pid().
-
-
-%-type scheduler_pid() :: class_USScheduler:scheduler_pid().
-%-type task_id() :: class_USScheduler:task_id().
 
 
 
@@ -110,13 +99,13 @@
 	{ us_main_config_server_pid, server_pid(),
 	  "the PID of the US-Main configuration server" },
 
-	{ contact_directory_pid, maybe( directory_pid() ),
+	{ contact_directory_pid, option( directory_pid() ),
 	  "the PID of any associated contact directory" },
 
 	{ sms_support_operational, boolean(), "tells whether an actual SMS "
 	  "support is enabled and operational, notably to be able to send them" },
 
-	{ parent_comm_gateway_pid, maybe( gateway_pid() ),
+	{ parent_comm_gateway_pid, option( gateway_pid() ),
 	  "the PID of any parent, authoritative gateway (e.g. able to send SMS)" }
 
 						   ] ).
@@ -142,12 +131,13 @@
 % supervision tree.
 
 
-% @doc Starts and links a supervision bridge for the communication gateway.
-%
-% Note: typically spawned as a supervised child of the US-Main root supervisor
-% (see us_main_sup:init/1), hence generally triggered by the application
-% initialisation.
-%
+-doc """
+Starts and links a supervision bridge for the communication gateway.
+
+Note: typically spawned as a supervised child of the US-Main root supervisor
+(see us_main_sup:init/1), hence generally triggered by the application
+initialisation.
+""".
 -spec start_link() -> term().
 start_link() ->
 
@@ -160,9 +150,10 @@ start_link() ->
 
 
 
-% @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/0 above being executed.
-%
+-doc """
+Callback to initialise this supervisor bridge, typically in answer to
+start_link/0 above being executed.
+""".
 -spec init( [] ) -> { 'ok', pid(), State :: term() }
 					| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
@@ -177,7 +168,7 @@ init( _Args=[] ) ->
 
 
 
-% @doc Callback to terminate this supervisor bridge.
+-doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=CommGatewayPid )
 								when is_pid( CommGatewayPid ) ->
@@ -200,7 +191,7 @@ terminate( Reason, _BridgeState=CommGatewayPid )
 % Actual implementation of the communication gateway.
 
 
-% @doc Constructs a communication gateway.
+-doc "Constructs a communication gateway.".
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 
@@ -227,7 +218,7 @@ construct( State ) ->
 
 
 
-% @doc Overridden destructor.
+-doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
@@ -243,9 +234,10 @@ destruct( State ) ->
 
 
 
-% @doc Callback triggered, if this server enabled the trapping of exits,
-% whenever a linked process terminates.
-%
+-doc """
+Callback triggered, if this server enabled the trapping of exits, whenever a
+linked process terminates.
+""".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
@@ -271,9 +263,10 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 % Static subsection.
 
 
-% @doc Returns the PID of the supposedly already-launched communication gateway;
-% waits for it if needed.
-%
+-doc """
+Returns the PID of the supposedly already-launched communication gateway; waits
+for it if needed.
+""".
 -spec get_communication_gateway() -> static_return( gateway_pid() ).
 get_communication_gateway() ->
 
@@ -286,10 +279,11 @@ get_communication_gateway() ->
 
 
 
+
 % Helper section.
 
 
-% @doc Initialises the communication gateway.
+-doc "Initialises the communication gateway.".
 -spec init_communications( wooper:state() ) ->  wooper:state().
 init_communications( State ) ->
 
@@ -343,7 +337,7 @@ init_communications( State ) ->
 
 
 
-% @doc Returns a textual description of this gateway.
+-doc "Returns a textual description of this gateway.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 

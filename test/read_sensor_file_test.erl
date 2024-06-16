@@ -19,23 +19,23 @@
 % Author: Olivier Boudeville (olivier.boudeville@esperide.com)
 % Creation date: Wednesday, June 9, 2021.
 
-
-% @doc Reads and interprets the specified text file containing <b>sensor output
-% data</b> (possibly gathered from another host, to test/improve the sensor
-% coverage of US-Main).
-%
-% Such a file is typically obtained thanks to:
-% $ sensors --no-adapter -j > test_sensor_output.txt
-%
 -module(read_sensor_file_test).
+
+-moduledoc """
+Reads and interprets the specified text file containing **sensor output data**
+(possibly gathered from another host, to test/improve the sensor coverage of
+US-Main).
+
+Such a file is typically obtained thanks to:
+`$ sensors --no-adapter -j > test_sensor_output.txt`
+""".
 
 
 % Test target:
 -include_lib("traces/include/traces_for_tests.hrl").
 
 
-
-% @doc Runs the tests.
+-doc "Runs the tests.".
 -spec run() -> no_return().
 run() ->
 

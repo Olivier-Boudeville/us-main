@@ -20,7 +20,7 @@
 
 {application, us_main,
  [{description, "US-Main, the OTP active application corresponding to the Universal Server (see http://us-main.esperide.org)"},
-  {vsn, "0.0.18"},
+  {vsn, "0.0.19"},
   {registered, [us_main]},
 
  % Active application:

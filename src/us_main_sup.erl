@@ -19,12 +19,14 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Wednesday, June 16, 2021.
 
-
-% @doc <b>Root OTP supervisor</b> of the US-Main application.
-%
-% Directly created by us_main_app.
-%
 -module(us_main_sup).
+
+-moduledoc """
+**Root OTP supervisor** of the US-Main application.
+
+Directly created by us_main_app.
+""".
+
 
 -behaviour(supervisor).
 
@@ -40,7 +42,7 @@
 -include("class_USMainConfigServer.hrl").
 
 
-% Shorthands:
+% Type shorthands:
 
 -type execution_target() :: basic_utils:execution_target().
 -type application_run_context() :: otp_utils:application_run_context().
@@ -59,10 +61,11 @@
 % - Home Automation Server
 
 
-% @doc Starts and links the US-Main supervisor, with OTP conventions.
-%
-% (function probably useless)
-%
+-doc """
+Starts and links the US-Main supervisor, with OTP conventions.
+
+(function probably useless)
+""".
 -spec start_link() -> otp_utils:supervisor_pid().
 start_link() ->
 	supervisor:start_link( { local, ?server_registration_name }, ?MODULE,
@@ -70,7 +73,9 @@ start_link() ->
 
 
 
-% @doc Starts and links the US-Main supervisor, with OTP conventions or not.
+-doc """
+Starts and links the US-Main supervisor, with OTP conventions or not.
+""".
 -spec start_link( application_run_context() ) -> otp_utils:supervisor_pid().
 start_link( AppRunContext ) ->
 	supervisor:start_link( { local, ?server_registration_name }, ?MODULE,
@@ -78,7 +83,7 @@ start_link( AppRunContext ) ->
 
 
 
-% @doc Initialises this OTP supervisor.
+-doc "Initialises this OTP supervisor.".
 -spec init( [ application_run_context() ] ) ->
 				{ 'ok', { supervisor:sup_flags(), [ child_spec() ] } }.
 init( _Args=[ AppRunContext ] ) ->
@@ -145,7 +150,7 @@ init( _Args=[ AppRunContext ] ) ->
 
 
 
-% @doc Returns the bridge spec for the US-Main configuration server.
+-doc "Returns the bridge spec for the US-Main configuration server.".
 -spec get_config_bridge_spec( execution_target() ) -> child_spec().
 get_config_bridge_spec( ExecTarget ) ->
 
@@ -173,7 +178,7 @@ get_config_bridge_spec( ExecTarget ) ->
 
 
 
-% @doc Returns the bridge spec for the US-Main contact directory.
+-doc "Returns the bridge spec for the US-Main contact directory.".
 -spec get_contact_directory_bridge_spec( execution_target() ) -> child_spec().
 get_contact_directory_bridge_spec( ExecTarget ) ->
 
@@ -192,7 +197,7 @@ get_contact_directory_bridge_spec( ExecTarget ) ->
 
 
 
-% @doc Returns the bridge spec for the US-Main communication manager.
+-doc "Returns the bridge spec for the US-Main communication manager.".
 -spec get_communication_manager_bridge_spec( execution_target() ) ->
 			child_spec().
 get_communication_manager_bridge_spec( ExecTarget ) ->
@@ -213,7 +218,7 @@ get_communication_manager_bridge_spec( ExecTarget ) ->
 
 
 
-% @doc Returns the bridge spec for the US-Main (local) sensor manager.
+-doc "Returns the bridge spec for the US-Main (local) sensor manager.".
 -spec get_sensor_manager_bridge_spec( execution_target() ) -> child_spec().
 get_sensor_manager_bridge_spec( ExecTarget ) ->
 
@@ -232,9 +237,10 @@ get_sensor_manager_bridge_spec( ExecTarget ) ->
 
 
 
-% @doc Returns the bridge spec for the home automation gateway (a server
-% integrating Oceanic):
-%
+-doc """
+Returns the bridge spec for the home automation gateway (a server integrating
+Oceanic).
+""".
 -spec get_home_automation_bridge_spec( execution_target() ) -> child_spec().
 get_home_automation_bridge_spec( _ExecTarget ) ->
 

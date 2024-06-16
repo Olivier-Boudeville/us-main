@@ -19,11 +19,12 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Sunday, August 8, 2021.
 
-
-% @doc US server in charge of <b>managing a contact directory</b>, recording
-% various information about users and roles.
-%
 -module(class_USContactDirectory).
+
+-moduledoc """
+US server in charge of **managing a contact directory**, recording various
+information about users and roles.
+""".
 
 
 -define( class_description, "US server in charge of managing a contact "
@@ -52,35 +53,35 @@
 % systems).
 
 
+
+-doc """
+The lines expected to be read from a contact ETF file shall respect this
+structure.
+
+Nickname acts like a pseudo or a shorter, more familiar name.
+
+Comment is free text.
+
+Birth date of interest to wish happy birthdays.
+
+Postal address not of use here, yet possibly specified for completeness.
+
+Refer to the fields of the user_settings record for more information.
+""".
 -type contact_line() :: { UserId :: user_id(),
 	FirstName :: ustring(), LastName :: ustring(), Nickname :: ustring(),
 	Status :: user_status(),
-	Comment :: ustring(), BirthDate :: maybe( ustring() ),
-	LandlineNumber :: maybe( ustring() ), MobileNumber :: maybe( ustring() ),
-	PrimaryEmailAddress :: maybe( ustring() ),
-	SecondaryEmailAddress :: maybe( ustring() ),
-	PostalAddress :: maybe( ustring() ),
+	Comment :: ustring(), BirthDate :: option( ustring() ),
+	LandlineNumber :: option( ustring() ), MobileNumber :: option( ustring() ),
+	PrimaryEmailAddress :: option( ustring() ),
+	SecondaryEmailAddress :: option( ustring() ),
+	PostalAddress :: option( ustring() ),
 	Roles :: [ role() ] }.
-% The lines expected to be read from a contact ETF file shall respect this
-% structure.
-%
-% Nickname acts like a pseudo or a shorter, more familiar name.
-%
-% Comment is free text.
-%
-% Birth date of interest to wish happy birthdays.
-%
-% Postal address not of use here, yet possibly specified for completeness.
-%
-% Refer to the fields of the user_settings record for more information.
 
 
 % Silencing:
 -export_type([ contact_line/0 ]).
 
-
-% Implementation notes:
-%
 
 
 
@@ -101,34 +102,41 @@
 -define( bridge_name, ?MODULE ).
 
 
+-doc "PID of a contact directory server.".
 -type contact_directory_pid() :: class_USServer:server_pid().
 
 
 
 % Section about user settings.
 
+
+-doc "Identifier of a user, as read by this directory. Starts at 1.".
 -type user_id() :: count().
-% Identifier of a user, as read by this directory. Starts at 1.
 
 
+-doc "Status of an user.".
 -type user_status() :: 'enabled'
 					 | 'disabled'. % Sadly for defunct entries.
 
 
+
+-doc "The (canonical) date of birth, typically of a person.".
 -type birth_date() :: time_utils:date().
-% The (canonical) date of birth, typically of a person.
 
 
+
+-doc "A phone number (landline or mobile).".
 -type bin_phone_number() :: bin_string().
-% A phone number (landline or mobile).
 
 
+
+-doc "The main, full postal address (with country information) for this user.".
 -type postal_address() :: bin_string().
-% The main, full postal address (with country information) for this user.
 
 
+-doc "The supported roles, to be managed by this gateway.".
 -type role() :: 'administrator'.
-% The supported roles, to be managed by this gateway.
+
 
 
 -record( user_settings, {
@@ -137,7 +145,7 @@
 	id :: user_id(),
 
 	% The first name of this user (organisations do not have first names):
-	first_name :: maybe( bin_string() ),
+	first_name :: option( bin_string() ),
 
 	% The last name of this user (corresponding to the full name of an
 	% organisation):
@@ -145,56 +153,59 @@
 	last_name :: bin_string(),
 
 	% A pseudo or a shorter, more familiar name:
-	nickname :: maybe( bin_string() ),
+	nickname :: option( bin_string() ),
 
 	% The current status of this entry:
 	status = enabled :: user_status(),
 
 	% Any comment associated to this user:
-	comment :: maybe( bin_string() ),
+	comment :: option( bin_string() ),
 
 	% The birth date (if any) of this user:
-	birth_date :: maybe( birth_date() ),
+	birth_date :: option( birth_date() ),
 
 
 	% The landline number (if any) associated to a user device:
-	landline_number :: maybe( bin_phone_number() ),
+	landline_number :: option( bin_phone_number() ),
 
 	% The mobile number (if any) associated to a user device (more interesting
 	% than the landline as able to receive SMS):
 	%
-	mobile_number :: maybe( bin_phone_number() ),
+	mobile_number :: option( bin_phone_number() ),
 
 
 	% The primary email address (if any) to be used for this user (typically
 	% their personal one):
 	%
-	primary_email_address :: maybe( bin_email_address() ),
+	primary_email_address :: option( bin_email_address() ),
 
 	% The secondary email address (if any) to be used for this user (typically
 	% their professional one):
 	%
-	secondary_email_address :: maybe( bin_email_address() ),
+	secondary_email_address :: option( bin_email_address() ),
 
 
 	% The known postal address (if any) to be used for this user:
-	postal_address :: maybe( postal_address() ),
+	postal_address :: option( postal_address() ),
 
 
 	% The roles (if any) taken in charge by this user.
 	roles = [] :: [ role() ] } ).
 
 
+
+-doc """
+Settings corresponding to a user. Note that users may be persons or
+organisations.
+""".
 -type user_settings() :: #user_settings{}.
-% Settings corresponding to a user. Note that users may be persons or
-% organisations.
 
 
 -export_type([ contact_directory_pid/0, user_id/0, birth_date/0, role/0,
 			   user_settings/0 ]).
 
 
-% Shorthands:
+% Type shorthands:
 
 -type count() :: basic_utils:count().
 
@@ -219,9 +230,13 @@
 % A table storing the settings for users.
 
 
+
+-doc """
+A table allowing to translate a given role into the users to which it was
+assigned.
+""".
 -type role_table() :: table( role(), [ user_id() ] ).
-% A table allowing to translate a given role into the users to which it was
-% assigned.
+
 
 
 % The class-specific attributes:
@@ -235,17 +250,17 @@
 
 	{ contact_files, [ bin_file_path() ], "a list of the read contact files" },
 
-	{ execution_context, maybe( basic_utils:execution_context() ),
+	{ execution_context, option( basic_utils:execution_context() ),
 	  "tells whether this server is to run in development or production mode" },
 
 	% Not set anymore by this server, but read from contact file(s):
 	%{ next_user_id, user_id(),
 	%  "the next user identifier that will be assigned by this directory" },
 
-	{ config_base_directory, maybe( bin_directory_path() ),
+	{ config_base_directory, option( bin_directory_path() ),
 	  "the base directory where all US configuration is to be found" },
 
-	{ us_main_config_server_pid, maybe( server_pid() ),
+	{ us_main_config_server_pid, option( server_pid() ),
 	  "the PID of the overall US configuration server" } ] ).
 
 
@@ -273,12 +288,13 @@
 % tree.
 
 
-% @doc Starts and links a supervision bridge for the contact directory.
-%
-% Note: typically spawned as a supervised child of the US-Main root supervisor
-% (see us_main_sup:init/1), hence generally triggered by the application
-% initialisation.
-%
+-doc """
+Starts and links a supervision bridge for the contact directory.
+
+Note: typically spawned as a supervised child of the US-Main root supervisor
+(see us_main_sup:init/1), hence generally triggered by the application
+initialisation.
+""".
 -spec start_link() -> term().
 start_link() ->
 
@@ -291,9 +307,10 @@ start_link() ->
 
 
 
-% @doc Callback to initialise this supervisor bridge, typically in answer to
-% start_link/0 being executed.
-%
+-doc """
+Callback to initialise this supervisor bridge, typically in answer to
+start_link/0 being executed.
+""".
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
@@ -308,7 +325,7 @@ init( _Args=[] ) ->
 
 
 
-% @doc Callback to terminate this supervisor bridge.
+-doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=ContactDirectoryPid )
   when is_pid( ContactDirectoryPid ) ->
@@ -331,9 +348,10 @@ terminate( Reason, _BridgeState=ContactDirectoryPid )
 % Actual implementation of the contact directory.
 
 
-% @doc Constructs a blank contact directory. Typically useful when launched as
-% an (initially) stateless service when started from an OTP application context.
-%
+-doc """
+Constructs a blank contact directory. Typically useful when launched as an
+(initially) stateless service when started from an OTP application context.
+""".
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 
@@ -357,9 +375,10 @@ construct( State ) ->
 
 
 
-% @doc Constructs a contact directory from specified ETF contact file (with no
-% link to any US configuration server); mainly used for autonomous testing.
-%
+-doc """
+Constructs a contact directory from specified ETF contact file (with no link to
+any US configuration server); mainly used for autonomous testing.
+""".
 -spec construct( wooper:state(), file_utils:any_file_path() ) -> wooper:state().
 construct( State, ContactFilePath ) ->
 
@@ -398,7 +417,7 @@ construct( State, ContactFilePath ) ->
 
 
 
-% @doc Overridden destructor.
+-doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
@@ -413,9 +432,10 @@ destruct( State ) ->
 % Method section.
 
 
-% @doc Callback triggered, if this server enabled the trapping of exits,
-% whenever a linked process terminates.
-%
+-doc """
+Callback triggered, if this server enabled the trapping of exits, whenever a
+linked process terminates.
+""".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
@@ -440,9 +460,10 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 % Static subsection.
 
 
-% @doc Returns the PID of the supposedly already-launched contact directory;
-% waits for it if needed.
-%
+-doc """
+Returns the PID of the supposedly already-launched contact directory; waits for
+it if needed.
+""".
 -spec get_contact_directory() -> static_return( contact_directory_pid() ).
 get_contact_directory() ->
 
@@ -459,13 +480,14 @@ get_contact_directory() ->
 
 
 
-% @doc Loads and applies the relevant configuration settings first from the
-% overall US configuration file.
-%
-% As a result, the US configuration file is not fully checked as such (e.g. no
-% extracting and check that no entry remains; it is the job of the US config
-% server), we just select the relevant information from it.
-%
+-doc """
+Loads and applies the relevant configuration settings first from the overall US
+configuration file.
+
+As a result, the US configuration file is not fully checked as such (e.g. no
+extracting and check that no entry remains; it is the job of the US config
+server), we just select the relevant information from it.
+""".
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
@@ -502,8 +524,7 @@ load_and_apply_configuration( State ) ->
 
 
 
-
-% @doc Reads specified contact file and enriches specified table.
+-doc "Reads specified contact file and enriches specified table.".
 -spec read_contact_file( any_file_path(), bin_directory_path(), user_table(),
 			role_table(), wooper:state() ) -> { user_table(), role_table() }.
 read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
@@ -529,9 +550,10 @@ read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
 
 
 
-% @doc Adds specified contact terms (expected to be contact lines) to specified
-% contact table.
-%
+-doc """
+Adds specified contact terms (expected to be contact lines) to specified contact
+table.
+""".
 -spec add_contacts( [ term() ], user_table(), role_table(), wooper:state() ) ->
 			{ user_table(), role_table() }.
 add_contacts( _ReadTerms=[], UserTable, RoleTable, _State ) ->
@@ -805,7 +827,7 @@ vet_contacts_fifth( Line, T, Settings, UserId, RolesT, UserTable, RoleTable,
 
 
 
-% @doc Reads specified contact files and enriches specified table.
+-doc "Reads specified contact files and enriches specified table.".
 -spec read_contact_files( [ any_file_path() ], bin_directory_path(),
 		user_table(), role_table(), wooper:state() ) ->
 			{ user_table(), role_table() }.
@@ -828,7 +850,7 @@ read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, RoleTable,
 % Vetting functions.
 
 
-% @doc Vets specified term, expected to be a user identifier.
+-doc "Vets the specified term, expected to be a user identifier.".
 -spec vet_user_id( term() ) -> 'invalid' | user_id().
 vet_user_id( UserId ) when is_integer( UserId ) andalso UserId > 0 ->
 	UserId;
@@ -838,10 +860,11 @@ vet_user_id( _OtherUserId ) ->
 
 
 
-% @doc Vets specified term, expected to be a maybe-string. Empty strings are
-% accepted.
-%
--spec vet_maybe_string( term() ) -> 'invalid' | maybe( bin_string() ).
+-doc """
+Vets the specified term, expected to be a maybe-string. Empty strings are
+accepted.
+""".
+-spec vet_maybe_string( term() ) -> 'invalid' | option( bin_string() ).
 vet_maybe_string( MS=undefined ) ->
 	MS;
 
@@ -861,7 +884,7 @@ vet_maybe_string( _MS ) ->
 
 
 
-% @doc Vets specified term, expected to be a user status.
+-doc "Vets the specified term, expected to be a user status.".
 -spec vet_status( term() ) -> 'invalid' | user_status().
 vet_status( Status=enabled ) ->
 	Status;
@@ -874,10 +897,11 @@ vet_status( _OtherStatus ) ->
 
 
 
-% @doc Vets specified term, expected to be a maybe-postal address. Empty strings
-% are accepted.
-%
--spec vet_postal_address( term() ) -> 'invalid' | maybe( bin_string() ).
+-doc """
+Vets the specified term, expected to be a maybe-postal address. Empty strings
+are accepted.
+""".
+-spec vet_postal_address( term() ) -> 'invalid' | option( bin_string() ).
 vet_postal_address( PA=undefined ) ->
 	PA;
 
@@ -897,8 +921,8 @@ vet_postal_address( _PA ) ->
 
 
 
-% @doc Vets specified term, expected to be a maybe-date.
--spec vet_maybe_date( term() ) -> 'invalid' | maybe( date() ).
+-doc "Vets the specified term, expected to be a maybe-date.".
+-spec vet_maybe_date( term() ) -> 'invalid' | option( date() ).
 vet_maybe_date( MD=undefined ) ->
 	MD;
 
@@ -915,8 +939,8 @@ vet_maybe_date( UserDate ) ->
 
 
 
-% @doc Vets specified term, expected to be a maybe-phone number.
--spec vet_phone_number( term() ) -> 'invalid' | maybe( bin_mobile_number() ).
+-doc "Vets the specified term, expected to be a maybe-phone number.".
+-spec vet_phone_number( term() ) -> 'invalid' | option( bin_mobile_number() ).
 vet_phone_number( MPN=undefined ) ->
 	MPN;
 
@@ -937,8 +961,8 @@ vet_phone_number( _Other ) ->
 
 
 
-% @doc Vets specified term, expected to be a maybe-email address.
--spec vet_email_address( term() ) -> 'invalid' | maybe( bin_email_address() ).
+-doc "Vets the specified term, expected to be a maybe-email address.".
+-spec vet_email_address( term() ) -> 'invalid' | option( bin_email_address() ).
 vet_email_address( MEA=undefined ) ->
 	MEA;
 
@@ -958,7 +982,7 @@ vet_email_address( _Other ) ->
 
 
 
-% @doc Vets specified term, expected to be a list of roles.
+-doc "Vets the specified term, expected to be a list of roles.".
 -spec vet_roles( term() ) -> 'invalid' | [ role() ].
 vet_roles( Roles ) ->
 	case list_utils:are_atoms( Roles ) of
@@ -973,7 +997,7 @@ vet_roles( Roles ) ->
 
 
 
-% @doc Returns a textual description of the specified user settings.
+-doc "Returns a textual description of the specified user settings.".
 -spec user_settings_to_string( user_settings() ) -> ustring().
 user_settings_to_string( #user_settings{
 		id=Id,
@@ -1123,7 +1147,7 @@ user_settings_to_string( #user_settings{
 
 
 
-% @doc Returns a textual description of the specified role information.
+-doc "Returns a textual description of the specified role information.".
 -spec role_info_to_string( role(), [ user_id() ] ) -> ustring().
 role_info_to_string( Role, _UserIds=[] ) ->
 	text_utils:format( "role '~ts', not assigned to any user", [ Role ] );
@@ -1139,7 +1163,7 @@ role_info_to_string( Role, UserIds ) ->
 
 
 
-% @doc Returns a textual description of this contact directory.
+-doc "Returns a textual description of this contact directory.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
