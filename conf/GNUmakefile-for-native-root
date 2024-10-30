@@ -68,7 +68,7 @@ run-debug: build kill
 
 kill:
 	@echo "  Removing (for debug) any prior US-Main instance".
-	@cd us_main/priv/bin/kill-us-main.sh
+	@us_main/priv/bin/kill-us-main.sh
 
 
 # Previously would kill blindly all running Erlang programs:
