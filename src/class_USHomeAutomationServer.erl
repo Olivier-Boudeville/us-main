@@ -132,8 +132,9 @@ The time for dawn and dusk (if any - think to the extreme latitudes), at a given
 
 Dawn and dusk are defined as actual transitions between darkness/daylight.
 """.
--type celestial_timing() :: { Dawn :: option( time() ), Dusk :: option( time() ) }
-						  | 'constant_daylight' | 'constant_darkness'.
+-type celestial_timing() ::
+	{ Dawn :: option( time() ), Dusk :: option( time() ) }
+  | 'constant_daylight' | 'constant_darkness'.
 
 
 
@@ -306,7 +307,7 @@ temperature reported by a sensor should just be read from any last event).
 -type single_input_contact_status() :: oceanic:contact_status().
 
 
-% Internal information regarding a known (Enoceanic) device:
+% Internal information regarding a known (Enocean) device:
 -record( device_state, {
 
 	% The identifier of this device:
@@ -332,7 +333,7 @@ temperature reported by a sensor should just be read from any last event).
 	current_status :: device_status() } ).
 
 
--doc "Internal information regarding a known (Enoceanic) device.".
+-doc "Internal information regarding a known (Enocean) device.".
 -type device_state() :: #device_state{}.
 
 
@@ -823,7 +824,8 @@ Initialises the overall presence simulation.
 (helper)
 """.
 -spec init_presence_simulation( option( presence_simulation_settings() ),
-	option( oceanic_server_pid() ), option( eurid_string() ), wooper:state() ) ->
+	option( oceanic_server_pid() ), option( eurid_string() ),
+	wooper:state() ) ->
 		{ presence_table(), presence_sim_id(), option( time_equation_table() ),
 		  option( task_id() ) }.
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
@@ -1199,6 +1201,7 @@ update_presence_simulations( _PscSims=[], _CurrentTime, MaybeCelestialInfo,
 	setAttributes( State, [ { presence_table, PscTable },
 							{ celestial_info, MaybeCelestialInfo } ] );
 
+% Disabled presence:
 update_presence_simulations( _PscSims=[
 		PscSim=#presence_simulation{ id=Id,
 									 enabled=false } | T ], CurrentTime,
@@ -1237,8 +1240,8 @@ covering all cases, and acting accordingly iff necessary.
 A large function, but defined only once.
 """.
 -spec manage_presence_simulation( presence_simulation(), time(),
-								  option( celestial_info() ), wooper:state() ) ->
-		{ presence_simulation(), option( celestial_info() ) }.
+		option( celestial_info() ), wooper:state() ) ->
+			{ presence_simulation(), option( celestial_info() ) }.
 % Not enabled:
 manage_presence_simulation( PscSim=#presence_simulation{
 		enabled=false,
@@ -2133,7 +2136,8 @@ resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
 	DefaultDuskTime = { 19, 15, 0 },
 
 	?warning_fmt( "No server location specified, logical milestones cannot be "
-		"determined; using default deadlines: ~ts for dawn, ~ts for dusk. ",
+		"determined; using fixed, default deadlines: "
+		"~ts for dawn, ~ts for dusk. ",
 		[ time_utils:time_to_string( DefaultDawnTime ),
 		  time_utils:time_to_string( DefaultDuskTime ) ] ),
 
@@ -2235,10 +2239,11 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 	RetainedDuskTime = time_utils:offset_time( LocalDuskTime,
 											   -EnoughLightBeforeDuskMargin ),
 
-	?info_fmt( "For the specified server location (~ts) and date, "
+	send_psc_trace_fmt( info,
+		"For the specified server location (~ts) and date, "
 		"computed following deadlines this day (with some light "
 		"margins included): ~ts for dawn and ~ts for dusk.~n~n"
-		"Raw celestial timestamps were:~n"
+		"Raw celestial timestamps were indeed:~n"
 		" - in UTC time: ~ts for dawn and ~ts for dusk~n"
 		" - in local time (with time zone and DST, before applying "
 		"margins): ~ts for dawn and ~ts for dusk",
@@ -3140,7 +3145,7 @@ presence_simulation_to_string( #presence_simulation{
 		[ Id, case IsEnabled of
 					true -> "enabled";
 					false -> "disabled"
-			  end ++ " and "
+			  end ++ " and currently "
 		  ++ case IsActivated of
 					true -> "activated";
 					false -> "non-activated"
@@ -3193,7 +3198,6 @@ device_table_to_string( DevTable ) ->
 		Devs ->
 			text_utils:format( "registering ~B devices: ~ts",
 				[ length( Devs ), text_utils:strings_to_string(
-					[ device_state_to_string( D )
-						|| D <- Devs ] ) ] )
+					[ device_state_to_string( D ) || D <- Devs ] ) ] )
 
 	end.
