@@ -2253,7 +2253,8 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 		  time_utils:timestamp_to_string( UTCDawnTimestamp ),
 		  time_utils:timestamp_to_string( UTCDuskTimestamp ),
 		  time_utils:timestamp_to_string( LocalDawnTimestamp ),
-		  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
+		  time_utils:timestamp_to_string( LocalDuskTimestamp ) ],
+		State ),
 
 	{ Date, { RetainedDawnTime, RetainedDuskTime } }.
 
