@@ -647,13 +647,46 @@ Like notified in the start-up message::
   **************************************************************
   (authbind success reported)
 
-one may use ``to_erl`` to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means *killing* that node; prefer CTRL-D (once).
+one may use ``to_erl`` to connect directly; just remember that exiting the interpreter as usual (Ctrl-C twice) thus means *killing* that node; prefer Ctrl-D (once); see `this section <http://howtos.esperide.org/Erlang.html#using-run-erl-to-erl>`_ for details.
 
-For further information one may refer to the `US-Main shell scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).
+For further information one may also refer to the `US-Main shell scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).
 
 Apparently, in some cases (not always), stopping the US-Main server (typically with ``systemctl stop us-main-as-native-build.service``) will *not* unregister it from its EPMD, which will not be stopped either. As a consequence, any next launching of the US-Main server is bound to fail after a time-out, and the VM log file (e.g. ``/opt/universal-server/us_main-native/us_main/log/erlang.log.1``) will confirm that a node with the same name (``us_main``) already exists (and thus prevents the new launch).
 
 In this case, the best solution is to kill that lingering EPMD (e.g. ``epmd -port 4507 -kill``) or, more brutally, to run the ``kill-us-main.sh`` script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.
+
+
+
+-----------------------
+Troubleshooting US-Main
+-----------------------
+
+The recommended procedure is to inspect:
+
+- to run first the ``monitor-us-main.sh`` for any (possibly remote) host of interest
+- the result of ``systemctl status us-main-as-native-build.service``
+- the one of ``journalctl --pager-end --unit=us-main-native-build.service``
+- ``/var/log/universal-server/us-main/us_main.traces``, if any
+- the latest ``/opt/universal-server/us_main-latest/us_main/log/erlang.log.*``
+- any content in ``/var/log/universal-server/us-main/``
+
+Should the launch fail at startup before any information can be reported, the best course of action is to launch US-Main by oneself (possibly as root to avoid errors being reported regarding user and group rights).
+
+For example:
+
+.. bash::
+
+ $ cd /opt/universal-server/us_main-native-latest/us_main/src
+ $ make us_main_exec
+
+Tell the information reported on the console may suffice, notably thanks to the error reports there.
+
+For deeper troubleshooting, the goal is to mimic the behaviour of ``us-main-as-native-build.service``, i.e. the action of the ``start-us-main-native-build.sh`` script.
+
+So it can be run, as root, to further investigate.
+
+A common cause of failure, if the launch time-out triggered, is having already an instance of US-Main running, thus preventing any new launch thereof. This may be checked for example thanks to ``ps -edf | grep beam.smp | grep us_main``.
+
 
 
 ------------------
