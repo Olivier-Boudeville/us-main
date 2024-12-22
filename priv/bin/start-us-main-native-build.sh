@@ -221,10 +221,10 @@ echo " -- Starting US-Main natively-built application as user '${us_main_usernam
 # Previously the '--depth' authbind option was used, and apparently a depth of 6
 # was sufficient; but there is little interest in taking such risks.
 
-#echo Starting US-Main with: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service  ${cookie_env} ${epmd_make_opt}
+#echo Starting US-Main with: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service ${cookie_env} ${epmd_make_opt}
 
 
-/bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service  ${cookie_env} ${epmd_make_opt}
+/bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service ${cookie_env} ${epmd_make_opt}
 
 res=$?
 
