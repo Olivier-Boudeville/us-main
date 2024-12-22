@@ -69,15 +69,23 @@ exec() ->
 	app_facilities:display( "Trying to connect to US-Main node '~ts'.",
 							[ MainTargetNodeName ] ),
 
-	net_adm:ping( MainTargetNodeName ) =:= pong orelse
-		begin
+	ActualTargetNodeName = case net_adm:ping( MainTargetNodeName ) of
+
+		pong ->
+			MainTargetNodeName;
+
+		pang ->
 			trace_utils:warning_fmt( "Unable to connect to a target main "
 				"node '~ts'; trying an alternate one, based on "
-				"user name: '~ts'.",
+				"user name: '~ts' (in case of ad hoc launch).",
 				[ MainTargetNodeName, UserTargetNodeName ] ),
 
-			net_adm:ping( UserTargetNodeName ) =:= pong orelse
-				begin
+			case net_adm:ping( UserTargetNodeName ) of
+
+				pong ->
+					UserTargetNodeName;
+
+				pang ->
 					trace_utils:error_fmt( "Unable to connect to either node "
 						"names, the main one ('~ts') or the user one ('~ts')."
 						"~nIf the target node is really running and is named "
@@ -92,6 +100,7 @@ exec() ->
 				end
 
 		end,
+
 
 	% Otherwise the remote node could not be known before use:
 	global:sync(),
@@ -109,7 +118,7 @@ exec() ->
 	% aggregator:
 	%
 	AggregatorPid = naming_utils:get_locally_registered_pid_for(
-		AggregatorName, MainTargetNodeName ),
+		AggregatorName, ActualTargetNodeName ),
 
 	app_facilities:display( "Creating now a local trace listener." ),
 
@@ -235,12 +244,15 @@ get_target_node_names( Cfg ) ->
 
 	% Note that two hardcoded node names are used here, the main one (when run
 	% as a service) and one embedding the name of the current user (when run as
-	% an app, typically for testing):
-
+	% an app, typically for testing; we used to suppose that the user names -
+	% local and server - matched, but now we expect a conventional user to be
+	% used on the server):
+	%
 	BaseNodeNames = [ "us_main", text_utils:format( "us_main_exec-~ts",
-										[ system_utils:get_user_name() ] ) ],
+										%[ system_utils:get_user_name() ] ) ],
+										[ "main-srv" ] ) ],
 
-	% Returns relevant, ordered candidates
+	% Returns relevant, ordered candidates:
 	[ net_utils:get_complete_node_name( N, RemoteHostname, NodeNamingMode )
 		|| N <- BaseNodeNames ].
 
