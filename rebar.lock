@@ -10,7 +10,7 @@
   0},
  {<<"myriad">>,
   {git,"https://github.com/Olivier-Boudeville/Ceylan-Myriad.git",
-       {ref,"5d89beccf498b5f3a6b65fd9bc25c4beda6510e5"}},
+       {ref,"5eeec43c40f9413185eff0b6add32bca4ab6deca"}},
   0},
  {<<"oceanic">>,
   {git,"https://github.com/Olivier-Boudeville/Ceylan-Oceanic.git",
@@ -22,15 +22,15 @@
   0},
  {<<"traces">>,
   {git,"https://github.com/Olivier-Boudeville/Ceylan-Traces.git",
-       {ref,"0a767a177b705001ac7f2d5d279f43a873a61f88"}},
+       {ref,"32b30bd5624e12435c22ac970d8c06f36f485128"}},
   0},
  {<<"us_common">>,
   {git,"https://github.com/Olivier-Boudeville/us-common.git",
-       {ref,"d6e9582665aed51950b5660f98f309e47f5f6bd9"}},
+       {ref,"74f7f59abeea14b377f7055c04acfa07cdcdbb32"}},
   0},
  {<<"wooper">>,
   {git,"https://github.com/Olivier-Boudeville/Ceylan-WOOPER.git",
-       {ref,"e583c3e644e54571b679075d82322f153fd2ff61"}},
+       {ref,"77ce89d43219683dd19ba166154ab83c92d145ba"}},
   0}]}.
 [
 {pkg_hash,[
