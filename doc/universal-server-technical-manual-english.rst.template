@@ -674,12 +674,16 @@ Should the launch fail at startup before any information can be reported, the be
 
 For example:
 
-.. bash::
+.. code:: bash
 
- $ cd /opt/universal-server/us_main-native-latest/us_main/src
+ # This may as well point directly to a development source tree:
+ $ US_MAIN_ROOT=/opt/universal-server/us_main-native-latest/us_main
+
+ $ cd ${US_MAIN_ROOT}/src
+
  $ make us_main_exec
 
-Tell the information reported on the console may suffice, notably thanks to the error reports there.
+The information reported on the console may suffice, notably thanks to the error reports; otherwise one may inspect the content of ``${US_MAIN_ROOT}/priv/for-testing/log/us_main.traces`` for further information.
 
 For deeper troubleshooting, the goal is to mimic the behaviour of ``us-main-as-native-build.service``, i.e. the action of the ``start-us-main-native-build.sh`` script.
 
