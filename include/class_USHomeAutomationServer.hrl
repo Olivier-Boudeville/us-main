@@ -24,7 +24,8 @@
 -record( presence_simulation_setting, {
 
 	% The specific EURID (if any) to be used to identify the source of the
-	% emitted (Enocean) telegrams; expected to have been already learnt by the
+	% emitted (Enocean) telegrams to simulate a presence (typically in order to
+	% switch a target light on/off); expected to have been already learnt by the
 	% target actuator(s).
 	%
 	% If left to 'undefined', the base identifier of the Enocean gateway will be
@@ -51,4 +52,4 @@
 	% the light of day should be available (provided that the position of the
 	% server is known):
 	%
-	smart_lighting = true :: boolean() } ).
+	smart_lighting = 'true' :: boolean() } ).
