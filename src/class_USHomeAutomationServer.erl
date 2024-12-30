@@ -22,12 +22,12 @@
 -module(class_USHomeAutomationServer).
 
 -moduledoc """
-US server in charge of the **providing home automation services**, based on
-Enocean, thanks to Ceylan-Oceanic.
+US server in charge of **providing home automation services**, based on Enocean,
+thanks to Ceylan-Oceanic.
 """.
 
 
--define( class_description, "US server in charge of the providing home "
+-define( class_description, "US server in charge of providing home "
 		 "automation services, based on Enocean, thanks to Ceylan-Oceanic" ).
 
 
@@ -80,12 +80,13 @@ Enocean, thanks to Ceylan-Oceanic.
 -type home_automation_server_pid() :: class_USServer:server_pid().
 
 
+% For defines:
+-include_lib("myriad/include/utils/time_utils.hrl").
+
+
 
 % For the presence_simulation_setting record:
 -include("class_USHomeAutomationServer.hrl").
-
-% For defines:
--include_lib("myriad/include/utils/time_utils.hrl").
 
 
 -doc "Setting of a given instance of presence simulation.".
@@ -115,7 +116,7 @@ Enocean, thanks to Ceylan-Oceanic.
 
 
 -doc """
-A intra-day general program regarding a presence to simulate.
+An intra-day general program regarding a presence to simulate.
 
 If slots are used, at least one shall be defined (otherwise one of the
 constant_* atoms shall be used).
@@ -210,7 +211,7 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	%
 	enabled = true :: boolean(),
 
-	% Tells whether the presence simulation is currently activated, that is if
+	% Tells whether the presence simulation is currently activated, typically if
 	% lighting is currently on or off (allows avoiding the sending of
 	% unnecessary switching orders).
 	%
@@ -313,6 +314,7 @@ temperature reported by a sensor should just be read from any last event).
 	% The identifier of this device:
 	eurid :: eurid(),
 
+	% For example: <<"Opening detector of the front door">>:
 	name :: device_name(),
 
 	% The (supposedly single) EEP identifier known (if any) for this device
@@ -344,6 +346,7 @@ automation server, notably in order to detect state transitions and trigger
 events.
 """.
 -type device_table() :: table( eurid(), device_state() ).
+
 
 
 % Type shorthands:
@@ -426,8 +429,7 @@ events.
 	  "tells whether the presence simulation service is currently enabled" },
 
 	{ presence_table, presence_table(),
-	  "referential of the presence simulations, recording all their "
-	  "setttings" },
+	  "registery of the presence simulations, recording all their settings" },
 
 	{ next_presence_id, presence_sim_id(),
 	  "the next presence identifier that will be assigned" },
@@ -493,7 +495,7 @@ events.
 %
 % A robust mode of operation has been retained, with which states are enforced
 % (e.g smart plug is on) rather than transitions (e.g. toggling smart plug
-% "blindly").
+% "blindly" on->off or off->on).
 
 
 % Regarding the computation of the time in the day of dawn and dusk:
@@ -597,7 +599,7 @@ for telegram sendings, and not providing a presence simulator.
 """.
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
-	construct( State, oceanic:get_default_tty_path() ).
+	construct( State, _TtyPath=oceanic:get_default_tty_path() ).
 
 
 
@@ -621,7 +623,6 @@ performed, specified either as a complete list of presence settings, or only
 through the EURID of the target actuator(s) - in which case a default presence
 policy will apply; the source used for the sent telegrams will be the base
 identifier of the gateway.
-
 """.
 -spec construct( wooper:state(), device_path(),
 				 option( presence_simulation_settings() | eurid_string() ) ) ->
@@ -732,13 +733,14 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	MaybeOcSrvPid =:= undefined orelse
 		oceanic:add_configuration_settings( OceanicSettings, MaybeOcSrvPid ),
 
+	% Geographical location:
 	MaybeSrvLoc = case MaybeUserSrvLoc of
 
 		undefined ->
 			undefined;
 
-		% Already checked as floats by the US-Main configuration server;
-		% they are degrees:
+		% Already checked as floats by the US-Main configuration server; these
+		% are degrees:
 		%
 		_UserSrvLoc={ Lat, _Long } when Lat > 90.0 orelse Lat < -90.0 ->
 			throw( { invalid_latitude, Lat } );
@@ -830,6 +832,10 @@ Initialises the overall presence simulation.
 		  option( task_id() ) }.
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 						  MaybeSrcEuridStr, State ) ->
+
+	send_psc_trace_fmt( debug, "Initialising presence simulation, "
+		"from settings ~p.", [ MaybePresenceSimSettings ], State ),
+
 	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 		MaybeSrcEuridStr, _PscTable=table:new(), _NextPscId=1,
 		_TimeEqTableNeeded=false, State ).
@@ -838,10 +844,11 @@ init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 
 % (helper)
 %
-% No presence simulation wanted:
+% No presence simulation wanted here:
 init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
 		_MaybeSrcEuridStr, EmptyPscTable, InitPscId, _TimeEqTableNeeded,
-		_State ) ->
+		State ) ->
+	send_psc_trace( info, "No presence simulation wanted.", State ),
 	{ EmptyPscTable, InitPscId, _MaybeTimeEqTable=undefined,
 	  _MaybeMidTaskId=undefined };
 
@@ -849,8 +856,9 @@ init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
 		_MaybeSrcEuridStr, _PscTable, _NextPscId, _TimeEqTableNeeded,
 		State ) ->
 
-	?error_fmt( "No Oceanic support available, the requested presence "
-		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
+	send_psc_trace_fmt( error, "No Oceanic support available, the requested "
+		"presence simulation (~p) cannot be performed.",
+		[ PresenceSimSettings ], State ),
 
 	throw( { no_presence_simulation, no_oceanic } );
 
@@ -860,8 +868,9 @@ init_presence_simulation( PresenceSimSettings, _OcSrvPid,
 		_MaybeSrcEuridStr=undefined, _PscTable, _NextPscId, _TimeEqTableNeeded,
 		State ) ->
 
-	?error_fmt( "No overall source EURID available, the requested presence "
-		"simulation (~p) cannot be performed.", [ PresenceSimSettings ] ),
+	send_psc_trace_fmt( error, "No overall source EURID available, the "
+		"requested presence simulation (~p) cannot be performed.",
+		[ PresenceSimSettings ], State ),
 
 	throw( { no_presence_simulation, no_source_eurid } );
 
@@ -876,18 +885,32 @@ init_presence_simulation(
 					State ),
 
 	% Principle: no useless lighting during the expected presence slots, which
-	% are:
+	% were initially:
 	%  - in the morning: from 7:30 AM to 8:30 AM
 	%  - in the evening: from 6:30:00 PM to 11:45 PM
 
-	TMorningStart = { 7, 30, 0 },
-	TMorningStop = { 8, 30, 0 },
+	% TMorningStart = { 7, 30, 0 },
+	% TMorningStop = { 8, 30, 0 },
 
-	TEveningStart = { 18, 30, 00 },
-	TEveningStop = { 23, 45, 00 },
+	% TEveningStart = { 18, 30, 00 },
+	% TEveningStop = { 23, 45, 00 },
 
-	PscSlots = [ { TMorningStart, TMorningStop },
-				 { TEveningStart, TEveningStop } ],
+	% PscSlots = [ { TMorningStart, TMorningStop },
+	%              { TEveningStart, TEveningStop } ],
+
+	% Now, default settings are safer: if not at home, simulating all day long
+	% (unless there is daylight); so, in logical terms, from 7:00 to around
+	% 00:30, translating to:
+
+	TEndOfNightStart = { 0, 0, 1 },
+	TEndOfNightStop = { 0, 31, 15 },
+
+	TDayStart = { 7, 0, 0 },
+	% Bound to be stopped before, due to daylight:
+	TDayStop = { 23, 59, 59 },
+
+	PscSlots = [ { TEndOfNightStart, TEndOfNightStop },
+				 { TDayStart, TDayStop } ],
 
 	DefaultSettings = #presence_simulation_setting{
 		source_eurid=SrcEuridStr,
@@ -918,11 +941,10 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
 			TomorrowDate = time_utils:get_date_after( date(), _DaysOffset=1 ),
 			NextMidnightTimestamp = { TomorrowDate, ?first_time },
 
-			cond_utils:if_defined( us_main_debug_presence_simulation,
-				send_psc_trace_fmt( debug, "Registering a daily presence "
-					"program update task (every midnight), starting from ~ts.",
-					[ time_utils:timestamp_to_string( NextMidnightTimestamp ) ],
-					State ) ),
+			send_psc_trace_fmt( debug, "Registering a daily presence "
+				"program update task (every midnight), starting from ~ts.",
+				[ time_utils:timestamp_to_string( NextMidnightTimestamp ) ],
+				State ),
 
 			% Every day:
 			DHMSPeriodicity = { _D=1, _H=0, _M=0, _S=0 },
@@ -936,10 +958,8 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
 
 				{ wooper_result, { task_registered, MidTaskId } } ->
 
-					cond_utils:if_defined( us_main_debug_presence_simulation,
-						send_psc_trace_fmt( debug, "Midnight presence program "
-							"update task #~B defined.", [ MidTaskId ],
-							State ) ),
+					send_psc_trace_fmt( debug, "Midnight presence program "
+						"update task #~B defined.", [ MidTaskId ], State ),
 
 					MidTaskId
 
@@ -996,9 +1016,15 @@ init_presence_simulation( _PresenceSimSettings=[
 	ActualTargetEurid = case MaybeTargetActuatorEuridStr of
 
 		undefined ->
-			oceanic:get_broadcast_eurid();
+			E = oceanic:get_broadcast_eurid(),
+			send_psc_trace_fmt( info, "Setting target EURID actuator to the "
+				"broadcast one, ~ts.", [ oceanic:eurid_to_string( E ) ],
+				State ),
+			E;
 
 		TargetActuatorEuridStr ->
+			send_psc_trace_fmt( info, "Setting target EURID actuator to ~ts.",
+								[ TargetActuatorEuridStr ], State ),
 			oceanic:string_to_eurid( TargetActuatorEuridStr )
 
 	end,
@@ -1196,6 +1222,7 @@ If defined, the celestial times are expected to be correct here.
 -spec update_presence_simulations( [ presence_simulation() ], time(),
 		option( celestial_info() ), presence_table(), wooper:state() ) ->
 			wooper:state().
+% No more presence simulation:
 update_presence_simulations( _PscSims=[], _CurrentTime, MaybeCelestialInfo,
 							 PscTable, State ) ->
 	setAttributes( State, [ { presence_table, PscTable },
@@ -1689,12 +1716,12 @@ ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
 
 	end;
 
-% Here such planning exists and is already at the correct time:
+% Here such planning exists (as task info) and is already at the correct time:
 ensure_planned_presence_transition( PscSim, PlannedTime,
 		_PscTaskInfo={ _PscTaskId, PlannedTime }, _State ) ->
 	PscSim;
 
-% Exists yet with different times, correcting it:
+% Planning exists, yet with different times; correcting it:
 ensure_planned_presence_transition( PscSim, PlannedTime,
 		_PrevPscTaskInfo={ PrevPscTaskId, PrevPlannedTime }, State ) ->
 
@@ -1709,6 +1736,7 @@ ensure_planned_presence_transition( PscSim, PlannedTime,
 	% Clearer:
 	%ClearedPsim = ensure_no_planned_presence_transition( PscSim,
 	%                           PrevPscTaskInfo, State ),
+
 	?getAttr(scheduler_pid) ! { unregisterTaskAsync, [ PrevPscTaskId ] },
 
 	% Force rescheduling:
@@ -2225,8 +2253,8 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 			  time_utils:timestamp_to_string( LocalDuskTimestamp ) ] ),
 
 	% To account for dim daylight (forcing to switch on longer, in order to
-	% compensate for insufficient light), even if atmospheric refraction will
-	% help a bit, the following margins, expressed in seconds, apply:
+	% compensate for insufficient light) - even if atmospheric refraction will
+	% help a bit - the following duration margins, expressed in seconds, apply:
 
 	EnoughLightAfterDawnMargin  = 15*60,
 	EnoughLightBeforeDuskMargin = 15*60,
@@ -2492,7 +2520,7 @@ sensor report) notified by the specified Oceanic server.
 -spec onEnoceanConfiguredDeviceFirstSeen( wooper:state(), device_event(),
 		device_description(), oceanic_server_pid() ) -> oneway_return().
 onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
-								when is_tuple( DeviceEvent ) ->
+										when is_tuple( DeviceEvent ) ->
 
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
@@ -2597,7 +2625,7 @@ Returns the higher-level status that can be deduced from the specified event.
 """.
 -spec interpret_status( device_event() ) -> device_status().
 interpret_status( _DeviceEvent=#single_input_contact_event{
-						contact=ContactStatus } ) ->
+										contact=ContactStatus } ) ->
 	ContactStatus;
 
 interpret_status( _DeviceEvent ) ->
@@ -2669,6 +2697,10 @@ onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
 
 
 
+-doc """
+Updates, based on the specified event, the stored state of the corresponding
+device.
+""".
 -spec process_device_event( device_event(), wooper:state() ) -> wooper:state().
 process_device_event( DeviceEvent, State ) ->
 
@@ -2682,7 +2714,7 @@ process_device_event( DeviceEvent, State ) ->
 
 		key_not_found ->
 			?error_fmt( "No device found for ~ts, after event ~ts, "
-				"which is therefore ignored.", [
+						"which is therefore ignored.", [
 					oceanic:eurid_to_string( DevEurid ),
 					oceanic:device_event_to_string( DeviceEvent ) ] ),
 			State;
@@ -2820,7 +2852,8 @@ get_trace_emitter_name_from( BinDevName ) ->
 
 
 -doc """
-Checks whether an actual presence switching (somebody being at home or not)
+Checks whether an actual presence switching (somebody being at home or not) is
+to be done.
 """.
 -spec manage_presence_switching( device_event(), wooper:state() ) ->
 										wooper:state().
@@ -2845,7 +2878,7 @@ manage_presence_switching( DevEvent, State ) ->
 					% We cannot just use the receiving of a telegram to toggle
 					% presence, as pushing a button/rocker sends multiple
 					% telegrams (one when pressing, one when releasing); we act
-					% only on one of these two messages, the press one:
+					% only on one of these two messages - the press one:
 
 					case oceanic:device_triggered( DevEvent ) of
 
@@ -2911,7 +2944,7 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 	%  {wooper_oneway_failed,<0.44.0>,class_XXX,
 	%   FunName,Arity,Args,AtomCause}}, [...]}"
 
-	% Redundant information yet useful for console outputs:
+	% Redundant information, yet useful for console outputs:
 	?warning_fmt( "US home automation server ~w received and ignored "
 		"following exit message from ~w:~n  ~p",
 		[ self(), CrashPid, ExitType ] ),
@@ -3068,7 +3101,7 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts; it is ~ts;"
+		"gateway ~w, ~ts, ~ts; it is ~ts; "
 		"the presence simulator is currently ~ts, and ~ts; ~ts",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
 		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr,
