@@ -54,7 +54,7 @@ ifeq ($(ENABLE_DEBUG),true)
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
 endif
 
 # Defining check flags:
@@ -188,6 +188,16 @@ EPMD_PORT := 4507
 ifndef EDOC_OPTS
 	EDOC_OPTS = '[{dir,"$(API_DOC_ROOT)"}, {def,{vsn,"$(PROJECT_VERSION)"}}, {preprocess,true}, {macros,[{$(PROJECT_EDOC_VERSION_KEY),"$(PROJECT_VERSION)"}]}, {includes,["$(LAYER_TOP)/include", "$(US_COMMON_TOP)/.."]}, {overview, "$(LAYER_TOP)/overview.edoc"}]'
 endif
+
+
+# The default path where a US-Main native build is to be deployed on a server:
+# (useful to synchronise sources)
+#
+US_NATIVE_DEPLOY_ROOT := /opt/universal-server/$(PROJECT_SHORT_NAME)-native
+
+# For Myriad' sync-all-to-server target, if used:
+CEYLAN_SYNC_TARGET_ROOT := $(US_NATIVE_DEPLOY_ROOT)
+
 
 
 # For later reuse in the next layer of the software stack:
