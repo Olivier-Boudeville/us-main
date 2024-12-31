@@ -20,6 +20,17 @@
 % Creation date: Thursday, December 22, 2022.
 
 
+% The default mean duration, in seconds, of a period of lighting:
+% (15 minutes)
+%
+-define( default_mean_light_duration, 15*60 ).
+
+
+% The default mean duration, in seconds, of an interruption of lighting:
+-define( default_mean_no_light_duration, 12 ).
+
+
+
 % User-specified setting regarding an instance of presence simulation:
 -record( presence_simulation_setting, {
 
@@ -52,4 +63,25 @@
 	% the light of day should be available (provided that the position of the
 	% server is known):
 	%
-	smart_lighting = 'true' :: boolean() } ).
+	smart_lighting = 'true' :: boolean(),
+
+
+	% Tells whether, during a period of simulated presence, lighting shall be,
+	% at random times, stopped and restarted after a random duration, to better
+	% simulate a local presence (otherwise constant lighting happens):
+	%
+	random_activity = 'true' :: boolean(),
+
+
+	% The mean duration, in seconds, of a period of lighting (if random activity
+	% is enabled):
+	%
+	mean_light_duration = ?default_mean_light_duration ::
+		time_utils:second_duration(),
+
+
+	% The mean duration, in seconds, of an interruption of lighting (if random
+	% activity is enabled):
+	%
+	mean_no_light_duration = ?default_mean_no_light_duration ::
+		time_utils:second_duration() } ).
