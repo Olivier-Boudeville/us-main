@@ -103,9 +103,12 @@ thanks to Ceylan-Oceanic.
 
 -doc "Describes a start/stop logical moment to simulate presence.".
 -type presence_milestone() ::
-	time()  % A time in the day
-  | 'dawn'  % First light (if any) of the day
-  | 'dusk'. % Last light (if any) of the day
+	time().  % A time in the day
+  % Actually these two are transparently managed by the server, if smart
+  % lighting is enabled:
+  %
+  %| 'dawn'  % First light (if any) of the day
+  %| 'dusk'. % Last light (if any) of the day
 
 
 
@@ -199,6 +202,8 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 
 
 
+
+
 % Internal information regarding an instance of presence simulation:
 -record( presence_simulation, {
 
@@ -255,11 +260,30 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	% Not used, as relying now on a "stateless" algorithm.
 	%next_action :: option( { timestamp(), presence_action() } ),
 
+
 	% Tells whether lighting shall be switched off during a presence slot when
 	% the light of day should be available (provided that the geographical
 	% position of the server is known):
 	%
-	smart_lighting = true :: boolean(),
+	smart_lighting = 'true' :: boolean(),
+
+
+	% Tells whether, during a period of simulated presence, lighting shall be,
+	% at random times, stopped and restarted after a random duration, to better
+	% simulate a local presence (otherwise constant lighting happens):
+	%
+	random_activity = 'true' :: boolean(),
+
+	% The mean duration, in seconds, of a period of lighting (if random activity
+	% is enabled):
+	%
+	mean_light_duration :: second_duration(),
+
+	% The mean duration, in seconds, of an interruption of lighting (if random
+	% activity is enabled):
+	%
+	mean_no_light_duration :: second_duration(),
+
 
 
 	% The press/release telegrams to be emitted to switch the target actuator
@@ -366,9 +390,11 @@ events.
 
 -type date() :: time_utils:date().
 -type time() :: time_utils:time().
+-type second_duration() :: time_utils:second_duration().
 -type day_in_the_year() :: time_utils:day_in_the_year().
 
 -type milliseconds() :: unit_utils:milliseconds().
+
 
 -type trace_severity() :: trace_utils:trace_severity().
 -type trace_message() :: trace_utils: trace_message().
@@ -709,19 +735,40 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	MaybeRetainedPscSimSettings = case MaybeConfiguredPscSimSettings of
 
 		undefined ->
+			case MaybePresenceSimSettings of
+
+				undefined ->
+					send_psc_trace( info, "Neither construction-level nor "
+						"configuration-level presence simulation settings "
+						"defined, defaults will apply.", SrvState );
+
+				PresenceSimSettings ->
+					send_psc_trace_fmt( info, "Construction-level presence "
+						"simulation settings will apply "
+						"(no configuration-level ones were defined):~n ~p",
+						[ PresenceSimSettings ], SrvState )
+
+			end,
+
 			MaybePresenceSimSettings;
+
 
 		ConfiguredPscSimSettings ->
 			case MaybePresenceSimSettings of
 
 				undefined ->
+					send_psc_trace_fmt( info, "No construction-level presence "
+						"simulation settings defined, configuration-level ones "
+						"will apply:~n ~p", [ ConfiguredPscSimSettings ],
+						SrvState ),
 					ConfiguredPscSimSettings;
 
 				PresenceSimSettings ->
-					?send_warning_fmt( SrvState, "The construction-specified "
+					send_psc_trace_fmt( info, "The construction-specified "
 						"presence simulation settings (~p) will override the "
 						"configuration-specified ones (~p).",
-						[ PresenceSimSettings, ConfiguredPscSimSettings ] ),
+						[ PresenceSimSettings, ConfiguredPscSimSettings ],
+						SrvState ),
 					PresenceSimSettings
 
 			end
@@ -833,8 +880,9 @@ Initialises the overall presence simulation.
 init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 						  MaybeSrcEuridStr, State ) ->
 
-	send_psc_trace_fmt( debug, "Initialising presence simulation, "
-		"from settings ~p.", [ MaybePresenceSimSettings ], State ),
+	% Already available:
+	%send_psc_trace_fmt( debug, "Initialising presence simulation, "
+	%   "from following settings:~n ~p.", [ MaybePresenceSimSettings ], State ),
 
 	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
 		MaybeSrcEuridStr, _PscTable=table:new(), _NextPscId=1,
@@ -916,7 +964,10 @@ init_presence_simulation(
 		source_eurid=SrcEuridStr,
 		target_eurid=MaybeTargetActuatorEuridStr,
 		presence_program=PscSlots,
-		smart_lighting=true },
+		smart_lighting=true,
+		random_activity=true
+		% Defaults apply for mean_light_duration/mean_no_light_duration.
+	},
 
 	% Branch then to the general rule:
 	init_presence_simulation( _PscSimSettings=[ DefaultSettings ], OcSrvPid,
@@ -939,6 +990,8 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
 
 		false ->
 			TomorrowDate = time_utils:get_date_after( date(), _DaysOffset=1 ),
+
+			% Define from time_utils.hrl:
 			NextMidnightTimestamp = { TomorrowDate, ?first_time },
 
 			send_psc_trace_fmt( debug, "Registering a daily presence "
@@ -1000,8 +1053,11 @@ init_presence_simulation( _PresenceSimSettings=[
 			source_eurid=MaybeUserSrcEuridStr,
 			target_eurid=MaybeTargetActuatorEuridStr,
 			presence_program=Program,
-			smart_lighting=SmartBool } | T ], OcSrvPid, SrcEuridStr, PscTable,
-						  NextPscId, TimeEqTableNeeded, State ) ->
+			smart_lighting=SmartBool,
+			random_activity=RandomBool,
+			mean_light_duration=MLightDur,
+			mean_no_light_duration=MNoLightDur } | T ], OcSrvPid, SrcEuridStr,
+						  PscTable, NextPscId, TimeEqTableNeeded, State ) ->
 
 	ActualSrcEurid = case MaybeUserSrcEuridStr of
 
@@ -1034,6 +1090,32 @@ init_presence_simulation( _PresenceSimSettings=[
 	%
 	VettedProgram = vet_program( Program ),
 
+	RandomProgram = case RandomBool of
+
+		true ->
+			type_utils:check_strictly_positive_integer( MLightDur ),
+			type_utils:check_strictly_positive_integer( MNoLightDur ),
+
+			RandProgram = randomise_program( VettedProgram, MLightDur,
+											 MNoLightDur, State ),
+
+			send_psc_trace_fmt( debug,
+				"Original program ~ts~nResulting randomised program ~ts",
+				[ program_to_string( VettedProgram ),
+				  program_to_string( RandProgram ) ], State ),
+
+			%RandProgram;
+			vet_program( RandProgram );
+
+		false ->
+			send_psc_trace_fmt( debug,
+				"Vetted verbatim program ~ts",
+				[ program_to_string( VettedProgram ) ], State ),
+
+			VettedProgram
+
+	end,
+
 	% We have also to forge the Enocean telegrams necessary for switching on/off
 	% the actuator(s), with following conventions (learnt double-rocker, whose
 	% top button is "on"):
@@ -1057,14 +1139,17 @@ init_presence_simulation( _PresenceSimSettings=[
 
 	DoSmartLighting = type_utils:check_boolean( SmartBool ),
 
+	DoRandomActivity = type_utils:check_boolean( RandomBool ),
+
 	PscSim = #presence_simulation{
 		id=NextPscId,
 		enabled=true,
 		activated=false,
 		source_eurid=ActualSrcEurid,
 		target_eurid=ActualTargetEurid,
-		program=VettedProgram,
+		program=RandomProgram,
 		smart_lighting=DoSmartLighting,
+		random_activity=DoRandomActivity,
 		activation_telegrams={ OnPressTelegram, OnReleaseTelegram },
 		deactivation_telegrams={ OffPressTelegram, OffReleaseTelegram } },
 
@@ -1137,6 +1222,116 @@ vet_program( _PresenceProgram=[ Slot={ StartMilestone, StopMilestone } | T ],
 vet_program( Other, _MaybeLastStop, _AccSlots ) ->
 	throw( { invalid_presence_program, Other } ).
 
+
+
+-doc "Adds random interruptions to the specified program, if it is slot-based.".
+-spec randomise_program( presence_program(), second_duration(),
+			second_duration(), wooper:state() ) -> presence_program().
+randomise_program( PresenceProgram=constant_presence, _MeanLightDuration,
+				   _MeanNoLightDuration, _State ) ->
+	PresenceProgram;
+
+randomise_program( PresenceProgram=constant_absence, _MeanLightDuration,
+				   _MeanNoLightDuration, _State ) ->
+	PresenceProgram;
+
+randomise_program( _PresenceProgram=Slots, MeanLightDuration,
+				   MeanNoLightDuration, State ) ->
+
+	StdDevLightDur = MeanLightDuration div 2,
+
+	% No less than 8 seconds:
+	MinNoLightDur = max( 8, MeanNoLightDuration div 2 ),
+
+	% Max symetrical of Min around Mean:
+	MaxNoLightDur = MeanNoLightDuration + 2*(MeanNoLightDuration-MinNoLightDur),
+
+	send_psc_trace_fmt( info, "Randomising presence slots, with, for lighting, "
+		"a Gaussian law of mean ~w seconds and standard deviation ~w seconds "
+		"and, for non-lighting, a uniform law in [~w,~w] seconds.",
+		[ MeanLightDuration, StdDevLightDur, MinNoLightDur, MaxNoLightDur ],
+		State ),
+
+	% Sanity checks:
+
+	MeanLightDuration > 0 orelse
+		throw( { invalid_mean_light_duration, MeanLightDuration } ),
+
+	MinNoLightDur > 0 orelse
+		throw( { invalid_min_no_light_duration, MinNoLightDur } ),
+
+	MaxNoLightDur > MinNoLightDur orelse
+		throw( { invalid_max_no_light_duration, MaxNoLightDur } ),
+
+	randomise_program( Slots, MeanLightDuration, StdDevLightDur,
+					   MinNoLightDur, MaxNoLightDur, _Acc=[] ).
+
+
+
+% (helper)
+randomise_program( _Slots=[], _MeanLightDuration, _StdDevLightDur,
+				   _MinNoLightDur, _MaxNoLightDur, Acc ) ->
+	lists:reverse( Acc );
+
+% Initially, dawn/dusk are not resolved as actual times, so let's leave them:
+% (they are not presence milestones anymore)
+% randomise_program( _Slots=[ H={ _Start=dawn, Stop } | T ],
+%                    MeanLightDuration, MeanNoLightDuration, Acc ) ->
+%   randomise_program( T, [ H | T ] );
+%
+% randomise_program( _Slots=[ H={ Start, _Stop=dusk } | T ],
+%                    MeanLightDuration, MeanNoLightDuration, Acc ) ->
+%   randomise_program( T, [ H | T ] );
+
+% Replacing each slot by as many sub-slots that fit:
+randomise_program( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
+				   StdDevLightDur, MinNoLightDur, MaxNoLightDur, Acc ) ->
+	% We replace a single overall slot by as many we can fit:
+	Duration = time_utils:get_intertime_duration( Start, Stop ),
+
+	RevSubSlots = draw_subslots( Start, Duration, MeanLightDuration,
+		StdDevLightDur, MinNoLightDur, MaxNoLightDur, _AccSlots=[] ),
+
+	randomise_program( T, MeanLightDuration, StdDevLightDur, MinNoLightDur,
+					   MaxNoLightDur, RevSubSlots ++ Acc ).
+
+
+
+% We try here to insert a light slot and a no-light slot in the remaining
+% duration - provided that their duration fit.
+%
+% (helper)
+draw_subslots( Start, Duration, MeanLightDuration, StdDevLightDur,
+			   MinNoLightDur, MaxNoLightDur, AccSlots ) ->
+
+	LightDur = random_utils:get_positive_integer_gaussian_value(
+		MeanLightDuration, StdDevLightDur ),
+
+	NoLightDur = random_utils:get_uniform_value( MinNoLightDur,
+												 MaxNoLightDur ),
+
+	SubDur = LightDur + NoLightDur,
+
+	NewDuration = Duration - SubDur,
+
+	case NewDuration > 0 of
+
+		true ->
+			% Then we can insert at least one on/off subslot:
+			NextStop = time_utils:offset_time( Start, LightDur ),
+			NewAccSlots = [ { Start, NextStop } | AccSlots ],
+			NewStart = time_utils:offset_time( Start, SubDur ),
+			draw_subslots( NewStart, NewDuration, MeanLightDuration,
+				StdDevLightDur, MinNoLightDur, MaxNoLightDur, NewAccSlots );
+
+		false ->
+			% Then with a last one bridging the gap, we stop introducing
+			% subslots:
+			%
+			Stop = time_utils:offset_time( Start, Duration ),
+			[ { Start, Stop } | AccSlots ]
+
+	end.
 
 
 
@@ -3123,6 +3318,7 @@ presence_simulation_to_string( #presence_simulation{
 		target_eurid=TargetEurid,
 		program=Program,
 		smart_lighting=IsSmart,
+		random_activity=IsRandom,
 		activation_telegrams={ PressOn, ReleaseOn },
 		deactivation_telegrams={ PressOff, ReleaseOff },
 		presence_task_info=MaybeTaskInfo } ) ->
@@ -3137,25 +3333,13 @@ presence_simulation_to_string( #presence_simulation{
 
 	end,
 
-	PrgStr = case Program of
+	RandomStr = case IsRandom of
 
-		constant_presence ->
-			"is constant presence";
+		true ->
+			"";
 
-		constant_absence ->
-			"is constant absence";
-
-		[] ->
-			"has no slot defined";
-
-		[ SingleSlot ] ->
-			text_utils:format( "has a single presence slot defined: ~ts",
-							   [ slot_to_string( SingleSlot ) ] );
-
-		Slots ->
-			text_utils:format( "has ~B presence slots defined: ~ts",
-				[ length( Slots ), text_utils:strings_to_string(
-					[ slot_to_string( S ) || S <- Slots ] ) ] )
+		false ->
+			"not"
 
 	end,
 
@@ -3171,7 +3355,8 @@ presence_simulation_to_string( #presence_simulation{
 	end,
 
 	text_utils:format( "presence simulation of id #~B, ~ts, "
-		"~tsusing smart lighting, whose program ~ts~n"
+		"~tsusing smart lighting, ~tsemulating random activity, "
+		"whose presence program ~ts~n"
 		"Its source EURID is ~ts and target EURID is ~ts "
 		"(activation telegrams are ~ts for pressed, "
 		"~ts for released, deactivation telegrams are ~ts for pressed, "
@@ -3183,7 +3368,7 @@ presence_simulation_to_string( #presence_simulation{
 		  ++ case IsActivated of
 					true -> "activated";
 					false -> "non-activated"
-			 end, SmartStr, PrgStr,
+			 end, SmartStr, RandomStr, program_to_string( Program ),
 		  oceanic:eurid_to_string( SourceEurid ),
 		  oceanic:eurid_to_string( TargetEurid ),
 		  oceanic:telegram_to_string( PressOn ),
@@ -3194,12 +3379,72 @@ presence_simulation_to_string( #presence_simulation{
 
 
 
+-doc "Returns a textual description of the specified presence program.".
+-spec program_to_string( presence_program() ) -> ustring().
+program_to_string( _Prog=constant_presence ) ->
+	"is constant presence";
+
+program_to_string( _Prog=constant_absence ) ->
+	"is constant absence";
+
+program_to_string( _Slots=[] ) ->
+	"has no slot defined";
+
+program_to_string( _Slots=[ SingleSlot ] ) ->
+	text_utils:format( "has a single presence slot defined: ~ts",
+					   [ slot_to_string( SingleSlot ) ] );
+
+program_to_string( Slots ) ->
+
+	SlotStrs = program_to_string( Slots, _FirstMaybePrevEndTime=undefined,
+								  _Acc=[] ),
+
+	text_utils:format( "has ~B presence slots defined: ~ts",
+		[ length( Slots ), text_utils:strings_to_string( SlotStrs ) ] ).
+
+
+% (helper)
+program_to_string( _Slots=[], _FirstMaybePrevEndTime, Acc ) ->
+	lists:reverse( Acc );
+
+program_to_string( _Slots=[ S={ _Start, Stop } | T  ], MaybePrevEndTime,
+				   Acc ) ->
+	SlotStr = slot_to_string( S, MaybePrevEndTime ),
+	program_to_string( T, Stop, [ SlotStr | Acc ] ).
+
+
+
 -doc "Returns a textual description of the specified presence slot.".
 -spec slot_to_string( presence_slot() ) -> ustring().
-slot_to_string( _Slot={ StartTime, StopTime } ) ->
-	text_utils:format( "from ~ts to ~ts", [
+slot_to_string( Slot ) ->
+	slot_to_string( Slot, _PrevEndTime=undefined ).
+
+
+
+-doc "Returns a textual description of the specified presence slot.".
+-spec slot_to_string( presence_slot(), option( time() ) ) -> ustring().
+slot_to_string( _Slot={ StartTime, StopTime }, _MaybePrevEndTime=undefined ) ->
+
+	DurSec = time_utils:get_intertime_duration( StartTime, StopTime ),
+
+	text_utils:format( "from ~ts to ~ts (duration: ~ts)", [
 		time_utils:time_to_string( StartTime ),
-		time_utils:time_to_string( StopTime ) ] ).
+		time_utils:time_to_string( StopTime ),
+		time_utils:duration_to_string( 1000 * DurSec ) ] );
+
+
+slot_to_string( _Slot={ StartTime, StopTime }, PrevEndTime ) ->
+
+	FromPrevDurSec = time_utils:get_intertime_duration( PrevEndTime,
+														StartTime ),
+
+	DurSec = time_utils:get_intertime_duration( StartTime, StopTime ),
+
+	text_utils:format( "(after ~ts) from ~ts to ~ts (duration: ~ts)", [
+		time_utils:duration_to_string( 1000 * FromPrevDurSec ),
+		time_utils:time_to_string( StartTime ),
+		time_utils:time_to_string( StopTime ),
+		time_utils:duration_to_string( 1000 * DurSec ) ] ).
 
 
 
