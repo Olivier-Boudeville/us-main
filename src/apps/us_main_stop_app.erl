@@ -24,6 +24,8 @@
 -moduledoc """
 Actual US-Main **stopping logic**, as a (Myriad) application.
 
+Meant to stop gracefully a host-local US-Main instance.
+
 Typically called through the us_main/priv/bin/stop-us-main-native-build.sh
 script.
 """.
