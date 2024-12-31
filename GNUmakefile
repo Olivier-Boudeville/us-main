@@ -325,7 +325,11 @@ test-ci:
 	@cd test && $(MAKE) -s test-ci
 
 
+# Will update the sources on a remote server (not needing commits for that),
+# typically in its /opt/universal-server/us_main-native directory:
+#
 sync-all-to-server: sync-all-to-server-local
+
 
 # Not wanting to import on the target server a colliding file that a production
 # user cannot overwrite:
