@@ -121,8 +121,12 @@ fi
 
 
 # Selects the (build-time) execution target for all Ceylan layers:
-execution_target="development"
-#execution_target="production"
+#
+# We prefer now 'production', as we want a US-Main server to be robust (e.g. by
+# restarting any failed child):
+#
+#execution_target="development"
+execution_target="production"
 
 ceylan_opts="EXECUTION_TARGET=${execution_target}"
 
