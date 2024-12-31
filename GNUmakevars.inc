@@ -12,7 +12,10 @@
 
 ifndef EXECUTION_TARGET
 
-	# Other possible value: production
+	# Other possible value: 'production', most probably enforced by deployment
+	# scripts, as US-Main servers shall generally be robust (e.g. by restarting
+	# any failed child):
+	#
 	EXECUTION_TARGET = development
 
 endif
