@@ -665,7 +665,7 @@ The recommended procedure is to inspect:
 
 - to run first the ``monitor-us-main.sh`` for any (possibly remote) host of interest
 - the result of ``systemctl status us-main-as-native-build.service``
-- the one of ``journalctl --pager-end --unit=us-main-native-build.service``
+- the one of ``journalctl --pager-end --unit=us-main-as-native-build.service``
 - ``/var/log/universal-server/us-main/us_main.traces``, if any
 - the latest ``/opt/universal-server/us_main-latest/us_main/log/erlang.log.*``
 - any content in ``/var/log/universal-server/us-main/``
