@@ -2585,7 +2585,7 @@ destruct( State ) ->
 
 
 
-% Method section.
+% Method section, except for remote commands.
 
 
 -doc """
@@ -2791,8 +2791,11 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
+
 -doc """
 Records the existence of a device not expected to be already known.
+
+(helper)
 """.
 -spec record_new_device( device_event(), wooper:state() ) -> wooper:state().
 record_new_device( DeviceEvent, State ) ->
@@ -3036,6 +3039,23 @@ onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
 	wooper:const_return().
 
 
+
+
+% Section for remote commands, sent by clients like the US-Main controller
+% script (see control-us-main.sh).
+
+
+-doc """
+Requests whether, from the point of view of this server, somebody is at home.
+""".
+-spec isPresent( wooper:state() ) -> const_request_return( boolean() ).
+isPresent( State ) ->
+	wooper:const_return_result( ?getAttr(actual_presence) ).
+
+
+
+
+% Helper section.
 
 -doc """
 Returns a suitable name for a trace emitter for the specified device.
