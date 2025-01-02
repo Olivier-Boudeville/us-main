@@ -81,6 +81,7 @@ UserMutedMeasurements = [
 -doc "Settings gathered on behalf of the home automation server.".
 -type home_automation_settings() :: { option( user_server_location() ),
 	BinAppBaseDirectoryPath :: bin_directory_path(),
+	MaybeAlarmSwitchEurid :: option( eurid() ),
 	MaybePscSwitchEurid :: option( eurid() ), oceanic_settings() }.
 
 
@@ -136,7 +137,18 @@ UserMutedMeasurements = [
 
 -define( us_main_server_location_key, server_location ).
 
--define( us_main_presence_switching_key, presence_switching_actuator ).
+% If the alarm can be switched on/off with a device (typically a push button or
+% a double rocker):
+%
+-define( us_main_alarm_trigger_key, alarm_trigger ).
+
+% Any device (typically a smart plug) that is controlled if the alarm is
+% triggered (e.g. powering a siren):
+%
+-define( us_main_alarm_actuator_key, alarm_actuator ).
+
+% To switch between at home/away:
+-define( us_main_presence_trigger_key, presence_switching_trigger ).
 
 -define( us_main_presence_simulation_key, presence_simulation_settings ).
 
@@ -148,7 +160,8 @@ UserMutedMeasurements = [
 	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
 	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
-	?us_main_presence_switching_key, ?us_main_presence_simulation_key,
+	?us_main_alarm_trigger_key, ?us_main_alarm_actuator_key,
+	?us_main_presence_trigger_key, ?us_main_presence_simulation_key,
 	?us_main_contact_files_key ] ).
 
 
@@ -230,6 +243,8 @@ UserMutedMeasurements = [
 
 -type oceanic_settings() :: oceanic:oceanic_settings().
 -type eurid() :: oceanic:eurid().
+%-type button_ref() :: oceanic:button_ref().
+
 
 
 % The class-specific attributes:
@@ -264,7 +279,10 @@ UserMutedMeasurements = [
 	  "the user-specified location of this US-Main server" },
 
 	% Home-automation specific:
-	{ home_automation_core_settings, { option( eurid() ),
+	{ home_automation_core_settings,
+	  { option( button_ref() ), % AlarmTrigger
+		option( eurid() ), % AlarmActuator
+		option( button_ref() ), % PresenceSwitch
 		option( presence_simulation_settings() ), oceanic_settings() },
 	  "any home automation core settings read (and not specifically checked) "
 	  "on behalf of the house automation server" },
@@ -491,12 +509,14 @@ Returns suitable home automation settings, read from the configuration
 			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
-	{ MaybePscSwitchEurid, MaybePscSimSettings, OcSettings } =
+	{ MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid,
+	  MaybePscSwitchButRef, MaybePscSimSettings, OcSettings } =
 		?getAttr(home_automation_core_settings),
 
 	wooper:const_return_result( { ?getAttr(server_location),
-		?getAttr(app_base_directory), MaybePscSwitchEurid, MaybePscSimSettings,
-		OcSettings } ).
+		?getAttr(app_base_directory),
+		MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid,
+		MaybePscSwitchButRef, MaybePscSimSettings, OcSettings } ).
 
 
 
@@ -1399,23 +1419,68 @@ manage_home_automation( ConfigTable, State ) ->
 
 	end,
 
-	MaybePscSwitchEurid = case table:lookup_entry(
-			?us_main_presence_switching_key, ConfigTable ) of
+
+	MaybeAlarmTriggerButRef = case table:lookup_entry(
+			?us_main_alarm_trigger_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No alarm trigger device set." ),
+			undefined;
+
+		{ value, { AEuridStr, AChannel } } when is_list( AEuridStr )
+											  andalso is_integer( AChannel ) ->
+			AButRef = { oceanic:string_to_eurid( AEuridStr ), AChannel },
+			?info_fmt( "The configured alarm trigger device, ~ts, "
+					   "will be used.",
+					   [ oceanic:button_ref_to_string( AButRef ) ] ),
+			AButRef;
+
+		{ value, ANotButtonRef } ->
+			throw( { invalid_button_reference, ANotButtonRef,
+					 ?us_main_alarm_trigger_key } )
+
+	end,
+
+
+	MaybeAlarmActuatorEurid = case table:lookup_entry(
+			?us_main_alarm_actuator_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No alarm actuator device set." ),
+			undefined;
+
+		{ value, EuridStr } when is_list( EuridStr ) ->
+			?info_fmt( "The configured alarm actuator device, "
+				"of EURID ~ts, will be used.", [ EuridStr ] ),
+			oceanic:string_to_eurid( EuridStr );
+
+		{ value, NotEuridStr } ->
+			throw( { invalid_eurid, NotEuridStr, ?us_main_alarm_actuator_key } )
+
+	end,
+
+
+	MaybePscTriggerButRef = case table:lookup_entry(
+			?us_main_presence_trigger_key, ConfigTable ) of
 
 		key_not_found ->
 			?info( "No presence-switching device set." ),
 			undefined;
 
-		{ value, EuridStr } when is_list( EuridStr ) ->
-			?info_fmt( "The configured presence-switching device, "
-				"of EURID ~ts, will be used.", [ EuridStr ] ),
-			oceanic:string_to_eurid( EuridStr );
+		{ value, { PEuridStr, PChannel } } when is_list( PEuridStr )
+											  andalso is_integer( PChannel ) ->
+			PButRef = { oceanic:string_to_eurid( PEuridStr ), PChannel },
+			?info_fmt( "The configured presence-switching device, ~ts, "
+					   "will be used.",
+					   [ oceanic:button_ref_to_string( PButRef ) ] ),
+			PButRef;
 
-		{ value, NotEuridStr } ->
-			throw( { invalid_eurid, NotEuridStr,
-					 ?us_main_presence_switching_key } )
+		{ value, PNotButtonRef } ->
+			throw( { invalid_button_reference, PNotButtonRef,
+					 ?us_main_presence_trigger_key } )
 
 	end,
+
 
 	MaybePscSimSettings = case table:lookup_entry(
 			?us_main_presence_simulation_key, ConfigTable ) of
@@ -1443,7 +1508,8 @@ manage_home_automation( ConfigTable, State ) ->
 	% Not specifically checked at this level; will be done by the home
 	% automation server:
 	%
-	HACoreSettings = { MaybePscSwitchEurid, MaybePscSimSettings, OcSettings },
+	HACoreSettings = { MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid,
+					   MaybePscTriggerButRef, MaybePscSimSettings, OcSettings },
 
 	setAttributes( State, [
 		{ server_location, MaybePosition },
