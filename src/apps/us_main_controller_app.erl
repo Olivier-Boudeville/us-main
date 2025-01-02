@@ -80,15 +80,46 @@ exec() ->
 		"is_present" ->
 			handle_is_present( CmdArgs, HomeAutoSrvPid );
 
+		"declare_present" ->
+			handle_declare_present( CmdArgs, HomeAutoSrvPid );
+
+		"declare_not_present" ->
+			handle_declare_not_present( CmdArgs, HomeAutoSrvPid );
+
+		"start_alarm" ->
+			handle_start_alarm( CmdArgs, HomeAutoSrvPid );
+
+		"stop_alarm" ->
+			handle_stop_alarm( CmdArgs, HomeAutoSrvPid );
+
+		"is_alarm_active" ->
+			handle_is_alarm_active( CmdArgs, HomeAutoSrvPid );
+
+		"start_lighting" ->
+			handle_start_lighting( CmdArgs, HomeAutoSrvPid );
+
+		"stop_lighting" ->
+			handle_stop_lighting( CmdArgs, HomeAutoSrvPid );
+
 		Other ->
 			throw( { unsupported_command, Other, CmdArgs } )
 
-	end.
+	end,
+
+	app_facilities:display( "Client terminating now." ),
+
+	basic_utils:stop( _ErrorCode=0 ).
 
 
+
+
+% Section for command implementations.
+
+
+%% Presence-related subsection.
 
 handle_is_present( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { isPresent, [], self() },
+	HomeAutoSrvPid ! { getPresenceStatus, [], self() },
 
 	receive
 
@@ -98,4 +129,71 @@ handle_is_present( _CmdArgs=[], HomeAutoSrvPid ) ->
 	end;
 
 handle_is_present( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+handle_declare_present( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! { setPresenceStatus, true };
+
+handle_declare_present( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+handle_declare_not_present( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! { setPresenceStatus, false };
+
+handle_declare_not_present( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+
+%% Alarm-related subsection.
+
+handle_is_alarm_active( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! { getAlarmStatus, [], self() },
+
+	receive
+
+		{ wooper_result, IsAlarmActive } ->
+			app_facilities:display( "Is alarm active: ~ts.", [ IsAlarmActive ] )
+
+	end;
+
+handle_is_alarm_active( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+handle_start_alarm( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! { setAlarmStatus, true };
+
+handle_start_alarm( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+handle_stop_alarm( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! { setAlarmStatus, false };
+
+handle_stop_alarm( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+
+%% Lighting-related subsection.
+
+handle_start_lighting( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! startLighting;
+
+handle_start_lighting( CmdArgs, _HomeAutoSrvPid ) ->
+	throw( { unexpected_arguments, CmdArgs } ).
+
+
+handle_stop_lighting( _CmdArgs=[], HomeAutoSrvPid ) ->
+	HomeAutoSrvPid ! stopLighting;
+
+handle_stop_lighting( CmdArgs, _HomeAutoSrvPid ) ->
 	throw( { unexpected_arguments, CmdArgs } ).
