@@ -4,6 +4,7 @@
 um_cfg_filename="us-main-remote-access.config"
 
 
+
 # Presence-related options:
 
 # If at home:
@@ -15,11 +16,21 @@ declare_absence_opt="declare_not_present"
 get_presence_opt="is_present"
 
 
+
+# Alarm-related options:
+
 # Activate it (beware!):
 start_alarm_opt="start_alarm"
 stop_alarm_opt="stop_alarm"
 
 get_alarm_opt="is_alarm_active"
+
+
+
+# Lighting-related options:
+
+start_lighting_opt="start_lighting"
+stop_lighting_opt="stop_lighting"
 
 
 
@@ -36,6 +47,10 @@ Supported commands:
 	* ${start_alarm_opt}: starts the alarm (siren)
 	* ${stop_alarm_opt}: stops the alarm
 	* ${get_alarm_opt}: tells whether the alarm is currently activated (hence wit a roaring siren)
+
+ - regarding lighting:
+	* ${start_lighting_opt}: starts all registered lighting
+	* ${stop_lighting_opt}: stops all registered lighting
 
 Example of use: './$(basename $0) us-main-remote-access-for-development.config stop_alarm ', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
@@ -108,6 +123,22 @@ ${usage}" 1>&2
 						  fi
 						  ;;
 
+		${start_lighting_opt}) args="$*"
+							if [ -n "${args}" ]; then
+								echo "  Error, the '${cmd}' command does not expect arguments.
+${usage}" 1>&2
+								exit 56
+							fi
+							;;
+
+
+		${stop_lighting_opt}) args="$*"
+						   if [ -n "${args}" ]; then
+							   echo "  Error, the '${cmd}' command does not expect arguments.
+${usage}" 1>&2
+							   exit 57
+						   fi
+						   ;;
 
 		# Unknown command, supposedly a configuration file path:
 		*) um_cfg_filename="${cmd}"
