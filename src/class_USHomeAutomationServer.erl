@@ -414,6 +414,7 @@ events.
 -type back_online_info() :: oceanic:back_online_info().
 -type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
+%-type channel() :: oceanic:channel().
 -type button_ref() :: oceanic:button_ref().
 -type telegram() :: oceanic:telegram().
 -type eep_id() :: oceanic:eep_id().
@@ -445,28 +446,36 @@ events.
 	  "src, priv, ebin, etc. can be found)" },
 
 
-	{ alarm_activated, boolean(), "tells whether the alarm is activated "
+	{ alarm_inhibited, boolean(),
+	  "tells whether the alarm is inhibited, permanently, if somebody is at "
+	  "home - thus no opening matters - or temporarily, so that one has a "
+	  "chance of leaving home without triggering the alarm)" },
+
+	{ alarm_triggered, boolean(), "tells whether the alarm is triggered "
 	  "(i.e. whether a siren is expected to be roaring)" },
 
-	{ alarm_trigger_button_ref, option( button_ref() ),
-	  "the reference to any button to be used to directly switch on/off the "
-	  "alarm" },
 
-	{ alarm_trigger_on_telegrams, option( telegram_pair() ),
-	  "any press/release telegrams to be emitted to declare that the "
-	  "alarm should be activated immediately" },
+	{ alarm_trigger_button_refs, [ button_ref() ],
+	  "the reference (hence their source EURID and controlling channel - "
+	  "knowing that top/bottom is always used to activate/deactivate) to "
+	  "any button of controlling devices (typically push buttons or double
+	  rockers) to be used to directly switch on/off the alarm" },
 
-	{ alarm_trigger_off_telegrams, option( telegram_pair() ),
-	  "any press/release telegrams to be emitted to declare that the "
-	  "alarm should be deactivated immediately" },
+	{ alarm_actuator_button_refs, [ button_ref() ],
+	  "the reference (here the EURID of each target device to trigger, "
+	  "together with the source-side channel that shall be specified for "
+	  "that - knowing that top/bottom is always used to activate/deactivate "
+	  "these actuators) to any button of actuator devices (typically smart "
+	  "plugs powering sirens) that shall be triggered when an actual alarm "
+	  "is triggered; to be kept in sync with the "
+	  "alarm_{de,}activation_telegrams attributes" },
 
+	{ alarm_activation_telegrams, [ telegram_pair() ],
+	  "any press/release telegrams to be emitted to switch on the alarm target "
+	  "actuator (typically a smart plug controlling an alarm, i.e. a 12V "
+	  "transformer powering a siren)" },
 
-	{ alarm_activation_telegrams, option( telegram_pair() ),
-	  "any press/release telegrams to be emitted to switch on the target "
-	  "actuator (typically a smart plug) controlling an alarm (typically "
-	  "a 12V transformer powering a siren)" },
-
-	{ alarm_deactivation_telegrams, option( telegram_pair() ),
+	{ alarm_deactivation_telegrams, [ telegram_pair() ],
 	  "any press/release telegrams to be emitted to switch off the target "
 	  "actuator (typically a smart plug) controlling an alarm (typically "
 	  "a 12V transformer powering a siren)" },
@@ -503,12 +512,14 @@ events.
 	{ server_location, option( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
 
-	{ presence_switching_button_ref, option( button_ref() ),
-	  "the button reference (typically of a double-rocker), if any, used as "
-	  "a direct indication about whether somebody is at home" },
+	{ presence_switching_button_refs, [ button_ref() ],
+	  "the button references, if any, used as a direct indication about "
+	  "whether somebody is at home; these are typically double-rockers "
+	  "whose top button means that somebody is at home, and whose bottom "
+	  "button means that nobody is at home" },
 
 	{ presence_switching_device_desc, option( bin_string() ),
-	  "a textual description of the presence switching device (if any)" },
+	  "a textual description of the presence switching devices (if any)" },
 
 	{ celestial_info, option( celestial_info() ),
 	  "any precomputed dawn/dusk time, for the current day" },
@@ -753,17 +764,16 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	% Interleaved:
 	{ MaybeUserSrvLoc, BinAppBaseDirectoryPath,
-	  MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid,
-	  MaybePscSwitchButRef, MaybeConfiguredPscSimSettings,
-	  OceanicSettings } = receive
+	  AlarmTriggerButRefs, AlarmActuatorButRefs, PscTriggerButRefs,
+	  MaybeConfiguredPscSimSettings, OceanicSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
 			HomeAutoMatSettings
 
 	end,
 
-	AlarmState = init_alarm( MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid,
-							 MaybeOcSrvPid, SrvState ),
+	AlarmState = init_alarm( AlarmTriggerButRefs, AlarmActuatorButRefs,
+							 MaybeOcSrvPid, MaybeBaseId, SrvState ),
 
 	MaybeRetainedPscSimSettings = case MaybeConfiguredPscSimSettings of
 
@@ -833,21 +843,27 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	MaybePscSwitchDesc = case MaybePscSwitchButRef of
+	PscSwitchBinDesc = case PscTriggerButRefs of
 
-		undefined ->
-			undefined;
+		[] ->
+			<<"(no presence-switching device defined)">>;
 
-		PscSwitchButRef ->
+		_ ->
 			case MaybeOcSrvPid of
 
 				% Suspect:
 				undefined ->
-					oceanic:button_ref_to_string( PscSwitchButRef );
+					text_utils:bin_format( "Regarding the presence-switching "
+						"devices defined, ~ts", [ oceanic:button_refs_to_string(
+													PscTriggerButRefs ) ] );
 
 				OcSrvPid ->
-					oceanic:get_button_ref_description( PscSwitchButRef,
-														OcSrvPid )
+					text_utils:bin_format( "~B presence-switching devices "
+						"defined: ~ts", [ length( PscTriggerButRefs ),
+							text_utils:strings_to_listed_string(
+								[ oceanic:get_button_ref_description( BR,
+																	  OcSrvPid )
+									|| BR <- PscTriggerButRefs ] ) ] )
 
 			end
 
@@ -883,8 +899,8 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ time_equation_table, MaybeTimeEqTable },
 		{ midnight_task_id, MaybeMidnightTaskId },
 		{ server_location, MaybeSrvLoc },
-		{ presence_switching_button_ref, MaybePscSwitchButRef },
-		{ presence_switching_device_desc, MaybePscSwitchDesc },
+		{ presence_switching_button_refs, PscTriggerButRefs },
+		{ presence_switching_device_desc, PscSwitchBinDesc },
 		{ celestial_info, undefined },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
 
@@ -902,45 +918,91 @@ Initialises the alarm system.
 
 (helper)
 """.
--spec init_alarm( option( button_ref() ), option( eurid() ),
-	option( oceanic_server_pid() ), wooper:state() ) -> wooper:state().
-init_alarm( _MaybeAlarmTriggerButRef, _MaybeAlarmActuatorEurid,
-			_MaybeOcSrvPid=undefined, State ) ->
+-spec init_alarm( [ button_ref() ], [ button_ref() ],
+		option( oceanic_server_pid() ), option( eurid() ),
+		wooper:state() ) -> wooper:state().
+init_alarm( _AlarmTriggerButRefs, _AlarmActuatorButRefs,
+			_MaybeOcSrvPid=undefined, _MaybeBaseEurid, State ) ->
 	?debug( "No Oceanic support available, no alarm managed." ),
 	setAttributes( State, [
-		{ alarm_activated, false },
-		{ alarm_trigger_button_ref, undefined },
-		{ alarm_activation_telegrams, undefined },
-		{ alarm_deactivation_telegrams, undefined } ] );
+		{ alarm_inhibited, true },
+		{ alarm_triggered, false },
+		{ alarm_trigger_button_refs, [] },
+		{ alarm_actuator_button_refs, [] },
+		{ alarm_activation_telegrams, [] },
+		{ alarm_deactivation_telegrams, [] } ] );
 
-init_alarm( MaybeAlarmTriggerButRef, MaybeAlarmActuatorEurid, _OcSrvPid,
+init_alarm( AlarmTriggerButRefs, AlarmActuatorButRefs, _OcSrvPid, BaseEurid,
 			State ) ->
 
-	% First, if an alarm actuator is set, the control of the smart plug meant to
-	% trigger the alarm (siren) must be prepared, by forging the corresponding
-	% telegrams:
-	%
-	{ MaybeActTelPair, MaybeDeactTelPair } = case MaybeAlarmActuatorEurid of
+	% First, if alarm actuators are set, the control of their smart plugs
+	% (typically meant to start a siren)) must be prepared, by forging the
+	% corresponding telegrams:
 
-		undefined ->
-			{ undefined, undefined };
+	{ ActTelPairs, DeactTelPairs } = forge_actuator_telegrams(
+		AlarmActuatorButRefs, _SourceEurid=BaseEurid ),
 
-		_AlarmActuatorEurid ->
-			% TODO
-			{ undefined, undefined }
-
-	end,
-
-	% Second, if an alarm trigger button is set, its reference shall be stored
-	% as such:
+	% Second, if alarm trigger buttons ares set, their references shall be
+	% stored as such:
 	%
 	setAttributes( State, [
+		{ alarm_inhibited, true },
 		% Initially quiet:
-		{ alarm_activated, false },
-		{ alarm_trigger_button_ref, MaybeAlarmTriggerButRef },
-		{ alarm_activation_telegrams, MaybeActTelPair },
-		{ alarm_deactivation_telegrams, MaybeDeactTelPair } ] ).
+		{ alarm_triggered, false },
+		{ alarm_trigger_button_refs, AlarmTriggerButRefs },
+		{ alarm_actuator_button_refs, AlarmActuatorButRefs },
+		{ alarm_activation_telegrams, ActTelPairs },
+		{ alarm_deactivation_telegrams, DeactTelPairs } ] ).
 
+
+
+-doc """
+Encodes press/release telegram pairs, for the activation and deactivation of
+each of the actuator devices whose EURID is specified.
+""".
+-spec forge_actuator_telegrams( [ button_ref() ], eurid() ) ->
+		  { ActivationPairs   :: [ telegram_pair() ],
+			DeactivationPairs :: [ telegram_pair() ] }.
+forge_actuator_telegrams( ButRefs, SourceEurid ) ->
+	forge_actuator_telegrams( ButRefs, SourceEurid, _AccP={ [], [] } ).
+
+
+
+% (helper)
+forge_actuator_telegrams( _ButRefs=[], _SourceEurid, AccP ) ->
+	% No reversing of lists useful:
+	AccP;
+
+forge_actuator_telegrams( _ButRefs=[ { TargetEurid, SourceChannel } | T ],
+						  SourceEurid, _AccP={ Acts, Deacts } ) ->
+
+	% By convention:
+	AppStyle = 1,
+
+	OnButtonLoc = { SourceChannel, _OnPos=top },
+
+	OnPressTelegram = oceanic:encode_double_rocker_switch_telegram(
+		SourceEurid, AppStyle, OnButtonLoc, pressed, TargetEurid ),
+
+	OnReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
+		SourceEurid, AppStyle, OnButtonLoc, released, TargetEurid ),
+
+	OnTelegramPair = { OnPressTelegram, OnReleaseTelegram },
+
+
+	OffButtonLoc = { SourceChannel, _OffPos=bottom },
+
+	OffPressTelegram = oceanic:encode_double_rocker_switch_telegram(
+		SourceEurid, AppStyle, OffButtonLoc, pressed, TargetEurid ),
+
+	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
+		SourceEurid, AppStyle, OffButtonLoc, released, TargetEurid ),
+
+	OffTelegramPair = { OffPressTelegram, OffReleaseTelegram },
+
+
+	forge_actuator_telegrams( T, SourceEurid,
+		{ [ OnTelegramPair | Acts ], [ OffTelegramPair | Deacts ] } ).
 
 
 
@@ -1211,9 +1273,9 @@ init_presence_simulation( _PresenceSimSettings=[
 	end,
 
 	% We have also to forge the Enocean telegrams necessary for switching on/off
-	% the actuator(s), with following conventions (learnt double-rocker of EEP
-	% F6-02-01 hence of application style 1, channel A, whose top button is
-	% "on"):
+	% the presence actuator(s) - typically a smart plug controlling a lamp, with
+	% following conventions (learnt double-rocker of EEP F6-02-01 hence of
+	% application style 1, channel A, whose top button is "on"):
 
 	PscAppStyle = 1,
 
@@ -1448,22 +1510,39 @@ whole, updating presence simulations, etc.).
 -spec apply_presence_simulation( wooper:state() ) -> wooper:state().
 apply_presence_simulation( State ) ->
 
-	case ?getAttr(presence_simulation_enabled)
-								andalso not ?getAttr(actual_presence) of
+	case ?getAttr(presence_simulation_enabled) of
 
 		true ->
-			PscTable = ?getAttr(presence_table),
+			case ?getAttr(actual_presence) of
 
-			case table:values( PscTable ) of
-
-				[] ->
+				true ->
 					cond_utils:if_defined( us_main_debug_presence_simulation,
-						send_psc_trace( debug, "(no specific presence "
-							"simulation to apply)", State ) ),
-					State;
+						send_psc_trace( notice, "Presence simulation is "
+							"enabled, but none is applied, as somebody is "
+							"expected to be at home.", State ) ),
+					% Ensure that no lighting remains:
+					ensure_not_any_lighting( State );
 
-				PscSims ->
-					update_presence_simulations( PscSims, State )
+				false ->
+					PscTable = ?getAttr(presence_table),
+
+					case table:values( PscTable ) of
+
+						[] ->
+							cond_utils:if_defined(
+								us_main_debug_presence_simulation,
+								send_psc_trace( debug, "Presence simulation is "
+									"enabled, but none is applied: if nobody "
+									"is expected to be at home, no presence "
+									"simulation is registered.", State ) ),
+							% No lighting expected to shutdown.
+							State;
+
+						PscSims ->
+							update_presence_simulations( PscSims, State )
+
+					end
+
 
 			end;
 
@@ -1479,14 +1558,17 @@ apply_presence_simulation( State ) ->
 Updates, in turn and if necessary, from scratch, the specified presence
 simulations.
 
-Defined for reuse.
+Defined for reuse. Prefer calling the parent, more integrated
+apply_presence_simulation/1 function instead, which is to check first that
+presence simuation is wanted and that nobody is at home.
 """.
 -spec update_presence_simulations( [ presence_simulation() ],
 								   wooper:state() ) -> wooper:state().
 update_presence_simulations( PscSims, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( notice, "Updating ~B presence simulation(s) now.",
+		send_psc_trace_fmt( notice, "Updating ~B presence "
+			"simulation(s) now (supposedly nobody is at home).",
 			[ length( PscSims ) ], State ) ),
 
 	% Keep only relevant information (if any):
@@ -2510,7 +2592,7 @@ ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id,
 	ensure_not_any_lighting( T, NewPscTable, State );
 
 
-% Nothing to do:
+% Not activated, nothing to do:
 ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
 						 PscTable, State ) ->
 
@@ -2720,6 +2802,8 @@ send_telegram_pair( Telegrams, State ) ->
 			  oceanic:telegram_to_hexastring( pair:first( Telegrams ) ),
 			  oceanic:telegram_to_hexastring( pair:second( Telegrams ) ) ] ) ),
 
+	InterPairDurationMs = 400,
+
 	% Despite all robustification efforts, regularly at least some actuators do
 	% not trigger. So testing now multiple attempts (short of relying on actual
 	% state feedback yet):
@@ -2727,29 +2811,34 @@ send_telegram_pair( Telegrams, State ) ->
 	% (multiple sending are not such a problem, as we are using rockers, not
 	% contact buttons that toggle, so the target operation is idempotent):
 	%
-	send_telegram_pair( Telegrams, SendCount, OcSrvPid ).
+	send_telegram_pair( Telegrams, InterPairDurationMs, SendCount, OcSrvPid ),
+
+	% To avoid that a series of calls to this function does not wait between
+	% pairs:
+	%
+	timer:sleep( InterPairDurationMs ).
 
 
 
 -doc "Sends the specified telegram pair the specified number of times.".
--spec send_telegram_pair( telegram_pair(), count(), oceanic_server_pid() ) ->
-											void().
-send_telegram_pair( _Telegrams, _Count=0, _OcSrvPid ) ->
+-spec send_telegram_pair( telegram_pair(), milliseconds(), count(),
+						  oceanic_server_pid() ) -> void().
+send_telegram_pair( _Telegrams, _InterPairDurationMs, _Count=0, _OcSrvPid ) ->
 	ok;
 
-send_telegram_pair( Telegrams={ PressTelegram, ReleaseTelegram }, Count,
-					OcSrvPid ) ->
+send_telegram_pair( Telegrams={ PressTelegram, ReleaseTelegram },
+					InterPairDurationMs, Count, OcSrvPid ) ->
 
 	oceanic:send( PressTelegram, OcSrvPid ),
 
 	% Always better to separate telegrams:
-	timer:sleep( _ShortMs=200 ),
+	timer:sleep( _ShortMs=80 ),
 
 	oceanic:send( ReleaseTelegram, OcSrvPid ),
 
-	timer:sleep( _LongerMs=1000 ),
+	timer:sleep( InterPairDurationMs ),
 
-	send_telegram_pair( Telegrams, Count-1, OcSrvPid ).
+	send_telegram_pair( Telegrams, InterPairDurationMs, Count-1, OcSrvPid ).
 
 
 
@@ -2863,10 +2952,20 @@ updatePresencePrograms( State ) ->
 
 			SchedPid = ?getAttr(scheduler_pid),
 
-			ClearedPscSims = [ clear_any_presence_task( Psc, SchedPid, State )
-									|| Psc <- PscSims ],
+			ClearedPscTable = lists:foldl(
+				fun( Psc, PTableAcc ) ->
+					ClearPsc = clear_any_presence_task( Psc, SchedPid, State ),
+					table:add_new_entry( _K=ClearPsc#presence_simulation.id,
+										 _V=ClearPsc,
+										 PTableAcc )
+				end,
+				_Acc0=table:new(),
+				_List=PscSims ),
 
-			update_presence_simulations( ClearedPscSims, State )
+			ClearedState = setAttribute( State, presence_table,
+										 ClearedPscTable ),
+
+			apply_presence_simulation( ClearedState )
 
 	end,
 
@@ -2926,7 +3025,9 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, RecState ),
 
-	wooper:return_state( PresState );
+	AlarmState = manage_alarm( DeviceEvent, PresState ),
+
+	wooper:return_state( AlarmState );
 
 
 onEnoceanConfiguredDeviceFirstSeen( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -2965,10 +3066,12 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
 	RecState = record_new_device( DeviceEvent, State ),
 
-	% If ever the device was not configured yet declared as presence-switching:
+	% If ever the device was not configured, yet declared as presence-switching:
 	PresState = manage_presence_switching( DeviceEvent, RecState ),
 
-	wooper:return_state( PresState );
+	AlarmState = manage_alarm( DeviceEvent, PresState ),
+
+	wooper:return_state( AlarmState );
 
 
 onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -3050,7 +3153,9 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
 
-	wooper:return_state( PresState );
+	AlarmState = manage_alarm( DeviceEvent, PresState ),
+
+	wooper:return_state( AlarmState );
 
 
 onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
@@ -3073,7 +3178,9 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
 
-	wooper:return_state( PresState );
+	AlarmState = manage_alarm( DeviceEvent, PresState ),
+
+	wooper:return_state( AlarmState );
 
 
 onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
@@ -3265,12 +3372,50 @@ setPresenceStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 			State;
 
 		_ ->
-			SetState = setAttribute( State, actual_presence, NewStatus ),
-			apply_presence_simulation( SetState )
+			on_presence_change( NewStatus, State )
 
 	end,
 
 	wooper:return_state( NewState ).
+
+
+
+-doc "Called whenever the status regarding actual presence changed.".
+on_presence_change( NewStatus, State ) ->
+
+	?debug_fmt( "Applying new presence status: ~ts (from ~ts).",
+				[ NewStatus, ?getAttr(actual_presence) ] ),
+
+	SetState = setAttribute( State, actual_presence, NewStatus ),
+
+	case NewStatus of
+
+		true ->
+			?debug( "Somebody at home, hence disabling alarm and presence "
+					"simulation." ),
+
+			AlarmState = setAttributes( SetState, [
+				{ alarm_inhibited, true },
+				% Just for extra safety:
+				{ alarm_triggered, false } ] ),
+			apply_presence_simulation( AlarmState );
+
+		false ->
+			?debug( "Nobody at home, hence enabling alarm and presence "
+					"simulation." ),
+			AlarmState = setAttributes( SetState, [
+				% Directly done, so any absence shall be declared whereas
+				% already outside (otherwise the door opening will trigger the
+				% alarm):
+				%
+				{ alarm_inhibited, false },
+				% Just for extra safety:
+				{ alarm_triggered, false } ] ),
+			apply_presence_simulation( AlarmState )
+
+	end.
+
+
 
 
 
@@ -3282,16 +3427,19 @@ Requests whether the alarm is currently activated.
 """.
 -spec getAlarmStatus( wooper:state() ) -> const_request_return( boolean() ).
 getAlarmStatus( State ) ->
-	wooper:const_return_result( ?getAttr(alarm_activated) ).
+	wooper:const_return_result( ?getAttr(alarm_triggered) ).
 
 
 -doc """
 Sets whether the alarm shall be active.
+
+Direct order, bypasses any restriction (notably ignores the alarm_inhibited
+attribute).
 """.
 -spec setAlarmStatus( wooper:state(), boolean() ) -> oneway_return().
 setAlarmStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 
-	PrevStatus = ?getAttr(alarm_activated),
+	PrevStatus = ?getAttr(alarm_triggered),
 
 	?info_fmt( "Alarm status set to ~ts (was ~ts).",
 			   [ NewStatus, PrevStatus ] ),
@@ -3356,22 +3504,51 @@ stopLighting( State ) ->
 -doc "Activates the alarm.".
 -spec activate_alarm( wooper:state() ) -> wooper:state().
 activate_alarm( State ) ->
-	?warning( "Activating alarm immediately."),
 
-	% TODO
+	case ?getAttr(alarm_actuator_button_refs) of
 
-	setAttribute( State, alarm_activated, true ).
+		[] ->
+			send_alarm_trace( warning, "Activating alarm immediately "
+				"- yet there is no alarm actuator registered.", State );
+
+		ButRefs ->
+			send_alarm_trace_fmt( warning, "Activating alarm immediately, "
+				"triggering the corresponding actuators, with ~ts.",
+				[ oceanic:get_button_ref_descriptions( ButRefs,
+					?getAttr(oc_srv_pid) ) ], State ),
+
+			ActTelPairs = ?getAttr(alarm_activation_telegrams),
+
+			[ send_telegram_pair( P, State ) || P <- ActTelPairs ]
+
+	end,
+
+	setAttribute( State, alarm_triggered, true ).
 
 
 -doc "Deactivates the alarm.".
 -spec deactivate_alarm( wooper:state() ) -> wooper:state().
 deactivate_alarm( State ) ->
 
-	?warning( "Deactivating alarm immediately."),
+	case ?getAttr(alarm_actuator_button_refs) of
 
-	% TODO
+		[] ->
+			send_alarm_trace( warning, "Deactivating alarm immediately "
+				"- yet there is no alarm actuator registered.", State );
 
-	setAttribute( State, alarm_activated, false ).
+		ButRefs ->
+			send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
+				"triggering the corresponding actuators, with ~ts.",
+				[ oceanic:get_button_ref_descriptions( ButRefs,
+					?getAttr(oc_srv_pid) ) ], State ),
+
+			DeactTelPairs = ?getAttr(alarm_deactivation_telegrams),
+
+			[ send_telegram_pair( P, State ) || P <- DeactTelPairs ]
+
+	end,
+
+	setAttribute( State, alarm_triggered, false ).
 
 
 
@@ -3390,6 +3567,7 @@ to be done.
 """.
 -spec manage_presence_switching( device_event(), wooper:state() ) ->
 										wooper:state().
+% Assuming here the device for presence switching is a double-rocker:
 manage_presence_switching( DevEvent, State ) ->
 
 	cond_utils:if_defined( us_main_debug_home_automation,
@@ -3397,68 +3575,103 @@ manage_presence_switching( DevEvent, State ) ->
 			"switching: ~ts",
 			[ oceanic:device_event_to_string( DevEvent ) ] ) ),
 
-	case ?getAttr(presence_switching_button_ref) of
+	ButRef = oceanic:get_button_reference( DevEvent ),
 
-		undefined ->
-			%?debug( "(no presence switching device defined)" ),
-			State;
+	PscSwitchButrefs = ?getAttr(presence_switching_button_refs),
 
-		% TODO: use channel
-		_PscSwitchButRef={ PscSwitchEurid, _Channel } ->
+	case lists:member( ButRef, PscSwitchButrefs ) of
 
-			case oceanic:get_source_eurid( DevEvent ) of
+		true ->
+			on_presence_switching_device_triggered( ButRef, DevEvent, State );
 
-				% This is the device we were looking for:
-				PscSwitchEurid ->
-					% We cannot just use the receiving of a telegram to toggle
-					% presence, as pushing a button/rocker sends multiple
-					% telegrams (one when pressing, one when releasing); we act
-					% only on one of these two messages - the press one:
-
-					case oceanic:device_triggered( DevEvent ) of
-
-						true ->
-							NewPsc = not ?getAttr(actual_presence),
-
-							SetState =
-								setAttribute( State, actual_presence, NewPsc ),
-
-							BaseMsg = text_utils:format( "Told by the presence "
-								"switching device (~ts) that ",
-								[ ?getAttr(presence_switching_device_desc) ] ),
-
-							case NewPsc of
-
-								true ->
-									?info( BaseMsg
-										++ "somebody is at home now." ),
-									% Time to disable the alarm and the presence
-									% simulation (TODO).
-									%
-									SetState;
-
-								false ->
-									?info( BaseMsg
-										++ "nobody is at home now." ),
-									% Time to enable the alarm and the presence
-									% simulation (TODO: add timer).
-									%
-									SetState
-
-							end;
-
-						false ->
-							State
-
-					end;
-
-
-				_OtherEurid ->
-					State
-
-			end
+		false ->
+			cond_utils:if_defined( us_main_debug_home_automation,
+				send_psc_trace_fmt( debug, "(the button reference ~ts of "
+					"the event emitter does not match any of the "
+					"presence switching ones, ~ts)", [
+						oceanic:button_ref_to_string( ButRef ),
+						oceanic:button_refs_to_string( PscSwitchButrefs ) ],
+									State ) ),
+			State
 
 	end.
+
+
+
+-doc """
+Processes the trigger of the (already checked in terms of button reference,
+i.e. EURID and channel) presence switching device.
+
+Only the "pressed" events are reacted upon - not the "released" ones.
+""".
+-spec on_presence_switching_device_triggered( button_ref(), device_event(),
+								wooper:state() ) -> wooper:state().
+% Assuming here double-rocker; here the channel matches, and the top button is
+% pressed, meaning "someone at home":
+%
+on_presence_switching_device_triggered( ButRef,
+		_DevEvent=#double_rocker_switch_event{
+						first_action_button={ _PscSwitchChannel, _Pos=top },
+						energy_bow=pressed },
+										State ) ->
+
+	?debug_fmt( "Told by a presence switching device (~ts) that "
+		"somebody is at home.", [ oceanic:button_ref_to_string( ButRef ) ] ),
+
+	case ?getAttr(actual_presence) of
+
+		true ->
+			% Already "at home", nothing done:
+			State;
+
+		false ->
+			% Switching from "nobody at home" to "somebody at home":
+			on_presence_change( _NewStatus=true, State )
+
+	end;
+
+% Device tells that nobody is at home:
+on_presence_switching_device_triggered( ButRef,
+		_DevEvent=#double_rocker_switch_event{
+						first_action_button={ _PscSwitchChannel, _Pos=bottom },
+						energy_bow=pressed },
+										State ) ->
+
+	?debug_fmt( "Told by a presence switching device (~ts) that "
+		"nobody is at home.", [ oceanic:button_ref_to_string( ButRef ) ] ),
+
+	case ?getAttr(actual_presence) of
+
+		true ->
+			% Switching from "somebody at home" to "nobody at home":
+			on_presence_change( _NewStatus=false, State );
+
+		false ->
+			% Already "away", nothing done:
+			State
+
+	end;
+
+on_presence_switching_device_triggered( _ButRef, DevEvent, State ) ->
+	?debug_fmt( "(non-matching event ~ts for presence switching)",
+				[ oceanic:device_event_to_string( DevEvent ) ] ),
+	State.
+
+
+
+
+-doc """
+Manages an alarm-related event.
+""".
+-spec manage_alarm( device_event(), wooper:state() ) -> wooper:state().
+manage_alarm( _DevEvent, State ) ->
+
+	cond_utils:if_defined( us_main_debug_home_automation,
+		?debug_fmt( "Examining whether following event relates to alarm "
+			"management: ~ts",
+			[ oceanic:device_event_to_string( DevEvent ) ] ) ),
+
+	State.
 
 
 
@@ -3610,7 +3823,7 @@ to_string( State ) ->
 			"no"
 
 				end ++ " actuator registered, and is currently "
-					++ case ?getAttr(alarm_activated) of
+					++ case ?getAttr(alarm_triggered) of
 
 						true ->
 							"";
@@ -3618,7 +3831,7 @@ to_string( State ) ->
 						false ->
 							"not "
 
-					   end ++ "activated",
+					   end ++ "triggered",
 
 	PscStr = case ?getAttr(presence_simulation_enabled) of
 
@@ -3658,11 +3871,11 @@ to_string( State ) ->
 	% Defined as much as presence_switching_device:
 	PscSwitchStr = case ?getAttr(presence_switching_device_desc) of
 
-		undefined ->
+		[] ->
 			"no presence-switching device has been defined";
 
 		BinPscSwitchDesc ->
-			text_utils:format( "a presence-switching device has been "
+			text_utils:format( "presence-switching devices have been "
 				"defined, ~ts", [ BinPscSwitchDesc ] )
 
 	end,
