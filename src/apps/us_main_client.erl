@@ -31,7 +31,7 @@ host able to connect to the VM hosting that instance.
 """.
 
 
--export([ setup/0, get_tcp_port_range/1 ]).
+-export([ setup/0, teardown/0, get_tcp_port_range/1 ]).
 
 
 % For update_code_path_for_myriad/0 and all:
@@ -73,8 +73,8 @@ setup() ->
 
 	[ MainTargetNodeName, UserTargetNodeName ] = get_target_node_names( Cfg ),
 
-	app_facilities:display( "Trying to connect to US-Main node '~ts'.",
-							[ MainTargetNodeName ] ),
+	app_facilities:display( "Trying to connect to US-Main node '~ts', "
+		"as client node '~ts'.", [ MainTargetNodeName, node() ] ),
 
 	ActualTargetNodeName = case net_adm:ping( MainTargetNodeName ) of
 
@@ -116,6 +116,52 @@ setup() ->
 	%                        [ global:registered_names() ] ),
 
 	{ ActualTargetNodeName, Cfg, FinalArgTable }.
+
+
+
+-doc """
+Tears down the client gracefully.
+""".
+-spec teardown() -> void().
+teardown() ->
+
+	app_facilities:display( "Client terminating now "
+		"(while known other nodes are ~w).", [ nodes() ] ),
+
+	% Feeble attempt of avoiding non-systematic "'global' at node us_main@xxx
+	% requested disconnect from node 'us_main_controller_exec-uu@yyy' in order
+	% to prevent overlapping partitions":
+	%
+	% (far less brutal than erlang:halt/{0,1}, yet awfully slow, and
+	% actually non-blocking)
+	%
+	%global:disconnect(),
+
+	%timer:sleep( 500 ),
+
+	%global:sync(),
+
+	init:stop( _StatusCode=0 ),
+
+	%timer:sleep( 500 ),
+
+	% We thought that the actual reason was actually that the client host had a
+	% firewall that blocked incoming EPMD (on a specific port) connections from
+	% the US server host, yet after fixing that the "overlapping partitions"
+	% problem remained.
+	%
+	% Finally we had to resort to disabling this prevent_overlapping_partitions
+	% options (see DIST_OPTS in Myriad's GNUmakevars.inc).
+
+
+	% ?app_stop should not be used here as its wait_for_any_trace_supervisor
+	% macro would wait for a non-launched supervisor.
+	%
+	% ?app_stop_without_waiting_for_trace_supervisor() is not used either, as
+	% no aggregator was started from that test.
+	%
+	app_facilities:finished().
+
 
 
 
