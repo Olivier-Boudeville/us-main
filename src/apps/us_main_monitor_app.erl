@@ -39,6 +39,9 @@ connect to the VM hosting that instance.
 -include_lib("traces/include/class_TraceAggregator.hrl").
 
 
+-compile([ {nowarn_unused_function, [ {wait,1} ]} ]).
+
+
 
 -doc "Runs this monitoring app.".
 -spec exec() -> no_return().
@@ -84,6 +87,9 @@ exec() ->
 
 	app_facilities:display( "Waiting for the trace listener to be closed." ),
 
+	% To troubleshoot problems in terms of overlapping partitions:
+	%wait( TraceListenerPid ),
+
 	receive
 
 		{ trace_listening_finished, TraceListenerPid } ->
@@ -91,10 +97,31 @@ exec() ->
 
 	end,
 
-	% ?app_stop should not be used here as its wait_for_any_trace_supervisor
-	% macro would wait for a non-launched supervisor.
-	%
-	% ?app_stop_without_waiting_for_trace_supervisor() is not used either, as
-	% no aggregator was started from that test.
-	%
-	app_facilities:finished().
+	us_main_client:teardown().
+
+
+
+% With some monitoring:
+wait( TraceListenerPid ) ->
+
+	receive
+
+		{ trace_listening_finished, TraceListenerPid } ->
+			app_facilities:display( "Trace listener closed." )
+
+	after 1000 ->
+
+		Nodes = nodes(),
+
+		%TestNode = 'us_main_controller_exec-xxx@yyy',
+
+		%trace_utils:debug_fmt( "Testing node '~ts': ~ts.",
+		%                       [ TestNode, net_adm:ping( TestNode ) ] ),
+
+		global:sync(),
+
+		app_facilities:display("Known nodes: ~w / ~w.", [ Nodes, nodes() ] ),
+
+		wait( TraceListenerPid )
+
+	end.
