@@ -503,10 +503,14 @@ events.
 	  "lighting" },
 
 	{ midnight_task_id, option( task_id() ),
-	  "a task to be triggered, if the presence simulation is activated, "
-	  "each day at midnight to determine and update the activity of the "
-	  "presence simulations for the next day (and to ensure that any "
-	  "potential switching discrepancy does not linger, and if enabled to "
+	  "the identifier of any task to be triggered, if the presence simulation is
+	  activated, each day at midnight to determine and update the activity of
+	  the " "presence simulations for the next day (and to ensure that any "
+	  "potential switching discrepancy does not linger)" },
+
+	{ oceanic_monitor_task_id, option( task_id() ),
+	  "the identifier of any task periodically triggered in order to monitor "
+	  "Oceanic, notably to detect any freeze of the serial port and/or to "
 	  "restart the serial interface)" },
 
 	{ server_location, option( position() ),
@@ -877,6 +881,9 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		init_presence_simulation( MaybeRetainedPscSimSettings, MaybeOcSrvPid,
 			MaybeSrcEuridStr, MoreCompleState ),
 
+	MaybeOcMonTaskId = init_oceanic_monitor( MaybeOcSrvPid, SchedPid,
+											 MoreCompleState ),
+
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
@@ -884,7 +891,10 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	SetState = setAttributes( MoreCompleState, [
 		{ oc_srv_pid, MaybeOcSrvPid },
-		{ oc_periodic_restart, true },
+
+		%{ oc_periodic_restart, true },
+		{ oc_periodic_restart, false },
+
 		{ oc_base_id, MaybeBaseId },
 		{ us_config_server_pid, UsMainCfgSrvPid },
 		{ device_table, table:new() },
@@ -898,6 +908,7 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		{ next_presence_id, NextPscId },
 		{ time_equation_table, MaybeTimeEqTable },
 		{ midnight_task_id, MaybeMidnightTaskId },
+		{ oceanic_monitor_task_id, MaybeOcMonTaskId },
 		{ server_location, MaybeSrvLoc },
 		{ presence_switching_button_refs, PscTriggerButRefs },
 		{ presence_switching_device_desc, PscSwitchBinDesc },
@@ -1003,21 +1014,6 @@ forge_actuator_telegrams( _ButRefs=[ { TargetEurid, SourceChannel } | T ],
 
 	forge_actuator_telegrams( T, SourceEurid,
 		{ [ OnTelegramPair | Acts ], [ OffTelegramPair | Deacts ] } ).
-
-
-
--doc """
-Tells whether an alarm actuator (typically a smart plug controlling a 12V
-transformer powering a siren) is available.
-
-(helper)
-""".
--spec has_alarm_actuator( wooper:state() ) -> boolean().
-has_alarm_actuator( State ) ->
-	?getAttr(alarm_activation_telegrams) =/= undefined andalso
-		?getAttr(alarm_deactivation_telegrams) =/= undefined.
-
-
 
 
 
@@ -2786,6 +2782,40 @@ from_decimal_hour( DecHour ) ->
 
 
 
+-doc """
+Setups the monitoring of Oceanic, with test reports and/or periodic restarts.
+""".
+-spec init_oceanic_monitor( option( oceanic_server_pid() ),
+				scheduler_pid(), wooper:state() ) -> option( task_id() ).
+init_oceanic_monitor( _MaybeOcSrvPid=undefined, _SchedPid, _State ) ->
+	undefined;
+
+init_oceanic_monitor( _OcSrvPid, SchedPid, State ) ->
+
+	% Every 4 hours:
+	DHMSPeriodicity = { _D=0, _H=4, _M=0, _S=0 },
+
+	send_oc_mon_trace_fmt( info, "Starting the monitoring of Oceanic, "
+		"based on a periodicity of ~ts.", [
+		time_utils:dhms_to_string( DHMSPeriodicity ) ], State ),
+
+	SchedPid ! { registerTask,
+				 [ _CmdMsg=monitorOceanic,
+				   _StartTime=flexible, DHMSPeriodicity,
+				  _Count=unlimited ], self() },
+
+	receive
+
+		{ wooper_result, { task_registered, MonTaskId } } ->
+
+			send_oc_mon_trace_fmt( debug,
+				"Oceanic monitoring task #~B defined.", [ MonTaskId ], State ),
+			MonTaskId
+
+	end.
+
+
+
 -doc "Sends (presumably reliably) the specified telegram pair.".
 -spec send_telegram_pair( telegram_pair(), wooper:state() ) -> void().
 send_telegram_pair( Telegrams, State ) ->
@@ -2906,20 +2936,6 @@ See also the midnight_task_id attribute.
 -spec updatePresencePrograms( wooper:state() ) -> oneway_return().
 updatePresencePrograms( State ) ->
 
-	?getAttr(oc_periodic_restart) andalso
-		begin
-
-			OcSrvPid = ?getAttr(oc_srv_pid),
-
-			send_psc_trace_fmt( info, "Restarting the serial interface "
-				"of the Oceanic server ~w.", [ OcSrvPid ], State ),
-
-			oceanic:restart_serial_interface( OcSrvPid ),
-
-			send_psc_trace( info, "Oceanic serial interface restarted.", State )
-
-		end,
-
 	PscTable = ?getAttr(presence_table),
 
 	UpdatedState = case table:values( PscTable ) of
@@ -2970,6 +2986,66 @@ updatePresencePrograms( State ) ->
 	end,
 
 	wooper:return_state( UpdatedState ).
+
+
+
+-doc """
+Called whenever having to monitor Oceanic (typically periodically).
+
+See also the oceanic_monitor_task_id attribute.
+""".
+-spec monitorOceanic( wooper:state() ) -> const_oneway_return().
+monitorOceanic( State ) ->
+
+	OcSrvPid = ?getAttr(oc_srv_pid),
+
+	MustRestart = case ?getAttr(oc_periodic_restart) of
+
+		true ->
+			send_oc_mon_trace( debug, "Unconditional periodic restarts "
+				"enabled, so performing it now.", State ),
+			true;
+
+		false ->
+			send_oc_mon_trace_fmt( debug, "Only conditional periodic restarts "
+				"enabled, so testing whether the serial interface of "
+				"the Oceanic server ~w is still available.", [ OcSrvPid ],
+				State ),
+
+			case oceanic:is_serial_available( OcSrvPid ) of
+
+				true ->
+					send_oc_mon_trace( info, "Oceanic reported as available, "
+						"so no restarting done.", State ),
+					false;
+
+				false ->
+					send_oc_mon_trace( warning, "Oceanic reported as not "
+						"available, so restarting it.", State ),
+					true
+
+			end
+
+	end,
+
+	MustRestart andalso
+		begin
+
+			send_oc_mon_trace_fmt( info, "Restarting the serial interface "
+				"of the Oceanic server ~w.", [ OcSrvPid ], State ),
+
+			oceanic:restart_serial_interface( OcSrvPid ),
+
+			send_oc_mon_trace( info, "Oceanic serial interface restarted.",
+							   State ),
+
+			oceanic:is_serial_available( OcSrvPid ) orelse
+				send_oc_mon_trace( error, "Oceanic serial interface found "
+								   "unavailable despite restart.", State )
+
+		end,
+
+	wooper:const_return().
 
 
 
@@ -3403,6 +3479,7 @@ on_presence_change( NewStatus, State ) ->
 		false ->
 			?debug( "Nobody at home, hence enabling alarm and presence "
 					"simulation." ),
+
 			AlarmState = setAttributes( SetState, [
 				% Directly done, so any absence shall be declared whereas
 				% already outside (otherwise the door opening will trigger the
@@ -3520,6 +3597,8 @@ activate_alarm( State ) ->
 			ActTelPairs = ?getAttr(alarm_activation_telegrams),
 
 			[ send_telegram_pair( P, State ) || P <- ActTelPairs ]
+
+
 
 	end,
 
@@ -3771,6 +3850,29 @@ send_psc_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
 
 
 
+-doc """
+Sends the specified Oceanic monitoring trace, to have it correctly categorised.
+""".
+-spec send_oc_mon_trace( trace_severity(), trace_message(), wooper:state() ) ->
+								void().
+send_oc_mon_trace( TraceSeverity, TraceMsg, State ) ->
+	class_TraceEmitter:send_named_emitter( TraceSeverity, State, TraceMsg,
+		<<"Oceanic serial monitoring">> ).
+
+
+-doc """
+Sends the specified Oceanic monitoring formatted trace, to have it correctly
+categorised.
+""".
+-spec send_oc_mon_trace_fmt( trace_severity(), trace_format(), trace_values(),
+							 wooper:state() ) -> void().
+send_oc_mon_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
+	TraceMsg = text_utils:format( TraceFormat, TraceValues ),
+	send_oc_mon_trace( TraceSeverity, TraceMsg, State ).
+
+
+
+
 -doc "Returns a textual description of this server.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
@@ -3814,24 +3916,31 @@ to_string( State ) ->
 	end ++ " is at home",
 
 
-	AlarmStr = case has_alarm_actuator( State ) of
+	AlarmStr = "is " ++ case ?getAttr(alarm_inhibited) of
 
 		true ->
-			"an";
+			"";
 
 		false ->
-			"no"
+			"not "
 
-				end ++ " actuator registered, and is currently "
-					++ case ?getAttr(alarm_triggered) of
+						end ++ "currently inhibited and "
 
-						true ->
-							"";
+		++ case ?getAttr(alarm_triggered) of
 
-						false ->
-							"not "
+			   true ->
+				   "";
 
-					   end ++ "triggered",
+			   false ->
+				   "not "
+
+		   end ++ "triggered; for its control, "
+			   ++ oceanic:button_refs_to_string(
+					?getAttr(alarm_trigger_button_refs) )
+			   ++ "in terms of alarm actuators, "
+			   ++ oceanic:button_refs_to_string(
+					?getAttr(alarm_actuator_button_refs) ),
+
 
 	PscStr = case ?getAttr(presence_simulation_enabled) of
 
