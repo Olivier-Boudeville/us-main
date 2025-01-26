@@ -62,53 +62,13 @@ framework.
 
 
 
-
--doc """
-A list expected to contain muted sensor measurement points, typically as read
-from the sensor monitoring section of the US-Main configuration.
-
-Expected to be specified in the form [user_muted_sensor_measurements()]:
-```
-UserMutedMeasurements = [
-   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
-   { { acpitz, acpi, "0" }, all_points } ].
-```
-""".
--type user_muted_sensor_points() :: list().
-
-
-
--doc "Core settings gathered on behalf of the home automation server.".
--type home_automation_core_settings() :: {
-	AlarmTriggers :: [ button_ref() ],
-	AlarmActuators :: [ eurid() ],
-	PresenceTriggers :: [ button_ref() ],
-	option( presence_simulation_settings() ),
-	oceanic_settings() }.
-
-
-
--doc """
-Full settings gathered on behalf of the home automation server.
-""".
--type home_automation_settings() :: {
-
-	ServerLocation :: option( user_server_location() ),
-	BinAppBaseDirectoryPath :: bin_directory_path(),
-
-	% Like home_automation_core_settings():
-	AlarmTriggers :: [ button_ref() ],
-	AlarmActuators :: [ eurid() ],
-	PresenceTriggers :: [ button_ref() ],
-	option( presence_simulation_settings() ),
-	oceanic_settings() }.
-
-
-
-
 -doc "Checked more precisely as a position() in the home automation server.".
 -type user_server_location() ::
 	{ LatDegrees :: float(), LongDegrees :: float() }.
+
+
+-doc "A table holding US-Main configuration information.".
+-type us_main_config_table() :: table( atom(), term() ).
 
 
 
@@ -116,9 +76,8 @@ Full settings gathered on behalf of the home automation server.
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0,
-			   home_automation_core_settings/0, home_automation_settings/0,
-			   user_muted_sensor_points/0, user_server_location/0 ]).
+-export_type([ general_main_settings/0, user_server_location/0,
+			   us_main_config_table/0 ]).
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -145,64 +104,14 @@ Full settings gathered on behalf of the home automation server.
 
 
 
-% Entries for sensor monitoring:
-
--define( us_main_sensor_key, sensor_monitoring ).
-
-% For measurement points known to report bogus values:
--define( us_main_muted_sensor_measurements, muted_measurements ).
-
-% Designates all (measurement) points of a given sensor:
--define( us_main_all_points, all_points ).
-
-
--define( us_main_server_location_key, server_location ).
-
-
-% The alarm may be directly switched on/off with controlling devices (typically
-% push buttons or double rockers).
+% All known, licit (top-level) base keys for the US-Main configuration file:
+% (other keys are in their respective server classes)
 %
-% So this entry lists the button references (hence their source EURID and
-% controlling channel - knowing that top/bottom is always used to
-% activate/deactivate) of all devices controlling the alarm:
-%
--define( us_main_alarm_triggers_key, alarm_triggers ).
-
-
-% When the the alarm is triggered, actuator devices can be triggered (typically
-% smart plugs powering sirens).
-%
-% So this entry lists, as button references, the EURID of each target device to
-% trigger, together with the source-side channel that shall be specified for
-% that - knowing that top/bottom is always used to activate/deactivate these
-% actuators:
-%
--define( us_main_alarm_actuators_key, alarm_actuators ).
-
-% To switch between at home/away:
--define( us_main_presence_triggers_key, presence_switching_triggers ).
-
--define( us_main_presence_simulation_key, presence_simulation_settings ).
-
--define( us_main_contact_files_key, us_contact_files ).
-
-
-% All known, licit (top-level) keys for the US-Main configuration file:
 -define( known_us_main_config_keys, [ ?us_main_epmd_port_key,
 	?us_main_config_server_registration_name_key,
-	?us_main_username_key, ?us_main_sensor_key, ?us_main_app_base_dir_key,
-	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_main_server_location_key,
-	?us_main_alarm_triggers_key, ?us_main_alarm_actuators_key,
-	?us_main_presence_triggers_key, ?us_main_presence_simulation_key,
-	?us_main_contact_files_key ] ).
+	?us_main_username_key, ?us_main_app_base_dir_key,
+	?us_main_data_dir_key, ?us_main_log_dir_key ] ).
 
-
-% All known, licit (top-level) keys for the Oceanic configuration information
-% (preferred to be read directly from the US-Main configuration file rather than
-% from a separate Myriad preferences file):
-%
--define( supported_oceanic_config_keys,
-		 [ oceanic_emitter, oceanic_devices, oceanic_jamming_threshold ] ).
 
 
 % The last-resort environment variable:
@@ -244,10 +153,6 @@ Full settings gathered on behalf of the home automation server.
 % all US-Main configuration information.
 
 
--doc "A table holding US-Main configuration information.".
--type us_main_config_table() :: table( atom(), term() ).
-
-
 -include_lib("myriad/include/spawn_utils.hrl").
 
 
@@ -265,15 +170,15 @@ Full settings gathered on behalf of the home automation server.
 -type application_run_context() :: otp_utils:application_run_context().
 
 
--type oceanic_settings() :: oceanic:oceanic_settings().
--type eurid() :: oceanic:eurid().
--type button_ref() :: oceanic:button_ref().
-
 
 -type server_pid() :: class_USServer:server_pid().
 
--type presence_simulation_settings() ::
-	class_USHomeAutomationServer:presence_simulation_settings().
+-type user_muted_sensor_points() ::
+	class_USSensorManager:user_muted_sensor_points().
+
+-type home_automation_settings() ::
+	class_USHomeAutomationServer:home_automation_settings().
+
 
 
 %-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
@@ -544,13 +449,12 @@ Returns suitable home automation settings, read from the configuration
 			const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
-	{ AlarmTriggerButRefs, AlarmActuatorEurids, PscTriggerButRefs,
-	  MaybePscSimSettings, OcSettings } =
-		?getAttr(home_automation_core_settings),
+	CoreSettingTuple = ?getAttr(home_automation_core_settings),
 
-	wooper:const_return_result( { ?getAttr(server_location),
-		?getAttr(app_base_directory), AlarmTriggerButRefs, AlarmActuatorEurids,
-		PscTriggerButRefs, MaybePscSimSettings, OcSettings } ).
+	FullSettingTuple = list_to_tuple( [ ?getAttr(server_location),
+		?getAttr(app_base_directory) | tuple_to_list( CoreSettingTuple ) ] ),
+
+	wooper:const_return_result( FullSettingTuple ).
 
 
 
@@ -790,15 +694,22 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	LogState = manage_log_directory( MainCfgTable, DataState ),
 
-	ContactState = manage_contacts( MainCfgTable, LogState ),
+	ContactState = class_USContactDirectory:manage_configuration( MainCfgTable,
+																  LogState ),
 
-	SensorState = manage_sensors( MainCfgTable, ContactState ),
+	SensorState = class_USSensorManager:manage_configuration( MainCfgTable,
+															  ContactState ),
 
-	AutomatState = manage_home_automation( MainCfgTable, SensorState ),
+	AutomatState = class_USHomeAutomationServer:manage_configuration(
+		MainCfgTable, SensorState ),
 
 	FinalState = AutomatState,
 
-	LicitKeys = ?known_us_main_config_keys ++ ?supported_oceanic_config_keys,
+	LicitKeys = ?known_us_main_config_keys
+		++ class_USContactDirectory:get_licit_config_keys()
+		++ class_USSensorManager:get_licit_config_keys()
+		% Includes the Oceanic ones:
+		++ class_USHomeAutomationServer:get_licit_config_keys(),
 
 	case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
 
@@ -1317,251 +1228,6 @@ manage_log_directory( ConfigTable, State ) ->
 	BinLogDir = text_utils:ensure_binary( LogDir ),
 
 	setAttribute( State, log_directory, BinLogDir ).
-
-
-
--doc "Manages any user-configured contact files.".
--spec manage_contacts( us_main_config_table(), wooper:state() ) ->
-			wooper:state().
-manage_contacts( ConfigTable, State ) ->
-
-	ContactFiles = case table:lookup_entry( ?us_main_contact_files_key,
-											ConfigTable ) of
-
-		key_not_found ->
-			?info( "No user-configured contact files." ),
-			[];
-
-		{ value, Files } when is_list( Files ) ->
-			% The contact directory is to make them correctly absolute if
-			% necessary:
-
-			BinAbsFiles = text_utils:ensure_binaries( Files ),
-
-			%?info_fmt( "User-configured contact files: ~ts",
-			%           [ text_utils:binaries_to_string( BinAbsFiles ) ] ),
-
-			BinAbsFiles;
-
-		{ value, InvalidFiles }  ->
-			?error_fmt( "Read invalid user-configured US contact files: '~p'.",
-						[ InvalidFiles ] ),
-			throw( { invalid_us_contact_files, InvalidFiles,
-					 ?us_main_contact_files_key } )
-
-	end,
-
-	% Not specifically checked at this level, will be done by the contact
-	% manager:
-	%
-	setAttribute( State, contact_files, ContactFiles ).
-
-
-
--doc "Manages any user settings regarding sensors.".
--spec manage_sensors( us_main_config_table(), wooper:state() ) ->
-										wooper:state().
-manage_sensors( ConfigTable, State ) ->
-
-	MutedMeasurements = case table:lookup_entry( ?us_main_sensor_key,
-												 ConfigTable ) of
-
-		key_not_found ->
-			?info( "No user settings regarding sensors." ),
-			[];
-
-
-		{ value, SensorSettings } when is_list( SensorSettings ) ->
-
-			{ MutMeasurements, ShrunkSensorSettings } =
-				list_table:extract_entry_with_default(
-					?us_main_muted_sensor_measurements, _DefPoints=[],
-					SensorSettings ),
-
-			%?debug_fmt( "Muted sensor measurement points read as:~n ~p",
-			%            [ MutMeasurements ] ),
-
-			is_list( MutMeasurements ) orelse
-				begin
-
-					?error_fmt( "Invalid muted sensor measurement points "
-						"specified (must be a list): ~p",
-						[ MutMeasurements ] ),
-
-					throw( { invalid_muted_sensor_measurement_points,
-						MutMeasurements, ?us_main_muted_sensor_measurements } )
-
-				end,
-
-			ShrunkSensorSettings =:= [] orelse
-				begin
-
-					?error_fmt( "Unexpected extra sensor settings: ~p.",
-								[ ShrunkSensorSettings ] ),
-
-					throw( { extra_sensor_settings, ShrunkSensorSettings,
-							 ?us_main_muted_sensor_measurements } )
-
-				end,
-
-			% Kept verbatim, will be vetted by the sensor manager:
-			MutMeasurements;
-
-
-		{ value, InvalidSensorSettings }  ->
-
-			?error_fmt( "Read invalid user settings regarding sensors: '~p'.",
-						[ InvalidSensorSettings ] ),
-
-			throw( { invalid_us_sensor_settings, InvalidSensorSettings,
-					 ?us_main_sensor_key } )
-
-	end,
-
-	% Not specifically checked at this level, will be done by the sensor
-	% manager:
-	%
-	setAttribute( State, muted_sensor_measurements, MutedMeasurements ).
-
-
-
--doc "Manages any user settings regarding home automation.".
--spec manage_home_automation( us_main_config_table(), wooper:state() ) ->
-										wooper:state().
-manage_home_automation( ConfigTable, State ) ->
-
-	% First checking:
-	MaybePosition = case table:lookup_entry( ?us_main_server_location_key,
-											 ConfigTable ) of
-
-		key_not_found ->
-			?info( "Home automation: no user settings regarding "
-				   "server location." ),
-			undefined;
-
-
-		{ value, { { latitude, Lat }, { longitude, Long } } } ->
-			is_float( Lat ) orelse
-				throw( { invalid_latitude, Lat,
-						 ?us_main_server_location_key } ),
-
-			is_float( Long ) orelse
-				throw( { invalid_longitude, Long,
-						 ?us_main_server_location_key } ),
-
-			{ Lat, Long }
-
-	end,
-
-
-	AlarmTriggerButRefs = case table:lookup_entry(
-			?us_main_alarm_triggers_key, ConfigTable ) of
-
-		%VAT when VAT =:= key_not_found; VAT =:= { value, _ButRefSpecs=[] } ->
-		VAT when VAT =:= key_not_found; VAT =:= { value, [] } ->
-			?info( "No alarm trigger device configured." ),
-			[];
-
-		{ value, ATButRefSpecs } when is_list( ATButRefSpecs ) ->
-			ATButRefs = oceanic:interpret_button_ref_specs( ATButRefSpecs ),
-
-			?info_fmt( "The following ~B configured alarm trigger devices "
-				"will be used: ~ts.", [ length( ATButRefs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:button_ref_to_string( BR )
-							|| BR <- ATButRefs ] ) ] ),
-
-			ATButRefs;
-
-		{ value, ATNotButtonRefs } ->
-			throw( { invalid_button_references, ATNotButtonRefs,
-					 ?us_main_alarm_triggers_key } )
-
-	end,
-
-
-	AlarmActuatorButRefs = case table:lookup_entry(
-			?us_main_alarm_actuators_key, ConfigTable ) of
-
-		%VAA when VAA =:= key_not_found; VAA =:= { value, _ButRefSpecs=[] } ->
-		VAA when VAA =:= key_not_found; VAA =:= { value, [] } ->
-			?info( "No alarm actuator device configured." ),
-			[];
-
-		{ value, AAButRefSpecs } when is_list( AAButRefSpecs ) ->
-			AAButRefs = oceanic:interpret_button_ref_specs( AAButRefSpecs ),
-			?info_fmt( "The following ~B configured alarm actuator devices "
-				"will be used: ~ts.", [ length( AAButRefs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:button_ref_to_string( BR )
-							|| BR <- AAButRefs ] ) ] ),
-			AAButRefs;
-
-		{ value, AANotButtonRefs } ->
-			throw( { invalid_button_references, AANotButtonRefs,
-					 ?us_main_alarm_actuators_key } )
-
-	end,
-
-
-	PscTriggerButRefs = case table:lookup_entry(
-			?us_main_presence_triggers_key, ConfigTable ) of
-
-		%VPT when VPT =:= key_not_found; VPT =:= { value, _PButRefSpecs=[] } ->
-		VPT when VPT =:= key_not_found; VPT =:= { value, [] } ->
-			?info( "No presence-switching device configured." ),
-			[];
-
-		{ value, PButRefSpecs } when is_list( PButRefSpecs ) ->
-			PButRefs = oceanic:interpret_button_ref_specs( PButRefSpecs ),
-
-			?info_fmt( "The following ~B configured presence-switching devices "
-				"will be used: ~ts.", [ length( PButRefs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:button_ref_to_string( BR )
-							|| BR <- PButRefs ] ) ] ),
-
-			PButRefs;
-
-		{ value, PNotButtonRefs } ->
-			throw( { invalid_button_references, PNotButtonRefs,
-					 ?us_main_presence_triggers_key } )
-
-	end,
-
-
-	MaybePscSimSettings = case table:lookup_entry(
-			?us_main_presence_simulation_key, ConfigTable ) of
-
-		key_not_found ->
-			?info( "No presence-simulation information set." ),
-			undefined;
-
-		{ value, PscSimSettings } when is_list( PscSimSettings )
-				orelse is_tuple( PscSimSettings ) ->
-			?info_fmt( "The following configured presence-simulation settings "
-				"will be used:~n ~p", [ PscSimSettings ] ),
-			PscSimSettings;
-
-		{ value, NotPscSimSettings } ->
-			throw( { invalid_presence_simulation_settings, NotPscSimSettings,
-					 ?us_main_presence_simulation_key } )
-
-	end,
-
-	% Fetching any Oceanic-related settings:
-	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
-		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
-
-	% Not specifically checked at this level; will be done by the home
-	% automation server:
-	%
-	HACoreSettings = { AlarmTriggerButRefs, AlarmActuatorButRefs,
-					   PscTriggerButRefs, MaybePscSimSettings, OcSettings },
-
-	setAttributes( State, [
-		{ server_location, MaybePosition },
-		{ home_automation_core_settings, HACoreSettings } ] ).
 
 
 

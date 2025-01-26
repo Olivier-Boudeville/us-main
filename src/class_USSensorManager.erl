@@ -88,6 +88,21 @@ fans), and of reporting any abnormal situation" ).
 
 
 
+% Entries in the US-configuration files for sensor monitoring:
+
+-define( us_main_sensor_key, sensor_monitoring ).
+
+
+
+% For measurement points known to report bogus values:
+-define( us_main_muted_sensor_measurements, muted_measurements ).
+
+% Designates all (measurement) points of a given sensor:
+-define( us_main_all_points, all_points ).
+
+
+
+
 % Note that map_hashtable instances are explicitly mentioned instead of tables,
 % as this is the actual type returned by the json_utils module (as opposed to
 % the 'table' WOOPER-native type).
@@ -100,6 +115,7 @@ fans), and of reporting any abnormal situation" ).
 
 % Canonical sensor order enforced here: temperature, fan, then chassis
 % intrusion.
+
 
 
 
@@ -311,19 +327,35 @@ At least currently, this mostly applies to temperature sensors.
 						   | 'all_points'. % of a given sensor
 
 
-
 -doc """
-User specification of sensor measurements to be muted.
+A list expected to contain muted sensor measurement points, typically as read
+from the sensor monitoring section of the US-Main configuration.
 
-At least currently, this mostly applies to temperature sensors.
-
-Corresponds to the legit settings expected as
-class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+Expected to be specified in the form [user_muted_sensor_measurements()]:
 ```
-[{nct6792, isa, "0a20"}, ["AUXTIN1"]},
- {acpitz, acpi, "0"}, all_points}].
+UserMutedMeasurements = [
+   { { nct6792, isa, "0a20" }, [ "AUXTIN1" ] },
+   { { acpitz, acpi, "0" }, all_points } ].
 ```
 """.
+-type user_muted_sensor_points() :: list().
+
+
+% Commented-out, as strangely considered as redefining the previous -doc
+% attribute.
+%
+% -doc """
+% User specification of sensor measurements to be muted.
+
+% At least currently, this mostly applies to temperature sensors.
+
+% Corresponds to the legit settings expected as
+% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+% ```
+% [{nct6792, isa, "0a20"}, ["AUXTIN1"]},
+%  {acpitz, acpi, "0"}, all_points}].
+% ```
+% """.
 -type user_muted_sensor_measurements() ::
 	[ { user_muted_sensor_spec(), user_muted_points() } ].
 
@@ -657,7 +689,8 @@ point of a sensor.
 % "alarm" (an intrusion_detected_status of true) are scrutinised here.
 
 
--export_type([ user_muted_sensor_measurements/0,
+-export_type([ user_muted_sensor_points/0,
+			   user_muted_sensor_measurements/0,
 			   raw_sensor_type/0, atom_sensor_type/0,
 			   sensor_category/0, sensor_interface/0, sensor_number/0,
 			   raw_sensor_id/0, sensor_id/0 ]).
@@ -778,11 +811,15 @@ data (e.g. regarding temperature, intrusion, etc.).
 -type map_hashtable( K, V ) :: map_hashtable:map_hashtable( K, V ).
 
 
+% In state definition:
 %-type scheduler_pid() :: class_USScheduler:scheduler_pid().
 %-type task_id() :: class_USScheduler:task_id().
 
+-type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
+
 -type user_muted_sensor_points() ::
 		class_USMainConfigServer:user_muted_sensor_points().
+
 
 
 % The class-specific attributes:
@@ -818,7 +855,8 @@ data (e.g. regarding temperature, intrusion, etc.).
 
 
 % Exported helpers:
--export([ intrusion_status_to_string/1 ]).
+-export([ get_licit_config_keys/0, manage_configuration/2,
+		  intrusion_status_to_string/1 ]).
 
 
 % Note: include order matters.
@@ -4126,6 +4164,95 @@ parse_sensor_output_from_file( OutputFilePath, State ) ->
 
 	parse_initial_sensor_output( BinJson, State ).
 
+
+
+% Section related to the US-Main configuration files.
+
+
+-doc """
+Returns the known sensor-related keys in the US-Main configuration files.
+""".
+-spec get_licit_config_keys() -> [ list_table:key() ].
+get_licit_config_keys() ->
+	[ ?us_main_sensor_key ].
+
+
+-doc """
+Handles the sensor-related entries in the user settings specified in US-Main
+configuration files.
+
+Note that the specified state is the one of a US-Main configuration server.
+""".
+-spec manage_configuration( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_configuration( ConfigTable, State ) ->
+
+	MutedMeasurements = case table:lookup_entry( ?us_main_sensor_key,
+												 ConfigTable ) of
+
+		key_not_found ->
+			?info( "No user settings regarding sensors." ),
+			[];
+
+
+		{ value, SensorSettings } when is_list( SensorSettings ) ->
+
+			{ MutMeasurements, ShrunkSensorSettings } =
+				list_table:extract_entry_with_default(
+					?us_main_muted_sensor_measurements, _DefPoints=[],
+					SensorSettings ),
+
+			%?debug_fmt( "Muted sensor measurement points read as:~n ~p",
+			%            [ MutMeasurements ] ),
+
+			is_list( MutMeasurements ) orelse
+				begin
+
+					?error_fmt( "Invalid muted sensor measurement points "
+						"specified (must be a list): ~p",
+						[ MutMeasurements ] ),
+
+					throw( { invalid_muted_sensor_measurement_points,
+						MutMeasurements, ?us_main_muted_sensor_measurements } )
+
+				end,
+
+			ShrunkSensorSettings =:= [] orelse
+				begin
+
+					?error_fmt( "Unexpected extra sensor settings: ~p.",
+								[ ShrunkSensorSettings ] ),
+
+					throw( { extra_sensor_settings, ShrunkSensorSettings,
+							 ?us_main_muted_sensor_measurements } )
+
+				end,
+
+			% Kept verbatim, will be vetted by the sensor manager:
+			MutMeasurements;
+
+
+		{ value, InvalidSensorSettings }  ->
+
+			?error_fmt( "Read invalid user settings regarding sensors: '~p'.",
+						[ InvalidSensorSettings ] ),
+
+			throw( { invalid_us_sensor_settings, InvalidSensorSettings,
+					 ?us_main_sensor_key } )
+
+	end,
+
+	% Not specifically checked at this level, will be done by the sensor
+	% manager:
+	%
+	setAttribute( State, muted_sensor_measurements, MutedMeasurements ).
+
+
+
+
+
+
+% Section for conversions to strings.
 
 
 -doc "Returns a textual description of the specified temperature alert state.".

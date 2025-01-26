@@ -102,6 +102,11 @@ Refer to the fields of the user_settings record for more information.
 -define( bridge_name, ?MODULE ).
 
 
+% Entries in the US-configuration files for contact directory:
+
+-define( us_main_contact_files_key, us_contact_files ).
+
+
 -doc "PID of a contact directory server.".
 -type contact_directory_pid() :: class_USServer:server_pid().
 
@@ -205,6 +210,10 @@ organisations.
 			   user_settings/0 ]).
 
 
+% Exported helpers:
+-export([ get_licit_config_keys/0, manage_configuration/2 ]).
+
+
 % Type shorthands:
 
 -type count() :: basic_utils:count().
@@ -214,7 +223,6 @@ organisations.
 
 -type date() :: time_utils:date().
 
-%-type file_path() :: file_utils:file_path().
 -type any_file_path() :: file_utils:any_file_path().
 -type bin_directory_path() :: file_utils:bin_directory_path().
 
@@ -223,11 +231,14 @@ organisations.
 -type bin_email_address() :: email_utils:bin_email_address().
 
 
-%-type scheduler_pid() :: class_USScheduler:scheduler_pid().
-%-type task_id() :: class_USScheduler:task_id().
+-type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
 
+
+
+% Local types:
+
+-doc "A table storing the settings for users.".
 -type user_table() :: table( user_id(), user_settings() ).
-% A table storing the settings for users.
 
 
 
@@ -379,7 +390,7 @@ construct( State ) ->
 Constructs a contact directory from specified ETF contact file (with no link to
 any US configuration server); mainly used for autonomous testing.
 """.
--spec construct( wooper:state(), file_utils:any_file_path() ) -> wooper:state().
+-spec construct( wooper:state(), any_file_path() ) -> wooper:state().
 construct( State, ContactFilePath ) ->
 
 	% First the direct mother classes, then this class-specific actions:
@@ -994,6 +1005,60 @@ vet_roles( Roles ) ->
 			invalid
 
 	end.
+
+
+
+% Section related to the US-Main configuration files.
+
+
+-doc """
+Returns the known contact-related keys in the US-Main configuration files.
+""".
+-spec get_licit_config_keys() -> [ list_table:key() ].
+get_licit_config_keys() ->
+	[ ?us_main_contact_files_key ].
+
+
+-doc """
+Handles the contact-related entries in the user settings specified in US-Main
+configuration files.
+
+Note that the specified state is the one of a US-Main configuration server.
+""".
+-spec manage_configuration( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_configuration( ConfigTable, State ) ->
+
+	ContactFiles = case table:lookup_entry( ?us_main_contact_files_key,
+											ConfigTable ) of
+
+		key_not_found ->
+			?info( "No user-configured contact files." ),
+			[];
+
+		{ value, Files } when is_list( Files ) ->
+			% The contact directory is to make them correctly absolute if
+			% necessary:
+
+			BinAbsFiles = text_utils:ensure_binaries( Files ),
+
+			%?info_fmt( "User-configured contact files: ~ts",
+			%           [ text_utils:binaries_to_string( BinAbsFiles ) ] ),
+
+			BinAbsFiles;
+
+		{ value, InvalidFiles }  ->
+			?error_fmt( "Read invalid user-configured US contact files: '~p'.",
+						[ InvalidFiles ] ),
+			throw( { invalid_us_contact_files, InvalidFiles,
+					 ?us_main_contact_files_key } )
+
+	end,
+
+	% Not specifically checked at this level, will be done by the contact
+	% manager:
+	%
+	setAttribute( State, contact_files, ContactFiles ).
 
 
 
