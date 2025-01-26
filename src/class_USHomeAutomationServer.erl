@@ -64,10 +64,14 @@ thanks to Ceylan-Oceanic.
 -export([ init/1, terminate/2 ]).
 
 
+% Exported helpers:
+-export([ get_licit_config_keys/0, manage_configuration/2 ]).
+
+
 % Silencing:
--export([ send_alarm_trace/3, send_alarm_trace_fmt/4,
-		  send_psc_trace/3, send_psc_trace_fmt/4,
-		  from_decimal_hour/1 ]).
+%-export([ send_alarm_trace/3, send_alarm_trace_fmt/4,
+%		  send_psc_trace/3, send_psc_trace_fmt/4,
+%		  from_decimal_hour/1 ]).
 
 
 -define( bridge_name, ?MODULE ).
@@ -82,20 +86,14 @@ thanks to Ceylan-Oceanic.
 -include_lib("myriad/include/utils/time_utils.hrl").
 
 
-
-% For the presence_simulation_setting record:
--include("class_USHomeAutomationServer.hrl").
-
-
--doc "Setting of a given instance of presence simulation.".
--type presence_simulation_setting() :: #presence_simulation_setting{}.
+% The default mean duration, in seconds, of a period of lighting:
+% (15 minutes)
+%
+-define( default_mean_light_duration, 15*60 ).
 
 
-
--doc "All (user-level) settings for a whole presence simulation service.".
--type presence_simulation_settings() ::
-	{ 'default', MaybeTargetActuatorEurid :: option( eurid() ) }
-  | [ presence_simulation_setting() ].
+% The default mean duration, in seconds, of an interruption of lighting:
+-define( default_mean_no_light_duration, 12 ).
 
 
 
@@ -110,7 +108,11 @@ thanks to Ceylan-Oceanic.
 
 
 
--doc "A time slot during which a presence shall be simulated.".
+-doc """
+A time slot during which a presence shall be simulated
+
+The start milestone is included, the stop one is excluded.
+""".
 -type presence_slot() ::
 	{ Start :: presence_milestone(), Stop :: presence_milestone() }.
 
@@ -119,12 +121,94 @@ thanks to Ceylan-Oceanic.
 -doc """
 An intra-day general program regarding a presence to simulate.
 
+Corresponds to chronologically-ordered intra-day (from midnight to midnight)
+time slots, or a constant policy, during which a presence shall be simulated.
+
 If slots are used, at least one shall be defined (otherwise one of the
 constant_* atoms shall be used).
 """.
--type presence_program() :: [ presence_slot() ]
+-type presence_program() :: [ presence_slot() ] % User-specified
+						  | 'default_program'
 						  | 'constant_presence'
 						  | 'constant_absence'.
+
+
+
+-doc """
+Describes the (lighting) activity to be operated during a period of simulated
+presence.
+
+So tells whether, during a period of simulated presence, lighting shall be, at
+random times, stopped and restarted after a random duration, to better simulate
+a local presence (otherwise constant lighting happens):
+""".
+-type random_activity_settings() ::
+	'true' % hence defaults
+   | canon_random_activity_settings().
+
+
+
+-doc """
+Canonical description of the (lighting) activity to be operated during a period
+of simulated presence.
+""".
+-type canon_random_activity_settings() ::
+
+	'false'
+
+	% Implies that random activity is enabled:
+  | { % The mean duration, in seconds, of a period of lighting:
+	  MeanLightDuration :: second_duration(),
+
+	  % The mean duration, in seconds, of an interruption of lighting:
+	  MeanNoLightDuration :: second_duration() }.
+
+
+
+
+
+-doc """
+User-specified settings regarding the presence simulations to run.
+""".
+% A record would not be appropriate for user-level specifications:
+-type presence_simulation_user_settings() :: [ psc_sim_user_setting() ].
+
+
+-doc """
+User-level configuration for a given presence simulation.
+
+Note that the specified actuator trigger events correspond to the switching on
+of that actuator (generally it is a smart plug) by a (generally double) rocker,
+and it is supposed that the recipocal operation (switching it off the actuator)
+is obtained by pushing the other button of the rocker.
+""".
+-type psc_sim_user_setting() ::
+	{ presence_program(),
+
+	  % Not necessarily canonicalised:
+	  TargetedPscActuators :: [ emitted_event_spec() ],
+
+	  % Tells whether lighting shall be switched off during a presence slot when
+	  % the light of day should be available (provided that the position of the
+	  % server is known):
+	  %
+	  SmartLighting :: boolean(),
+
+	  random_activity_settings() }
+
+	% Random activity enabled, with default settings:
+  | { presence_program(), TargetedPscActuators :: [ emitted_event_spec() ],
+	  SmartLighting :: boolean() }
+
+	% Smart lighting and random activity enabled, with default settings:
+  | { presence_program(), TargetedPscActuators :: [ emitted_event_spec() ] }.
+
+
+%-type canon_psc_simu_user_settings() ::
+%	{ presence_program(),
+%	  TargetedPscActuators :: [ canon_emitted_event_spec() ],
+%	  SmartLighting :: boolean(),
+%	  random_activity_settings() }.
 
 
 
@@ -148,11 +232,16 @@ The time for dawn and dusk (if any - think to the extreme latitudes), at a given
 
 
 -export_type([ home_automation_server_pid/0,
-			   presence_simulation_settings/0, presence_simulation_setting/0,
+			   home_automation_core_settings/0, home_automation_settings/0,
 			   presence_milestone/0, presence_slot/0, presence_program/0,
+			   random_activity_settings/0, presence_simulation_user_settings/0,
+			   psc_sim_user_setting/0,
 			   celestial_timing/0, celestial_info/0 ]).
 
 
+
+% Type silencing:
+-export_type([ telegram_info/0 ]).
 
 
 % Local types:
@@ -233,23 +322,17 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	activated = false :: boolean(),
 
 
-	% The specific EURID (if any) to be used to identify the source of the
-	% emitted (Enocean) telegrams; expected to have been already learnt by the
-	% target actuator(s):
+	% Specifies the target actuators to be reached for emulate an actual
+	% presence (typically a smart plug controlling a lamp):
 	%
-	source_eurid :: eurid(),
-
-	% The EURID of the target actuator (typically a smart plug controlling a
-	% lamp):
+	% (possibly using a broadcast address, typically if no EURID is known for it)
 	%
-	% (possibly a broadcast address)
-	%
-	target_eurid :: eurid(),
+	actuator_event_specs :: [ canon_emitted_event_spec() ],
 
 
-	% The general daily program of this presence simulation, generally a
-	% chronologically-ordered intra-day (from midnight to midnight) non-empty
-	% list of presence slots, or simpler policies:
+	% The general daily program of this presence simulation, possibly as a
+	% chronologically-ordered intra-day (from midnight to midnight) list of
+	% presence slots:
 	%
 	program :: presence_program(),
 
@@ -270,29 +353,7 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	% at random times, stopped and restarted after a random duration, to better
 	% simulate a local presence (otherwise constant lighting happens):
 	%
-	random_activity = 'true' :: boolean(),
-
-	% The mean duration, in seconds, of a period of lighting (if random activity
-	% is enabled):
-	%
-	mean_light_duration :: second_duration(),
-
-	% The mean duration, in seconds, of an interruption of lighting (if random
-	% activity is enabled):
-	%
-	mean_no_light_duration :: second_duration(),
-
-
-
-	% The press/release telegrams to be emitted to switch the target actuator
-	% (typically a smart plug) on:
-	%
-	activation_telegrams :: telegram_pair(),
-
-	% The press/release telegrams to be emitted to switch the target actuator
-	% (typically a smart plug) off:
-	%
-	deactivation_telegrams :: telegram_pair(),
+	random_activity = 'false' : canon_random_activity_settings(),
 
 
 	% The identifier and planned time of the currently-pending scheduling task
@@ -305,7 +366,7 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 -doc """
 Internal information regarding an instance of presence simulation.
 
-Counterpart of the user-level presence_simulation_setting().
+Counterpart of the user-level psc_sim_setting().
 """.
 -type presence_simulation() :: #presence_simulation{}.
 
@@ -325,9 +386,17 @@ temperature reported by a sensor should just be read from any last event).
 -type device_status() :: 'unknown' | single_input_contact_status().
 
 
-
 % Rather than 'opened' | 'closed':
 -type single_input_contact_status() :: oceanic:contact_status().
+
+
+-doc "Information about telegram(s) already prepared for a given device.".
+-type telegram_info() ::
+	telegram() % Just a single telegram, for a single event
+  | telegram_pair() % A pair of telegrams (e.g. for press/release events)
+  | { telegram_pair(), telegram_pair() }. % For two actions (e.g.
+										  % activation/deactivation)
+
 
 
 % Internal information regarding a known (Enocean) device:
@@ -354,7 +423,19 @@ temperature reported by a sensor should just be read from any last event).
 	last_event :: option( device_event() ),
 
 	% The currently known status for this device:
-	current_status :: device_status() } ).
+	current_status :: device_status()
+
+	% Any pre-forged telegram(s) of interest:
+	%telegram_info :: option( telegram_info() ),
+
+	% The acknowledgements of commands that are currently waited for, for this
+	% device:
+	%
+	% (better to integrate at the Oceanic level)
+	%
+	%waited_acks = [] :: [ waited_ack_info() ]
+
+} ).
 
 
 -doc "Internal information regarding a known (Enocean) device.".
@@ -371,6 +452,111 @@ events.
 
 
 
+
+-doc "Core settings gathered for the home automation server.".
+-type home_automation_core_settings() :: {
+	AlarmTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
+	AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
+	PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
+	presence_simulation_user_settings(),
+	oceanic_settings() }.
+
+
+
+-doc """
+Full settings gathered regarding the home automation server.
+""".
+-type home_automation_settings() :: {
+
+	ServerLocation :: option( user_server_location() ),
+	BinAppBaseDirectoryPath :: bin_directory_path(),
+
+	% Like home_automation_core_settings():
+	AlarmTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
+	AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
+	PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
+	presence_simulation_user_settings(),
+	oceanic_settings() }.
+
+
+
+% To define the actual location of a US-Main server.
+%
+% The value associated to this key has for type
+% [class_USMainConfigServer:user_server_location()].
+%
+-define( us_main_server_location_key, server_location ).
+
+
+% Designates the specification of events that are listened to by this server in
+% order to decide to switch the alarm on/off.
+%
+% Typically describes state change events from opening detectors, from push
+% buttons or double rockers for manual control, etc. (one may refer to
+% oceanic:device_state_change_spec()).
+%
+% The value associated to this key has for type [oceanic:listened_event_spec()].
+%
+-define( us_main_alarm_triggers_key, alarm_triggers ).
+
+
+% The specification of events that are to be emitted to by this server in order
+% to actually switch alarms on/off (one may refer to
+% oceanic:emitted_event_spec()).
+%
+% In practice, typically targets smart plugs that power sirens, and describes
+% actions from pseudo-devices (emulated by this server), typically push buttons
+% or double rockers, that the target actuator already learnt.
+%
+% The value associated to this key has for type [oceanic:emitted_event_spec()].
+%
+-define( us_main_alarm_actuators_key, alarm_actuators ).
+
+
+
+% Designates the specification of events that are listened to by this server in
+% order to decide to switch the current presence status between somebody or
+% nobody at home.
+%
+% Typically describes state change events from push buttons or double rockers
+% (one may refer to oceanic:device_state_change_spec()).
+%
+% The value associated to this key has for type [oceanic:listened_event_spec()].
+%
+-define( us_main_presence_triggers_key, presence_switching_triggers ).
+
+
+% The specification of events that are to be emitted to by this server in order
+% to actually switch presence actuators (one may refer to
+% oceanic:emitted_event_spec()).
+%
+% In practice, typically targets smart plugs that power lights, and describes
+% actions from pseudo-devices (emulated by this server), typically push buttons
+% or double rockers, that the target actuator already learnt.
+%
+% The value associated to this key has for type [oceanic:emitted_event_spec()].
+%
+-define( us_main_presence_actuators_key, presence_switching_actuators ).
+
+
+% The other settings for presence simulation, including notably its program.
+%
+% The value associated to this key has for type
+% presence_simulation_user_settings().
+%
+-define( us_main_presence_settings_key, presence_simulation_settings ).
+
+
+% All known, licit (top-level) keys for the Oceanic configuration information
+% (preferred to be read directly from the US-Main configuration file rather than
+% from a separate Myriad preferences file):
+%
+-define( supported_oceanic_config_keys,
+		 [ oceanic_emitter, oceanic_devices, oceanic_jamming_threshold ] ).
+
+
+
+
 % Type shorthands:
 
 -type count() :: basic_utils:count().
@@ -382,7 +568,7 @@ events.
 -type timestamp() :: time_utils:timestamp().
 
 -type device_path() :: file_utils:device_path().
-%-type bin_directory_path() :: file_utils:bin_directory_path().
+-type bin_directory_path() :: file_utils:bin_directory_path().
 
 -type bytes_per_second() :: system_utils:bytes_per_second().
 
@@ -418,6 +604,14 @@ events.
 -type button_ref() :: oceanic:button_ref().
 -type telegram() :: oceanic:telegram().
 -type eep_id() :: oceanic:eep_id().
+%-type trigger_track_spec() :: oceanic:trigger_track_spec().
+-type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
+-type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
+-type emitted_event_spec() :: oceanic:emitted_event_spec().
+-type oceanic_settings() :: oceanic:oceanic_settings().
+
+-type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
+-type user_server_location() :: class_USMainConfigServer:user_server_location().
 
 
 
@@ -431,8 +625,11 @@ events.
 	  "periodically restarted, in order to overcome any risk of freeze of "
 	  "the USB-based serial interface" },
 
-	{ oc_base_id, option( eurid() ), "the base identifier (if any) of "
-	  "the local Enocean gateway to use, as determined by Oceanic" },
+	{ oc_src_eurid, option( eurid() ),
+	  "the source identifier (if any) to specify when generating emitted "
+	  "packets; this ought to be the EURID of the local Enocean gateway, "
+	  "as determined by Oceanic, otherwise telegrams are bound to be "
+	  "rejected" },
 
 	{ us_config_server_pid, server_pid(),
 	  "the PID of the overall US configuration server" },
@@ -455,35 +652,19 @@ events.
 	  "(i.e. whether a siren is expected to be roaring)" },
 
 
-	{ alarm_trigger_button_refs, [ button_ref() ],
-	  "the reference (hence their source EURID and controlling channel - "
-	  "knowing that top/bottom is always used to activate/deactivate) to "
-	  "any button of controlling devices (typically push buttons or double
-	  rockers) to be used to directly switch on/off the alarm" },
+	{ alarm_trigger_specs, [ canon_listened_event_spec() ],
+	  "the specifications of the events that can be received from devices "
+	  "(typically push buttons or double rockers) that may be used to directly "
+	  "switch on/off the alarm" },
 
-	{ alarm_actuator_button_refs, [ button_ref() ],
-	  "the reference (here the EURID of each target device to trigger, "
-	  "together with the source-side channel that shall be specified for "
-	  "that - knowing that top/bottom is always used to activate/deactivate "
-	  "these actuators) to any button of actuator devices (typically smart "
-	  "plugs powering sirens) that shall be triggered when an actual alarm "
-	  "is triggered; to be kept in sync with the "
-	  "alarm_{de,}activation_telegrams attributes" },
-
-	{ alarm_activation_telegrams, [ telegram_pair() ],
-	  "any press/release telegrams to be emitted to switch on the alarm target "
-	  "actuator (typically a smart plug controlling an alarm, i.e. a 12V "
-	  "transformer powering a siren)" },
-
-	{ alarm_deactivation_telegrams, [ telegram_pair() ],
-	  "any press/release telegrams to be emitted to switch off the target "
-	  "actuator (typically a smart plug) controlling an alarm (typically "
-	  "a 12V transformer powering a siren)" },
-
+	{ alarm_actuator_specs, [ canon_emitted_event_spec() ],
+	  "the specifications of the events that can be emitted to trigger "
+	  "actuators (typically smart plugs powering sirens) that shall be "
+	  "triggered when an actual alarm is triggered" },
 
 
 	{ actual_presence, boolean(), "tells whether there is someone at home; "
-	  "in this case, no specific lighting or alarm shall apply " },
+	  "in this case, no specific lighting or alarm shall apply" },
 
 	% Better defined separately from presence_table, as the program shall
 	% remain, whereas presence simulation service may be regularly
@@ -516,11 +697,10 @@ events.
 	{ server_location, option( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
 
-	{ presence_switching_button_refs, [ button_ref() ],
-	  "the button references, if any, used as a direct indication about "
-	  "whether somebody is at home; these are typically double-rockers "
-	  "whose top button means that somebody is at home, and whose bottom "
-	  "button means that nobody is at home" },
+	{ presence_switching_trigger_specs, [ listened_event_spec() ],
+	  "the specifications of the events that can be received from devices "
+	  "(typically push buttons or double rockers) that may be used to directly "
+	  "switch on/off the presence status" },
 
 	{ presence_switching_device_desc, option( bin_string() ),
 	  "a textual description of the presence switching devices (if any)" },
@@ -594,6 +774,28 @@ events.
 
 
 
+% TO-DO (by decreasing priorities):
+%
+% - support safe commands, with waited acks and retries (to do in Oceanic, and
+% to integrate here)
+% - make control-us-main.sh commands unconditional (regardless of the current
+% state supposed by US-Main), typicall to start/stop lighting, alarm
+% - check that no decoding freeze happens (blocking accumulating chunk), and add
+% an automatic unblocking mechanism (forget longer/remaining chunks)
+% - have alarms triggers all lighting
+% - auto-stop alarm (e.g. 15 minutes after being activated)
+% - auto-enable alarm after a user-specified delay (e.g. 8 minutes after
+% reporting that leaving home)
+% - support inquiry and control by SMS (with Ceylan-Mobile)
+% - support movement detectors
+% - add audio output if away and suspicions
+% - support *multiple* presence actuators
+
+% - ensure all Oceanic logs are reported in US-Main traces
+% - possibly: allow testing the availability of Oceanic/serial from
+% control-us-main.sh, via 'report'
+
+
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
 % process allowing to interface this home automation server with an OTP
@@ -614,6 +816,7 @@ start_link() ->
 	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
 						"the home automation system." ),
 
+	% Call next init/1:
 	supervisor_bridge:start_link( { local, ?bridge_name },
 		_Module=?MODULE, _InitArgs=[] ).
 
@@ -621,7 +824,7 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 being executed.
+start_link/0 above being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() } | 'ignore'
 					  | { 'error', Error :: term() }.
@@ -664,7 +867,9 @@ terminate( Reason, _BridgeState=HomeAutomSrvPid )
 -doc """
 Constructs an home automation server, based on the default, local TTY allocated
 to the USB Enocean gateway, whose base identifier will be used as source EURID
-for telegram sendings, and not providing a presence simulator.
+for telegram sendings, and not performing presence simulation.
+
+This is the actual constructor being called first, by the OTP supervision logic.
 """.
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
@@ -674,12 +879,13 @@ construct( State ) ->
 
 -doc """
 Constructs an home automation server, based on the specified local TTY allocated
-to the USB Enocean gateway, whose base identifier will be used as source EURID
-for telegram sendings, and not providing a presence simulator.
+to the USB Enocean gateway, base identifier will be used as source EURID
+for telegram sendings, and not performing presence simulation.
 """.
 -spec construct( wooper:state(), device_path() ) -> wooper:state().
 construct( State, TtyPath ) ->
-	construct( State, TtyPath, _MaybePresenceSimSettings=undefined ).
+	% Undefined and empty list have not exactly the same semantics here:
+	construct( State, TtyPath, _MaybePscSimUserSettings=undefined ).
 
 
 
@@ -687,17 +893,14 @@ construct( State, TtyPath ) ->
 Constructs an home automation server, based on the specified local TTY allocated
 to the USB Enocean gateway.
 
-Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
-performed, specified either as a complete list of presence settings, or only
-through the EURID of the target actuator(s) - in which case a default presence
-policy will apply; the source used for the sent telegrams will be the base
-identifier of the gateway.
+Unless PscSimUserSettings is the empty list, presence simulation will be
+performed, specified as a complete list of presence user settings; as usual, the
+source used for the sent telegrams will be the base identifier of the gateway.
 """.
 -spec construct( wooper:state(), device_path(),
-				 option( presence_simulation_settings() | eurid_string() ) ) ->
-										wooper:state().
-construct( State, TtyPath, MaybePresenceSimSettings ) ->
-	construct( State, TtyPath, MaybePresenceSimSettings,
+				 option( presence_simulation_user_settings() ) ) -> wooper:state().
+construct( State, TtyPath, MaybePscSimUserSettings ) ->
+	construct( State, TtyPath, MaybePscSimUserSettings,
 			   _MaybeSourceEuridStr=undefined ).
 
 
@@ -706,18 +909,17 @@ construct( State, TtyPath, MaybePresenceSimSettings ) ->
 Constructs an home automation server, based on the specified local TTY allocated
 to the USB Enocean gateway.
 
-Unless MaybePresenceSimSettings is 'undefined', a presence simulation will be
-performed, specified either as a complete list of presence settings, or only
-through the EURID of the target actuator(s) - in which case a default presence
-policy will apply; the source used for the sent telegrams will be the specified
-one (if any), otherwise the base identifier of the gateway.
+Unless PscSimUserSettings is the empty list, presence simulation will be
+performed, specified as a complete list of presence user settings; any specified
+source identifier will be used for the sent telegrams (in general this should be
+the base identifier of the gateway, which is the default).
 
 (most complete constructor)
 """.
 -spec construct( wooper:state(), device_path(),
-	option( presence_simulation_settings() | eurid_string() ),
-	option( eurid_string() ) ) -> wooper:state().
-construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
+				 option( presence_simulation_user_settings() ), option( eurid_string() ) ) ->
+					 wooper:state().
+construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	ServerTraceName = "Home automation server",
 
@@ -728,25 +930,36 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 		?us_main_home_automation_server_registration_scope ),
 
 	% Do not start Oceanic if it is bound to fail:
-	{ MaybeOcSrvPid, MaybeSrcEuridStr, MaybeBaseId } =
-			case oceanic:is_available( TtyPath ) of
+	{ MaybeOcSrvPid, MaybeSrcEurid } = case oceanic:is_available( TtyPath ) of
 
 		{ true, _SerialRootDir } ->
 			OcPid = oceanic:start_link( TtyPath, [ _EventListenerPid=self() ] ),
-			BaseId = oceanic:get_oceanic_eurid( OcPid ),
-			SourceIdStr = case MaybeSourceEuridStr of
+
+			% Wanting that the traces emitted by Oceanic are collected in our
+			% Ceylan-Traces system, rather than being buried just in, typically,
+			% /opt/universal-server/us_main-latest/us_main/log/erlang.log.* files:
+			%
+			OCBridgeSpec = trace_bridge:get_bridge_spec(
+				_TraceEmitterName="Oceanic", _TraceCategory="Server",
+				_BridgePid=class_TraceAggregator:get_aggregator() ),
+
+			OcPid ! { registerTraceBridge, OCBridgeSpec },
+
+			SrcEurid = case MaybeSourceEuridStr of
 
 				undefined ->
-					% Then go for the BaseId; having to convert it back to
-					% string, as to be fed to a presence_simulation_setting:
-					%
-					oceanic:eurid_to_short_string( BaseId );
+					_BaseEurid=oceanic:get_oceanic_eurid( OcPid );
 
-				SrcIdStr ->
-					SrcIdStr
+				% No spoofing can be easily done, if emitting with a bogus
+				% source EURID expect telegrams not to be processed or even
+				% emitted:
+				%
+				SourceEuridStr ->
+					oceanic:string_to_eurid( SourceEuridStr )
 
 			end,
-			{ OcPid, SourceIdStr, BaseId };
+
+			{ OcPid, SrcEurid };
 
 		{ false, ReasonStr, ErrorTerm } ->
 			% No house automation can be done then (newline needed, otherwise
@@ -755,7 +968,8 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 			?send_warning_fmt( SrvState,
 				"The Oceanic support will not be available. ~ts~n"
 				"(error term: ~p).", [ ReasonStr, ErrorTerm ] ),
-			{ undefined, undefined, undefined }
+
+			{ undefined, undefined }
 
 	end,
 
@@ -766,66 +980,74 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	SchedPid = class_USScheduler:get_main_scheduler(),
 
-	% Interleaved:
+	% Interleaved; most elements already canonicalised, except
+	% MaybeConfPscSimUSettings:
+	%
 	{ MaybeUserSrvLoc, BinAppBaseDirectoryPath,
-	  AlarmTriggerButRefs, AlarmActuatorButRefs, PscTriggerButRefs,
-	  MaybeConfiguredPscSimSettings, OceanicSettings } = receive
+	  AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
+	  PscTriggerListenEvSpecs, ConfPscSimUSettings, OcSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
 			HomeAutoMatSettings
 
 	end,
 
-	AlarmState = init_alarm( AlarmTriggerButRefs, AlarmActuatorButRefs,
-							 MaybeOcSrvPid, MaybeBaseId, SrvState ),
+	AlarmState = init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
+							 MaybeOcSrvPid, SrvState ),
 
-	MaybeRetainedPscSimSettings = case MaybeConfiguredPscSimSettings of
+	% Any constructor-level settings (usually not specified) will take priority
+	% over in-configuration ones:
+	%
+	RetainedPscSimUSettings = case MaybePscSimUserSettings of
 
 		undefined ->
-			case MaybePresenceSimSettings of
+			case ConfPscSimUSettings of
 
-				undefined ->
+				[] ->
 					send_psc_trace( info, "Neither construction-level nor "
 						"configuration-level presence simulation settings "
-						"defined, defaults will apply.", AlarmState );
+						"defined, no presence simulation will be done.", AlarmState );
 
-				PresenceSimSettings ->
-					send_psc_trace_fmt( info, "Construction-level presence "
+				ConfPscSimUSettings->
+					send_psc_trace_fmt( info, "Configuration-level presence "
 						"simulation settings will apply "
-						"(no configuration-level ones were defined):~n ~p",
-						[ PresenceSimSettings ], AlarmState )
+						"(as no construction-level ones were defined):~n ~p",
+						[ ConfPscSimUSettings ], AlarmState )
 
 			end,
 
-			MaybePresenceSimSettings;
+			ConfPscSimUSettings;
 
 
-		ConfiguredPscSimSettings ->
-			case MaybePresenceSimSettings of
+		 PscSimUserSettings when is_list( PscSimUserSettings ) ->
+			case ConfPscSimUSettings of
 
-				undefined ->
-					send_psc_trace_fmt( info, "No construction-level presence "
-						"simulation settings defined, configuration-level ones "
-						"will apply:~n ~p", [ ConfiguredPscSimSettings ],
-						AlarmState ),
-					ConfiguredPscSimSettings;
+				[] ->
+					send_psc_trace_fmt( info, "Construction-level presence "
+						"simulation settings will apply (and no "
+						"configuration-level were defined):~n ~p",
+						[ PscSimUserSettings ], AlarmState );
 
-				PresenceSimSettings ->
+				ConfPscSimUSettings ->
 					send_psc_trace_fmt( info, "The construction-specified "
-						"presence simulation settings (~p) will override the "
-						"configuration-specified ones (~p).",
-						[ PresenceSimSettings, ConfiguredPscSimSettings ],
-						AlarmState ),
-					PresenceSimSettings
+						"presence simulation settings (~p) will take precedence "
+						"over the configuration-specified ones (~p).",
+						[ PscSimUserSettings, ConfPscSimUSettings ], AlarmState )
 
-			end
+			end,
+
+			ConfPscSimUSettings;
+
+
+		Other ->
+			throw( { invalid_constructor_presence_settings, Other } )
 
 	end,
 
 
 	% Sooner:
 	MaybeOcSrvPid =:= undefined orelse
-		oceanic:add_configuration_settings( OceanicSettings, MaybeOcSrvPid ),
+		oceanic:add_configuration_settings( OcSettings, MaybeOcSrvPid ),
 
 	% Geographical location:
 	MaybeSrvLoc = case MaybeUserSrvLoc of
@@ -847,7 +1069,8 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	PscSwitchBinDesc = case PscTriggerButRefs of
+	% PscTriggerListenEvSpecs already canonicalised:
+	PscSwitchBinDesc = case PscTriggerListenEvSpecs of
 
 		[] ->
 			<<"(no presence-switching device defined)">>;
@@ -858,28 +1081,40 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 				% Suspect:
 				undefined ->
 					text_utils:bin_format( "Regarding the presence-switching "
-						"devices defined, ~ts", [ oceanic:button_refs_to_string(
-													PscTriggerButRefs ) ] );
+						"devices defined, ~ts", [
+							oceanic:canon_listened_event_specs_to_string(
+								PscTriggerListenEvSpecs ) ] );
 
 				OcSrvPid ->
 					text_utils:bin_format( "~B presence-switching devices "
-						"defined: ~ts", [ length( PscTriggerButRefs ),
-							text_utils:strings_to_listed_string(
-								[ oceanic:get_button_ref_description( BR,
-																	  OcSrvPid )
-									|| BR <- PscTriggerButRefs ] ) ] )
+						"defined: ~ts", [ length( PscTriggerListenEvSpecs ),
+							oceanic:canon_listened_event_specs_to_string(
+								PscTriggerListenEvSpecs, OcSrvPid ) ] )
 
 			end
 
 	end,
 
 	MoreCompleState = setAttributes( AlarmState, [
+		{ oc_srv_pid, MaybeOcSrvPid },
+
+		%{ oc_periodic_restart, true },
+		{ oc_periodic_restart, false },
+
+		{ oc_src_eurid, MaybeSrcEurid },
+		{ us_config_server_pid, UsMainCfgSrvPid },
 		{ scheduler_pid, SchedPid },
-		{ app_base_directory, BinAppBaseDirectoryPath } ] ),
+		{ app_base_directory, BinAppBaseDirectoryPath },
+
+		% Expecting to be launching this server while being at home:
+		{ actual_presence, true },
+
+
+		{ device_table, table:new() } ] ),
 
 	{ InitPscTable, NextPscId, MaybeTimeEqTable, MaybeMidnightTaskId } =
-		init_presence_simulation( MaybeRetainedPscSimSettings, MaybeOcSrvPid,
-			MaybeSrcEuridStr, MoreCompleState ),
+		init_presence_simulation( RetainedPscSimUSettings, MaybeOcSrvPid,
+								  MoreCompleState ),
 
 	MaybeOcMonTaskId = init_oceanic_monitor( MaybeOcSrvPid, SchedPid,
 											 MoreCompleState ),
@@ -887,30 +1122,17 @@ construct( State, TtyPath, MaybePresenceSimSettings, MaybeSourceEuridStr ) ->
 	% To report any issue:
 	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
 
-	InitalPscEnabled = not table:is_empty( InitPscTable ),
+	InitialPscEnabled = not table:is_empty( InitPscTable ),
 
 	SetState = setAttributes( MoreCompleState, [
-		{ oc_srv_pid, MaybeOcSrvPid },
-
-		%{ oc_periodic_restart, true },
-		{ oc_periodic_restart, false },
-
-		{ oc_base_id, MaybeBaseId },
-		{ us_config_server_pid, UsMainCfgSrvPid },
-		{ device_table, table:new() },
-
-
-		% Expecting to be launching this server while being at home:
-		{ actual_presence, true },
-
-		{ presence_simulation_enabled, InitalPscEnabled },
+		{ presence_simulation_enabled, InitialPscEnabled },
 		{ presence_table, InitPscTable },
 		{ next_presence_id, NextPscId },
 		{ time_equation_table, MaybeTimeEqTable },
 		{ midnight_task_id, MaybeMidnightTaskId },
 		{ oceanic_monitor_task_id, MaybeOcMonTaskId },
 		{ server_location, MaybeSrvLoc },
-		{ presence_switching_button_refs, PscTriggerButRefs },
+		{ presence_switching_trigger_specs, PscTriggerListenEvSpecs },
 		{ presence_switching_device_desc, PscSwitchBinDesc },
 		{ celestial_info, undefined },
 		{ comm_gateway_pid, CommGatewayPid } ] ),
@@ -929,91 +1151,33 @@ Initialises the alarm system.
 
 (helper)
 """.
--spec init_alarm( [ button_ref() ], [ button_ref() ],
-		option( oceanic_server_pid() ), option( eurid() ),
+-spec init_alarm( [ canon_listened_event_spec() ],
+		[ canon_emitted_event_spec() ], option( oceanic_server_pid() ),
 		wooper:state() ) -> wooper:state().
-init_alarm( _AlarmTriggerButRefs, _AlarmActuatorButRefs,
-			_MaybeOcSrvPid=undefined, _MaybeBaseEurid, State ) ->
+init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
+			_MaybeOcSrvPid=undefined, State ) ->
 	?debug( "No Oceanic support available, no alarm managed." ),
 	setAttributes( State, [
 		{ alarm_inhibited, true },
 		{ alarm_triggered, false },
-		{ alarm_trigger_button_refs, [] },
-		{ alarm_actuator_button_refs, [] },
-		{ alarm_activation_telegrams, [] },
-		{ alarm_deactivation_telegrams, [] } ] );
+		{ alarm_trigger_specs, [] },
+		{ alarm_actuator_specs, [] } ] );
 
-init_alarm( AlarmTriggerButRefs, AlarmActuatorButRefs, _OcSrvPid, BaseEurid,
+init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 			State ) ->
-
-	% First, if alarm actuators are set, the control of their smart plugs
-	% (typically meant to start a siren)) must be prepared, by forging the
-	% corresponding telegrams:
-
-	{ ActTelPairs, DeactTelPairs } = forge_actuator_telegrams(
-		AlarmActuatorButRefs, _SourceEurid=BaseEurid ),
 
 	% Second, if alarm trigger buttons ares set, their references shall be
 	% stored as such:
 	%
 	setAttributes( State, [
 		{ alarm_inhibited, true },
+
 		% Initially quiet:
 		{ alarm_triggered, false },
-		{ alarm_trigger_button_refs, AlarmTriggerButRefs },
-		{ alarm_actuator_button_refs, AlarmActuatorButRefs },
-		{ alarm_activation_telegrams, ActTelPairs },
-		{ alarm_deactivation_telegrams, DeactTelPairs } ] ).
 
-
-
--doc """
-Encodes press/release telegram pairs, for the activation and deactivation of
-each of the actuator devices whose EURID is specified.
-""".
--spec forge_actuator_telegrams( [ button_ref() ], eurid() ) ->
-		  { ActivationPairs   :: [ telegram_pair() ],
-			DeactivationPairs :: [ telegram_pair() ] }.
-forge_actuator_telegrams( ButRefs, SourceEurid ) ->
-	forge_actuator_telegrams( ButRefs, SourceEurid, _AccP={ [], [] } ).
-
-
-
-% (helper)
-forge_actuator_telegrams( _ButRefs=[], _SourceEurid, AccP ) ->
-	% No reversing of lists useful:
-	AccP;
-
-forge_actuator_telegrams( _ButRefs=[ { TargetEurid, SourceChannel } | T ],
-						  SourceEurid, _AccP={ Acts, Deacts } ) ->
-
-	% By convention:
-	AppStyle = 1,
-
-	OnButtonLoc = { SourceChannel, _OnPos=top },
-
-	OnPressTelegram = oceanic:encode_double_rocker_switch_telegram(
-		SourceEurid, AppStyle, OnButtonLoc, pressed, TargetEurid ),
-
-	OnReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
-		SourceEurid, AppStyle, OnButtonLoc, released, TargetEurid ),
-
-	OnTelegramPair = { OnPressTelegram, OnReleaseTelegram },
-
-
-	OffButtonLoc = { SourceChannel, _OffPos=bottom },
-
-	OffPressTelegram = oceanic:encode_double_rocker_switch_telegram(
-		SourceEurid, AppStyle, OffButtonLoc, pressed, TargetEurid ),
-
-	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
-		SourceEurid, AppStyle, OffButtonLoc, released, TargetEurid ),
-
-	OffTelegramPair = { OffPressTelegram, OffReleaseTelegram },
-
-
-	forge_actuator_telegrams( T, SourceEurid,
-		{ [ OnTelegramPair | Acts ], [ OffTelegramPair | Deacts ] } ).
+		% Already vetted:
+		{ alarm_trigger_specs, AlarmTriggerListenEvSpecs },
+		{ alarm_actuator_specs, AlarmActuatorEmitEvSpecs } ] ).
 
 
 
@@ -1022,64 +1186,53 @@ Initialises the overall presence simulation.
 
 (helper)
 """.
--spec init_presence_simulation( option( presence_simulation_settings() ),
-	option( oceanic_server_pid() ), option( eurid_string() ),
-	wooper:state() ) ->
+-spec init_presence_simulation( presence_simulation_user_settings(),
+			option( oceanic_server_pid() ), wooper:state() ) ->
 		{ presence_table(), presence_sim_id(), option( time_equation_table() ),
 		  option( task_id() ) }.
-init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
-						  MaybeSrcEuridStr, State ) ->
+init_presence_simulation( _PscSimUSettings=[], _MaybeOcSrvPid, State ) ->
+	send_psc_trace( info, "No presence simulation wanted.", State ),
+	{ _EmptyPscTable=table:new(), _NextPscId=1, _TimeEqTableNeeded=false,
+	  _MaybeMidTaskId=undefined };
 
-	% Already available:
+
+init_presence_simulation( PscSimUSettings, _MaybeOcSrvPid=undefined, State ) ->
+	send_psc_trace_fmt( error, "No Oceanic support available, the requested "
+		"presence simulation (~p) cannot be performed.",
+		[ PscSimUSettings ], State ),
+
+	throw( { no_presence_simulation, no_oceanic } );
+
+
+init_presence_simulation( PscSimUSettings, OcSrvPid, State ) ->
+
+	?getAttr(oc_src_eurid) =/= undefined orelse
+		begin
+			send_psc_trace_fmt( error, "No base gateway EURID available, "
+				"the requested presence simulation (~p) cannot be performed.",
+				[ PscSimUSettings ], State ),
+
+			throw( { no_presence_simulation, no_base_eurid } )
+		end,
+
+	% Already reported:
 	%send_psc_trace_fmt( debug, "Initialising presence simulation, "
-	%   "from following settings:~n ~p.", [ MaybePresenceSimSettings ], State ),
+	%   "from following settings:~n ~p.", [ PscSimUSettings ], State ),
 
-	init_presence_simulation( MaybePresenceSimSettings, MaybeOcSrvPid,
-		MaybeSrcEuridStr, _PscTable=table:new(), _NextPscId=1,
-		_TimeEqTableNeeded=false, State ).
+	init_presence_simulation( PscSimUSettings, OcSrvPid, _PscTable=table:new(),
+							  _NextPscId=1,	_TimeEqTableNeeded=false, State ).
 
 
 
 % (helper)
 %
-% No presence simulation wanted here:
-init_presence_simulation( _MaybePresenceSimSettings=undefined, _MaybeOcSrvPid,
-		_MaybeSrcEuridStr, EmptyPscTable, InitPscId, _TimeEqTableNeeded,
-		State ) ->
-	send_psc_trace( info, "No presence simulation wanted.", State ),
-	{ EmptyPscTable, InitPscId, _MaybeTimeEqTable=undefined,
-	  _MaybeMidTaskId=undefined };
+% First canonicalising the program:
+init_presence_simulation( [ { _PscProg=default_program, TargetedPscActuators,
+							  SmartLighting, RandActSettings } | T ],
+						  OcSrvPid, PscTable, NextPscId, TimeEqTableNeeded,
+						  State ) ->
 
-init_presence_simulation( PresenceSimSettings, _MaybeOcSrvPid=undefined,
-		_MaybeSrcEuridStr, _PscTable, _NextPscId, _TimeEqTableNeeded,
-		State ) ->
-
-	send_psc_trace_fmt( error, "No Oceanic support available, the requested "
-		"presence simulation (~p) cannot be performed.",
-		[ PresenceSimSettings ], State ),
-
-	throw( { no_presence_simulation, no_oceanic } );
-
-
-% Not expected to happen, as set with OcSrvPid:
-init_presence_simulation( PresenceSimSettings, _OcSrvPid,
-		_MaybeSrcEuridStr=undefined, _PscTable, _NextPscId, _TimeEqTableNeeded,
-		State ) ->
-
-	send_psc_trace_fmt( error, "No overall source EURID available, the "
-		"requested presence simulation (~p) cannot be performed.",
-		[ PresenceSimSettings ], State ),
-
-	throw( { no_presence_simulation, no_source_eurid } );
-
-
-% Default settings, just switching to the actual clause:
-init_presence_simulation(
-		_PresenceSimSettings={ default, MaybeTargetActuatorEuridStr },
-		OcSrvPid, SrcEuridStr, PscTable, NextPscId, _TimeEqTableNeeded,
-		State ) ->
-
-	send_psc_trace( info, "Applying default presence simulation settings.",
+	send_psc_trace( info, "Applying a default presence simulation program.",
 					State ),
 
 	% Principle: no useless lighting during the expected presence slots, which
@@ -1097,38 +1250,37 @@ init_presence_simulation(
 	%              { TEveningStart, TEveningStop } ],
 
 	% Now, default settings are safer: if not at home, simulating all day long
-	% (unless there is daylight); so, in logical terms, from 7:00 to around
-	% 00:30, translating to:
+	% (unless there is daylight, supposing smart lighting to be enabled); so, in
+	% logical terms, from 7:00 to around 00:30, translating to:
 
+	% From the first second of that day (midnight):
 	TEndOfNightStart = { 0, 0, 1 },
+
+	% To a little after midnight:
 	TEndOfNightStop = { 0, 31, 15 },
 
+	% Time to wake up:
 	TDayStart = { 7, 0, 0 },
-	% Bound to be stopped before, due to daylight:
+
+	% In most countries bound to be stopped before, due to daylight:
 	TDayStop = { 23, 59, 59 },
 
 	PscSlots = [ { TEndOfNightStart, TEndOfNightStop },
 				 { TDayStart, TDayStop } ],
 
-	DefaultSettings = #presence_simulation_setting{
-		source_eurid=SrcEuridStr,
-		target_eurid=MaybeTargetActuatorEuridStr,
-		presence_program=PscSlots,
-		smart_lighting=true,
-		random_activity=true
-		% Defaults apply for mean_light_duration/mean_no_light_duration.
-	},
+	ExpandedPscSimUSetting = { PscSlots, TargetedPscActuators, SmartLighting,
+							   RandActSettings },
 
 	% Branch then to the general rule:
-	init_presence_simulation( _PscSimSettings=[ DefaultSettings ], OcSrvPid,
-		SrcEuridStr, PscTable, NextPscId, _TimeEqTableIsNeeded=true, State );
+	init_presence_simulation( [ ExpandedPscSimUSetting | T ], OcSrvPid,
+		PscTable, NextPscId, TimeEqTableNeeded, State );
 
 
 % The "actual" clauses now.
 %
-% Only exit point:
-init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
-		PscTable, NextPscId, TimeEqTableNeeded, State ) ->
+% Only final, exit point:
+init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
+						  NextPscId, TimeEqTableNeeded, State ) ->
 
 	% Schedules a periodic midnight presence update iff necessary:
 	MaybeMidTaskId = case table:is_empty( PscTable ) of
@@ -1199,140 +1351,86 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, _SrcEuridStr,
 
 % Main clause:
 init_presence_simulation( _PresenceSimSettings=[
-		#presence_simulation_setting{
-			source_eurid=MaybeUserSrcEuridStr,
-			target_eurid=MaybeTargetActuatorEuridStr,
-			presence_program=Program,
-			smart_lighting=SmartBool,
-			random_activity=RandomBool,
-			mean_light_duration=MLightDur,
-			mean_no_light_duration=MNoLightDur } | T ], OcSrvPid, SrcEuridStr,
-						  PscTable, NextPscId, TimeEqTableNeeded, State ) ->
-
-	ActualSrcEurid = case MaybeUserSrcEuridStr of
-
-		undefined ->
-			oceanic:string_to_eurid( SrcEuridStr );
-
-		UserSrcEuridStr ->
-			oceanic:string_to_eurid( UserSrcEuridStr )
-
-	end,
-
-	ActualTargetEurid = case MaybeTargetActuatorEuridStr of
-
-		undefined ->
-			% For example because no EEP may be available for a target smart
-			% plug (like at least some Eltako ones):
-			%
-			E = oceanic:get_broadcast_eurid(),
-			send_psc_trace_fmt( info, "Setting target EURID actuator to the "
-				"~ts.", [ oceanic:eurid_to_string( E ) ], State ),
-			E;
-
-		TargetActuatorEuridStr ->
-			send_psc_trace_fmt( info, "Setting target EURID actuator to ~ts.",
-								[ TargetActuatorEuridStr ], State ),
-			oceanic:string_to_eurid( TargetActuatorEuridStr )
-
-	end,
+		{ PscProg, TargetedPscActuators, SmartLighting, RandActSettings } | T ],
+						  OcSrvPid, PscTable, NextPscId,
+						  TimeEqTableNeeded, State ) ->
 
 	% We check the program, not taking into account here dawn/dusk, as they
-	% change each day:
+	% change each day (and 'default_program' must have already been translated):
 	%
-	VettedProgram = vet_program( Program ),
+	% We finally prefer not translating all programs into slots, as special
+	% cases ares easier to manage afterwards:
+	%
+	VetProgram = vet_program( PscProg ),
 
-	RandomProgram = case RandomBool of
+	VetTargetedPscActuators = oceanic:canonicalise_emitted_event_specs(
+		TargetedPscActuators ),
 
-		true ->
-			type_utils:check_strictly_positive_integer( MLightDur ),
-			type_utils:check_strictly_positive_integer( MNoLightDur ),
+	DoSmartLighting = vet_smart_lighting( SmartLighting ),
 
-			RandProgram = randomise_program( VettedProgram, MLightDur,
-											 MNoLightDur, State ),
+	{ ActualProgram, RandActivity } =
+			case vet_random_activity( RandActSettings ) of
+
+		% Hence randomised:
+		RA={ MLightDur, MNoLightDur } ->
+
+			RandProgram = randomise_program( VetProgram, MLightDur, MNoLightDur,
+											 State ),
 
 			send_psc_trace_fmt( debug,
 				"Original program ~ts~nResulting randomised program ~ts",
-				[ program_to_string( VettedProgram ),
+				[ program_to_string( PscProg ),
 				  program_to_string( RandProgram ) ], State ),
 
+			% Extra safety, to ensure generated programs are legit:
 			%RandProgram;
-			vet_program( RandProgram );
+			{ vet_program( RandProgram ), RA };
 
-		false ->
-			send_psc_trace_fmt( debug,
-				"Vetted verbatim program ~ts",
-				[ program_to_string( VettedProgram ) ], State ),
 
-			VettedProgram
+		% Hence taken verbatim:
+		RA=false ->
+			send_psc_trace_fmt( debug, "Vetted verbatim program ~ts",
+				[ program_to_string( VetProgram ) ], State ),
+
+			{ vet_program( VetProgram ), RA }
 
 	end,
-
-	% We have also to forge the Enocean telegrams necessary for switching on/off
-	% the presence actuator(s) - typically a smart plug controlling a lamp, with
-	% following conventions (learnt double-rocker of EEP F6-02-01 hence of
-	% application style 1, channel A, whose top button is "on"):
-
-	PscAppStyle = 1,
-
-	PscSwitchingChannel = 1,
-
-
-	SwitchOnButtonLoc = { PscSwitchingChannel, _OnButtonPos=top },
-
-	OnPressTelegram = oceanic:encode_double_rocker_switch_telegram(
-		ActualSrcEurid, PscAppStyle, SwitchOnButtonLoc, pressed,
-		ActualTargetEurid ),
-
-	OnReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
-		ActualSrcEurid, PscAppStyle, SwitchOnButtonLoc, released,
-		ActualTargetEurid ),
-
-
-	SwitchOffButtonLoc = { PscSwitchingChannel, _OffButtonPos=bottom },
-
-	OffPressTelegram = oceanic:encode_double_rocker_switch_telegram(
-		ActualSrcEurid, PscAppStyle, SwitchOffButtonLoc, pressed,
-		ActualTargetEurid ),
-
-	OffReleaseTelegram = oceanic:encode_double_rocker_switch_telegram(
-		ActualSrcEurid, PscAppStyle, SwitchOffButtonLoc, released,
-		ActualTargetEurid ),
-
-	DoSmartLighting = type_utils:check_boolean( SmartBool ),
-
-	DoRandomActivity = type_utils:check_boolean( RandomBool ),
 
 	PscSim = #presence_simulation{
 		id=NextPscId,
 		enabled=true,
-		activated=false,
-		source_eurid=ActualSrcEurid,
-		target_eurid=ActualTargetEurid,
-		program=RandomProgram,
-		smart_lighting=DoSmartLighting,
-		random_activity=DoRandomActivity,
-		activation_telegrams={ OnPressTelegram, OnReleaseTelegram },
-		deactivation_telegrams={ OffPressTelegram, OffReleaseTelegram } },
 
-	NewPscTable = table:add_new_entry( _K=NextPscId, PscSim, PscTable ),
+		% If ever that presence actuator was already running, prior to our
+		% launch (it will be deactivated immediately, see below):
+		%
+		activated=true,
+
+		actuator_event_specs=VetTargetedPscActuators,
+		program=ActualProgram,
+		smart_lighting=DoSmartLighting,
+		random_activity=RandActivity },
+
+	% Start from no light in all cases (regardless of initial state):
+	UnlitPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
+
+	NewPscTable = table:add_new_entry( _K=NextPscId, UnlitPscSim, PscTable ),
 
 	send_psc_trace_fmt( info, "Registered a new presence simulation: ~ts",
-		[ presence_simulation_to_string( PscSim ) ], State ),
+		[ presence_simulation_to_string( UnlitPscSim ) ], State ),
 
 	NewTimeEqTableNeeded = DoSmartLighting orelse TimeEqTableNeeded,
 
-	init_presence_simulation( T, OcSrvPid, SrcEuridStr, NewPscTable,
-		NextPscId+1, NewTimeEqTableNeeded, State );
+	init_presence_simulation( T, OcSrvPid, NewPscTable, NextPscId+1,
+							  NewTimeEqTableNeeded, State );
 
 
 init_presence_simulation( _PresenceSimSettings=[ Other | _T ], _OcSrvPid,
-		_SrcEuridStr, _PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
+						  _PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
 	throw( { invalid_presence_setting, Other } );
 
 
-init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _SrcEuridStr,
-		_PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
+init_presence_simulation( _PresenceSimSettings=Other, _OcSrvPid, _PscTable,
+						  _NextPscId, _TimeEqTableNeeded, _State ) ->
 	throw( { invalid_presence_settings, Other } ).
 
 
@@ -1381,24 +1479,62 @@ vet_program( _PresenceProgram=[ Slot={ StartMilestone, StopMilestone } | T ],
 	vet_program( T, StopMilestone, [ Slot | AccSlots ] );
 
 
+vet_program( _PresenceProgram=[ Other | _T ], _MaybeLastStop, _AccSlots ) ->
+	throw( { invalid_presence_slot, Other } );
+
 vet_program( Other, _MaybeLastStop, _AccSlots ) ->
 	throw( { invalid_presence_program, Other } ).
 
 
 
--doc "Adds random interruptions to the specified program, if it is slot-based.".
+-doc "Vets the specified smart lighting setting.".
+-spec vet_smart_lighting( user_data() ) -> boolean().
+vet_smart_lighting( true ) ->
+	true;
+
+vet_smart_lighting( false ) ->
+	false;
+
+vet_smart_lighting( Other ) ->
+	throw( { invalid_presence_smart_lighting_setting, Other } ).
+
+
+
+-doc "Vets the specified random activity settings.".
+-spec vet_random_activity( user_data() ) -> canon_random_activity_settings().
+vet_random_activity( false ) ->
+	false;
+
+vet_random_activity( true ) ->
+	{ ?default_mean_light_duration, ?default_mean_no_light_duration };
+
+vet_random_activity( S={ MeanLightDuration, MeanNoLightDuration } )
+		when is_integer( MeanLightDuration ) andalso MeanLightDuration > 0
+			 andalso is_integer( MeanNoLightDuration )
+				 andalso MeanNoLightDuration > 0 ->
+	S;
+
+vet_random_activity( Other ) ->
+	throw( { invalid_presence_random_activity_setting, Other } ).
+
+
+
+
+-doc "Adds random interruptions to the specified program.".
 -spec randomise_program( presence_program(), second_duration(),
 			second_duration(), wooper:state() ) -> presence_program().
-randomise_program( PresenceProgram=constant_presence, _MeanLightDuration,
-				   _MeanNoLightDuration, _State ) ->
-	PresenceProgram;
+randomise_program( _PscProgram=constant_presence,
+				   MeanLightDuration, MeanNoLightDuration, State ) ->
+	% Converted only in the case of random lighting:
+	SingleSlots = [ { { 0, 0, 0 }, { 23, 59, 59 } } ],
+	randomise_program( SingleSlots, MeanLightDuration, MeanNoLightDuration,
+					   State );
 
-randomise_program( PresenceProgram=constant_absence, _MeanLightDuration,
-				   _MeanNoLightDuration, _State ) ->
-	PresenceProgram;
+randomise_program( PscProgram=constant_absence,
+				   _MeanLightDuration, _MeanNoLightDuration, _State ) ->
+	PscProgram;
 
-randomise_program( _PresenceProgram=Slots, MeanLightDuration,
-				   MeanNoLightDuration, State ) ->
+randomise_program( Slots, MeanLightDuration, MeanNoLightDuration, State ) ->
 
 	StdDevLightDur = MeanLightDuration div 2,
 
@@ -1425,28 +1561,28 @@ randomise_program( _PresenceProgram=Slots, MeanLightDuration,
 	MaxNoLightDur > MinNoLightDur orelse
 		throw( { invalid_max_no_light_duration, MaxNoLightDur } ),
 
-	randomise_program( Slots, MeanLightDuration, StdDevLightDur,
-					   MinNoLightDur, MaxNoLightDur, _Acc=[] ).
+	randomise_slots( Slots, MeanLightDuration, StdDevLightDur,
+					 MinNoLightDur, MaxNoLightDur, _Acc=[] ).
 
 
 
 % (helper)
-randomise_program( _Slots=[], _MeanLightDuration, _StdDevLightDur,
+randomise_slots( _Slots=[], _MeanLightDuration, _StdDevLightDur,
 				   _MinNoLightDur, _MaxNoLightDur, Acc ) ->
 	lists:reverse( Acc );
 
 % Initially, dawn/dusk are not resolved as actual times, so let's leave them:
 % (they are not presence milestones anymore)
-% randomise_program( _Slots=[ H={ _Start=dawn, Stop } | T ],
+% randomise_slots( _Slots=[ H={ _Start=dawn, Stop } | T ],
 %                    MeanLightDuration, MeanNoLightDuration, Acc ) ->
-%   randomise_program( T, [ H | T ] );
+%   randomise_slots( T, [ H | T ] );
 %
-% randomise_program( _Slots=[ H={ Start, _Stop=dusk } | T ],
+% randomise_slots( _Slots=[ H={ Start, _Stop=dusk } | T ],
 %                    MeanLightDuration, MeanNoLightDuration, Acc ) ->
-%   randomise_program( T, [ H | T ] );
+%   randomise_slots( T, [ H | T ] );
 
 % Replacing each slot by as many sub-slots that fit:
-randomise_program( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
+randomise_slots( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
 				   StdDevLightDur, MinNoLightDur, MaxNoLightDur, Acc ) ->
 	% We replace a single overall slot by as many we can fit:
 	Duration = time_utils:get_intertime_duration( Start, Stop ),
@@ -1454,7 +1590,7 @@ randomise_program( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
 	RevSubSlots = draw_subslots( Start, Duration, MeanLightDuration,
 		StdDevLightDur, MinNoLightDur, MaxNoLightDur, _AccSlots=[] ),
 
-	randomise_program( T, MeanLightDuration, StdDevLightDur, MinNoLightDur,
+	randomise_slots( T, MeanLightDuration, StdDevLightDur, MinNoLightDur,
 					   MaxNoLightDur, RevSubSlots ++ Acc ).
 
 
@@ -1737,13 +1873,14 @@ manage_presence_simulation( PscSim=#presence_simulation{
 				undefined ->
 					% No dawn, thus supposing constant darkness, hence lighting
 					% needed and no switching off planned:
-					%
+
 					cond_utils:if_defined( us_main_debug_presence_simulation,
 						send_psc_trace( debug, "Enabled, smart lighting "
 							"requested, simulating a constant presence, "
 							"no dawn thus in constant darkness, "
 							"hence lighting with no planned presence "
 							"transition.", State ) ),
+
 					LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 					ensure_no_planned_presence_transition( LitPscSim,
 						MaybePscTaskInfo, State );
@@ -2013,8 +2150,11 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 
 -doc "Ensures that the lighting is on for this presence simulation.".
 -spec ensure_lighting( presence_simulation(), boolean(), wooper:state() ) ->
-			presence_simulation().
+			{ presence_simulation(), wooper:state() }.
 ensure_lighting( PscSim, _IsActivated=true, State ) ->
+
+	% Nothing done, as here we trust the known state and suppose no external
+	% interference.
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug,
@@ -2022,19 +2162,30 @@ ensure_lighting( PscSim, _IsActivated=true, State ) ->
 			[ PscSim#presence_simulation.id ], State ),
 		basic_utils:ignore_unused( State ) ),
 
-	PscSim;
+	{ PscSim, State };
 
-ensure_lighting( PscSim=#presence_simulation{
-							activation_telegrams=ActivationTelegrams },
+ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 				 _IsActivated=false, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Activating presence simulation #~B.",
 			[ PscSim#presence_simulation.id ], State ) ),
 
-	send_telegram_pair( ActivationTelegrams, State ),
+	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
 
-	PscSim#presence_simulation{ activated=true }.
+	% DeviceTable = ?getAttr(device_table),
+
+	% DevState = table:get_value( TargetEurid, DeviceTable ),
+
+	% NewDevState = declare_waited_ack( TargetEurid,
+	%	{ smart_plug_status_report_event, power_on }, DevState ),
+
+	% NewDeviceTable = table:add_entry( _K=TargetEurid, _V=NewDevState,
+	%								  DeviceTable ),
+
+	% NewState = setAttribute( State, device_table, DeviceTable ),
+
+	{ PscSim#presence_simulation{ activated=true }, State }.
 
 
 
@@ -2042,14 +2193,18 @@ ensure_lighting( PscSim=#presence_simulation{
 -spec ensure_not_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_not_lighting( PscSim=#presence_simulation{
-								deactivation_telegrams=DeactivationTelegrams },
+								actuator_event_specs=ActEvSpecs },
 					 _IsActivated=true, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
 		send_psc_trace_fmt( debug, "Deactivating presence simulation #~B.",
 				[ PscSim#presence_simulation.id ], State ) ),
 
-	send_telegram_pair( DeactivationTelegrams, State ),
+	% The switching off is derived from the base switching on:
+	ReciprocalActEvSpecs =
+		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
+
+	oceanic:trigger_actuators( ReciprocalActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	PscSim#presence_simulation{ activated=false };
 
@@ -2067,11 +2222,28 @@ ensure_not_lighting( PscSim, _IsActivated=false, State ) ->
 
 
 -doc """
+Returns the reciprocal device event spec (e.g. opposite command) to the
+specified one.
+""".
+-spec get_reciprocal_device_event_spec( canon_emitted_event_spec() ) ->
+											canon_emitted_event_spec().
+get_reciprocal_device_event_spec(
+		_CEES={ _COTS={ DeviceType, VirtEmitInfo, CSCS },
+				ActInfo } ) ->
+
+	InvCSCS = oceanic:get_reciprocal_state_change_spec( DeviceType, CSCS ),
+	InvCOTS = { DeviceType, VirtEmitInfo, InvCSCS },
+	{ InvCOTS, ActInfo }.
+
+
+
+-doc """
 Ensures that the specified presence task (and only it) is planned for an update
 at the specified time.
 """.
 -spec ensure_planned_presence_transition( presence_simulation(), time(),
-			option( task_info() ), wooper:state() ) -> presence_simulation().
+			option( task_info() ), wooper:state() ) ->
+				{ presence_simulation(), wooper:state() }.
 % Plan if not already planned:
 ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
 		PlannedTime, _MaybePscTaskInfo=undefined, State ) ->
@@ -2086,8 +2258,12 @@ ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
 	receive
 
 		{ wooper_result, task_done } ->
-			% Better than waiting for ever:
-			throw( unexpected_done_task );
+			% Better than waiting for ever; this may happen if timed sendings
+			% have done just before; the corresponding command has then been
+			% directly sent by the scheduler:
+			%
+			PscSim#presence_simulation{ presence_task_info=undefined };
+
 
 		{ wooper_result, { task_registered, TaskId } } ->
 			TaskInfo = { TaskId, PlannedTime },
@@ -2533,11 +2709,13 @@ ensure_all_lighting( _PscSims=[], PscTable, State ) ->
 	setAttribute( State, presence_table, PscTable );
 
 % If activated, must be switched off:
-ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id,
-		activated=false, activation_telegrams=ActivationTelegrams } | T ],
+ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
+						id=Id,
+						activated=false,
+						actuator_event_specs=ActEvSpecs } | T ],
 					 PscTable, State ) ->
 
-	send_telegram_pair( ActivationTelegrams, State ),
+	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	NewPscSim = PscSim#presence_simulation{ activated=true },
 
@@ -2575,24 +2753,41 @@ ensure_not_any_lighting( _PscSims=[], PscTable, State ) ->
 	setAttribute( State, presence_table, PscTable );
 
 % If activated, must be switched off:
-ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id,
-		activated=true, deactivation_telegrams=DeactivationTelegrams } | T ],
+ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
+		id=PscId,
+		activated=true,
+		actuator_event_specs=ActEvSpecs } | T ],
 						 PscTable, State ) ->
 
-	send_telegram_pair( DeactivationTelegrams, State ),
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
+			"presence simulation #~B was activated, deactivating it.",
+			[ PscId ], State ) ),
+
+	% The switching off is derived from the base switching on:
+	ReciprocalActEvSpecs =
+		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
+
+	oceanic:trigger_actuators( ReciprocalActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	NewPscSim = PscSim#presence_simulation{ activated=false },
 
-	NewPscTable = table:add_new_entry( _K=Id, _V=NewPscSim, PscTable ),
+	NewPscTable = table:add_new_entry( _K=PscId, _V=NewPscSim, PscTable ),
 
 	ensure_not_any_lighting( T, NewPscTable, State );
 
 
 % Not activated, nothing to do:
-ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
-						 PscTable, State ) ->
+ensure_not_any_lighting(
+		_PscSims=[ PscSim=#presence_simulation{ id=PscId } | T ],
+		PscTable, State ) ->
 
-	NewPscTable = table:add_new_entry( _K=Id, _V=PscSim, PscTable ),
+	cond_utils:if_defined( us_main_debug_presence_simulation,
+		send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
+			"presence simulation #~B was already not activated.",
+			[ PscId ], State ) ),
+
+	NewPscTable = table:add_new_entry( _K=PscId, _V=PscSim, PscTable ),
 
 	ensure_not_any_lighting( T, NewPscTable, State ).
 
@@ -2816,62 +3011,6 @@ init_oceanic_monitor( _OcSrvPid, SchedPid, State ) ->
 
 
 
--doc "Sends (presumably reliably) the specified telegram pair.".
--spec send_telegram_pair( telegram_pair(), wooper:state() ) -> void().
-send_telegram_pair( Telegrams, State ) ->
-
-	OcSrvPid = ?getAttr(oc_srv_pid),
-
-	SendCount = 1,
-	%SendCount = 3,
-
-	cond_utils:if_defined( us_main_debug_presence_simulation,
-		?debug_fmt( "Sending telegram pair ~B times; "
-			"for press: ~ts / for release: ~ts.",
-			[ SendCount,
-			  oceanic:telegram_to_hexastring( pair:first( Telegrams ) ),
-			  oceanic:telegram_to_hexastring( pair:second( Telegrams ) ) ] ) ),
-
-	InterPairDurationMs = 400,
-
-	% Despite all robustification efforts, regularly at least some actuators do
-	% not trigger. So testing now multiple attempts (short of relying on actual
-	% state feedback yet):
-	%
-	% (multiple sending are not such a problem, as we are using rockers, not
-	% contact buttons that toggle, so the target operation is idempotent):
-	%
-	send_telegram_pair( Telegrams, InterPairDurationMs, SendCount, OcSrvPid ),
-
-	% To avoid that a series of calls to this function does not wait between
-	% pairs:
-	%
-	timer:sleep( InterPairDurationMs ).
-
-
-
--doc "Sends the specified telegram pair the specified number of times.".
--spec send_telegram_pair( telegram_pair(), milliseconds(), count(),
-						  oceanic_server_pid() ) -> void().
-send_telegram_pair( _Telegrams, _InterPairDurationMs, _Count=0, _OcSrvPid ) ->
-	ok;
-
-send_telegram_pair( Telegrams={ PressTelegram, ReleaseTelegram },
-					InterPairDurationMs, Count, OcSrvPid ) ->
-
-	oceanic:send( PressTelegram, OcSrvPid ),
-
-	% Always better to separate telegrams:
-	timer:sleep( _ShortMs=80 ),
-
-	oceanic:send( ReleaseTelegram, OcSrvPid ),
-
-	timer:sleep( InterPairDurationMs ),
-
-	send_telegram_pair( Telegrams, InterPairDurationMs, Count-1, OcSrvPid ).
-
-
-
 -doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
@@ -2909,19 +3048,46 @@ updatePresenceSimulation( State, PscId ) ->
 
 	PscSim = table:get_value( _K=PscId, PscTable ),
 
-	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( debug, "Requested to update ~ts.",
-			[ presence_simulation_to_string( PscSim ) ], State ) ),
+	% As in the meantime (between the planning and this actual scheduling), the
+	% presence simulation may have been disabled, or somebody may have come back
+	% home:
+	%
+	UpdateState = case ?getAttr(presence_simulation_enabled)
+								andalso not ?getAttr(actual_presence) of
 
-	% Newer scheduling possibly planned:
-	{ UpdatedPscSim, MaybeCelestialInfo } = manage_presence_simulation( PscSim,
-		erlang:time(), ?getAttr(celestial_info), State ),
+		true ->
+			cond_utils:if_defined( us_main_debug_presence_simulation,
+				send_psc_trace_fmt( debug, "Requested to update ~ts "
+					"(planning next).",
+					[ presence_simulation_to_string( PscSim ) ], State ) ),
 
-	UpdatedPscTable = table:add_entry( PscId, UpdatedPscSim, PscTable ),
+			% Newer scheduling possibly planned:
+			{ UpdatedPscSim, MaybeCelestialInfo } = manage_presence_simulation(
+				PscSim, erlang:time(), ?getAttr(celestial_info), State ),
 
-	UpdateState = setAttributes( State, [
-		{ presence_table, UpdatedPscTable },
-		{ celestial_info, MaybeCelestialInfo } ] ),
+			UpdatedPscTable = table:add_entry( PscId, UpdatedPscSim, PscTable ),
+
+			setAttributes( State, [ { presence_table, UpdatedPscTable },
+									{ celestial_info, MaybeCelestialInfo } ] );
+
+
+		false ->
+			cond_utils:if_defined( us_main_debug_presence_simulation,
+				send_psc_trace_fmt( debug, "Requested to update ~ts "
+					"(stopping).",
+					[ presence_simulation_to_string( PscSim ) ], State ) ),
+
+			IsActivated = PscSim#presence_simulation.activated,
+
+			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
+
+			% No planning task to withdraw.
+
+			UpdatedPscTable = table:add_entry( PscId, UnlitPscSim, PscTable ),
+
+			setAttribute( State, presence_table, UpdatedPscTable )
+
+	end,
 
 	wooper:return_state( UpdateState ).
 
@@ -2984,6 +3150,11 @@ updatePresencePrograms( State ) ->
 			apply_presence_simulation( ClearedState )
 
 	end,
+
+	% Just for inspection purpose:
+
+	cond_utils:if_defined( us_main_debug_home_automation,
+						   ?getAttr(scheduler_pid) ! logState ),
 
 	wooper:return_state( UpdatedState ).
 
@@ -3066,6 +3237,13 @@ clear_any_presence_task( Psc=#presence_simulation{
 % presence_task_info already set to 'undefined', as expected:
 clear_any_presence_task( Psc, _SchedPid, _State ) ->
 	Psc.
+
+
+
+% Some helpers.
+
+
+%-spec execute_command( device_id(), cowooper:state() ) -> wooper:state().
 
 
 
@@ -3474,6 +3652,7 @@ on_presence_change( NewStatus, State ) ->
 				{ alarm_inhibited, true },
 				% Just for extra safety:
 				{ alarm_triggered, false } ] ),
+
 			apply_presence_simulation( AlarmState );
 
 		false ->
@@ -3488,6 +3667,7 @@ on_presence_change( NewStatus, State ) ->
 				{ alarm_inhibited, false },
 				% Just for extra safety:
 				{ alarm_triggered, false } ] ),
+
 			apply_presence_simulation( AlarmState )
 
 	end.
@@ -3582,23 +3762,21 @@ stopLighting( State ) ->
 -spec activate_alarm( wooper:state() ) -> wooper:state().
 activate_alarm( State ) ->
 
-	case ?getAttr(alarm_actuator_button_refs) of
+	case ?getAttr(alarm_actuator_specs) of
 
 		[] ->
 			send_alarm_trace( warning, "Activating alarm immediately "
 				"- yet there is no alarm actuator registered.", State );
 
-		ButRefs ->
+		CanonEmittedEvSpecs ->
+			OcSrvPid = ?getAttr(oc_srv_pid),
+
 			send_alarm_trace_fmt( warning, "Activating alarm immediately, "
 				"triggering the corresponding actuators, with ~ts.",
-				[ oceanic:get_button_ref_descriptions( ButRefs,
-					?getAttr(oc_srv_pid) ) ], State ),
+				[ oceanic:canon_emitted_event_specs_to_string(
+					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
-			ActTelPairs = ?getAttr(alarm_activation_telegrams),
-
-			[ send_telegram_pair( P, State ) || P <- ActTelPairs ]
-
-
+			oceanic:trigger_actuators( CanonEmittedEvSpecs, OcSrvPid )
 
 	end,
 
@@ -3609,21 +3787,25 @@ activate_alarm( State ) ->
 -spec deactivate_alarm( wooper:state() ) -> wooper:state().
 deactivate_alarm( State ) ->
 
-	case ?getAttr(alarm_actuator_button_refs) of
+	case ?getAttr(alarm_actuator_specs) of
 
 		[] ->
 			send_alarm_trace( warning, "Deactivating alarm immediately "
 				"- yet there is no alarm actuator registered.", State );
 
-		ButRefs ->
+		CanonEmittedEvSpecs ->
+			OcSrvPid = ?getAttr(oc_srv_pid),
 			send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
 				"triggering the corresponding actuators, with ~ts.",
-				[ oceanic:get_button_ref_descriptions( ButRefs,
-					?getAttr(oc_srv_pid) ) ], State ),
+				[ oceanic:canon_emitted_event_specs_to_string(
+					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
-			DeactTelPairs = ?getAttr(alarm_deactivation_telegrams),
+			% The switching off is derived from the base switching on:
+			ReciprocalCanonEmittedEvSpecs =
+				[ get_reciprocal_device_event_spec( CEES )
+					|| CEES <- CanonEmittedEvSpecs ],
 
-			[ send_telegram_pair( P, State ) || P <- DeactTelPairs ]
+			oceanic:trigger_actuators( ReciprocalCanonEmittedEvSpecs, OcSrvPid )
 
 	end,
 
@@ -3743,12 +3925,13 @@ on_presence_switching_device_triggered( _ButRef, DevEvent, State ) ->
 Manages an alarm-related event.
 """.
 -spec manage_alarm( device_event(), wooper:state() ) -> wooper:state().
-manage_alarm( _DevEvent, State ) ->
+manage_alarm( DevEvent, State ) ->
 
 	cond_utils:if_defined( us_main_debug_home_automation,
 		?debug_fmt( "Examining whether following event relates to alarm "
 			"management: ~ts",
-			[ oceanic:device_event_to_string( DevEvent ) ] ) ),
+			[ oceanic:device_event_to_string( DevEvent ) ] ),
+		basic_utils:ignore_unused( DevEvent ) ),
 
 	State.
 
@@ -3801,8 +3984,205 @@ get_home_automation_server() ->
 
 
 
+% Configuration-related section.
+%
+% Typically called by the US-Main configuration server.
+
+
+
+
+
 
 % Helper section.
+
+
+
+% Section related to the US-Main configuration files.
+
+
+-doc """
+Returns the known home automation-related keys in US-Main configuration files.
+""".
+-spec get_licit_config_keys() -> [ list_table:key() ].
+get_licit_config_keys() ->
+	[ ?us_main_server_location_key,
+	  ?us_main_alarm_triggers_key, ?us_main_alarm_actuators_key,
+	  ?us_main_presence_triggers_key, ?us_main_presence_settings_key ]
+		++ ?supported_oceanic_config_keys.
+
+
+
+-doc """
+Handles the home automation-related entries in the user settings specified in US-Main
+configuration files.
+
+Note that the specified state is the one of a US-Main configuration server.
+""".
+-spec manage_configuration( us_main_config_table(), wooper:state() ) ->
+										wooper:state().
+manage_configuration( ConfigTable, State ) ->
+
+	% First checking:
+	MaybePosition = case table:lookup_entry( ?us_main_server_location_key,
+											 ConfigTable ) of
+
+		key_not_found ->
+			?info( "Home automation: no user settings regarding "
+				   "server location." ),
+			undefined;
+
+
+		{ value, { { latitude, Lat }, { longitude, Long } } } ->
+			is_float( Lat ) orelse
+				throw( { invalid_latitude, Lat,
+						 ?us_main_server_location_key } ),
+
+			is_float( Long ) orelse
+				throw( { invalid_longitude, Long,
+						 ?us_main_server_location_key } ),
+
+			{ Lat, Long }
+
+	end,
+
+
+	AlarmTriggerListenEvSpecs = case table:lookup_entry(
+			?us_main_alarm_triggers_key, ConfigTable ) of
+
+		VAT when VAT =:= key_not_found; VAT =:= { value, [] } ->
+			?info( "No alarm trigger configured." ),
+			[];
+
+		{ value, ALESs } when is_list( ALESs ) ->
+			CanALESs = oceanic:canonicalise_listened_event_specs( ALESs ),
+
+			?info_fmt( "The following ~B configured alarm trigger listening "
+				"specifications will be used: ~ts.", [ length( CanALESs ),
+					text_utils:strings_to_listed_string(
+						[ oceanic:canon_listened_event_spec_to_string(
+						   CanALES ) || CanALES <- CanALESs ] ) ] ),
+
+			CanALESs;
+
+		{ value, ANotLESs } ->
+			throw( { invalid_alarm_trigger_specs, ANotLESs,
+					 ?us_main_alarm_triggers_key } )
+
+	end,
+
+
+	AlarmActuatorEmitEvSpecs = case table:lookup_entry(
+			?us_main_alarm_actuators_key, ConfigTable ) of
+
+		VAA when VAA =:= key_not_found; VAA =:= { value, [] } ->
+			?info( "No alarm actuator configured." ),
+			[];
+
+		{ value, AEESs } when is_list( AEESs ) ->
+			CanAEESs = oceanic:canonicalise_emitted_event_specs( AEESs ),
+
+			?info_fmt( "The following ~B configured alarm actuator emitting "
+				"specifications will be used: ~ts.", [ length( CanAEESs ),
+					text_utils:strings_to_listed_string(
+						[ oceanic:canon_emitted_event_spec_to_string(
+							CanAEES ) || CanAEES <- CanAEESs ] ) ] ),
+
+			CanAEESs;
+
+		{ value, ANotAEESs } ->
+			throw( { invalid_alarm_actuator_specs, ANotAEESs,
+					 ?us_main_alarm_actuators_key } )
+
+	end,
+
+
+	PscTriggerListenEvSpecs = case table:lookup_entry(
+			?us_main_presence_triggers_key, ConfigTable ) of
+
+		VPT when VPT =:= key_not_found; VPT =:= { value, [] } ->
+			?info( "No presence-switching trigger configured." ),
+			[];
+
+		{ value, PLESs } when is_list( PLESs ) ->
+			CanPLESs = oceanic:canonicalise_listened_event_specs( PLESs ),
+
+			?info_fmt( "The following ~B configured presence trigger listening "
+				"specifications will be used: ~ts.", [ length( CanPLESs ),
+					text_utils:strings_to_listed_string(
+						[ oceanic:canon_listened_event_spec_to_string(
+						   CanPLES ) || CanPLES <- CanPLESs ] ) ] ),
+
+			CanPLESs;
+
+		{ value, PNotLESs } ->
+			throw( { invalid_presence_trigger_specs, PNotLESs,
+					 ?us_main_presence_triggers_key } )
+
+	end,
+
+	% Finally we kept the actuators per-presence simulation (not defined
+	% globally):
+
+	% PscActuatorEmitEvSpecs = case table:lookup_entry(
+	%		?us_main_presence_actuators_key, ConfigTable ) of
+
+	%	VPA when VPA =:= key_not_found; VPA =:= { value, [] } ->
+	%		?info( "No presence actuator configured." ),
+	%		[];
+
+	%	{ value, PEESs } when is_list( PEESs ) ->
+	%		CanPEESs = oceanic:canonicalise_emitted_event_specs( PEESs ),
+
+	%		?info_fmt( "The following ~B configured presence actuator emitting "
+	%			"specifications will be used: ~ts.", [ length( CanPEESs ),
+	%				text_utils:strings_to_listed_string(
+	%					[ oceanic:canon_emitted_event_spec_to_string(
+	%						CanPEES ) || CanPEES <- CanPEESs ] ) ] ),
+
+	%		CanPEESs;
+
+	%	{ value, PNotPEESs } ->
+	%		throw( { invalid_presence_actuator_specs, PNotPEESs,
+	%				 ?us_main_presence_actuators_key } )
+
+	% end,
+
+	SetPscUSimSettings = case table:lookup_entry(
+			?us_main_presence_settings_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No presence-simulation settings configured." ),
+			[];
+
+		% Expecting a list of psc_simu_user_setting() (checked later directly by
+		% this home automation server):
+		%
+		{ value, PscUSimSettings } when is_list( PscUSimSettings ) ->
+			?info_fmt( "The following ~B user-configured presence-simulation "
+					   "settings will be used:~n ~p",
+					   [ length( PscUSimSettings ), PscUSimSettings ] ),
+			PscUSimSettings;
+
+		{ value, NotPscUSimSettings } ->
+			throw( { invalid_presence_simulation_settings, NotPscUSimSettings,
+					 ?us_main_presence_settings_key } )
+
+	end,
+
+	% Fetching any Oceanic-related settings:
+	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
+		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
+
+	% Not specifically checked at this level; will be done by the home
+	% automation server:
+	%
+	HACoreSettings = { AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
+		PscTriggerListenEvSpecs, SetPscUSimSettings, OcSettings },
+
+	setAttributes( State, [
+		{ server_location, MaybePosition },
+		{ home_automation_core_settings, HACoreSettings } ] ).
+
 
 
 
@@ -3877,16 +4257,18 @@ send_oc_mon_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	OcSrvStr = case ?getAttr(oc_srv_pid) of
+	MaybeOcSrvPid = ?getAttr(oc_srv_pid),
+
+	OcSrvStr = case MaybeOcSrvPid of
 
 		undefined ->
 			"not relying on an Oceanic server";
 
 		OcSrvPid ->
 			text_utils:format( "relying on its Oceanic server ~w "
-				"(base identifier being EURID ~ts; "
+				"(source identifier being EURID ~ts; "
 				"periodic restarts enabled: ~ts)",
-				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_base_id) ),
+				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_src_eurid) ),
 				  ?getAttr(oc_periodic_restart) ] )
 
 	end,
@@ -3935,11 +4317,26 @@ to_string( State ) ->
 				   "not "
 
 		   end ++ "triggered; for its control, "
-			   ++ oceanic:button_refs_to_string(
-					?getAttr(alarm_trigger_button_refs) )
-			   ++ "in terms of alarm actuators, "
-			   ++ oceanic:button_refs_to_string(
-					?getAttr(alarm_actuator_button_refs) ),
+			   ++ case MaybeOcSrvPid of
+					  undefined ->
+						  oceanic:canon_listened_event_specs_to_string(
+							?getAttr(alarm_trigger_specs) );
+
+					  FirstOcSrvPid ->
+						  oceanic:canon_listened_event_specs_to_string(
+							?getAttr(alarm_trigger_specs), FirstOcSrvPid )
+
+				  end ++ "in terms of alarm actuators, "
+			   ++ case MaybeOcSrvPid of
+					  undefined ->
+						  oceanic:canon_emitted_event_specs_to_string(
+							?getAttr(alarm_actuator_specs) );
+
+					  SecondOcSrvPid ->
+						  oceanic:canon_emitted_event_specs_to_string(
+							?getAttr(alarm_actuator_specs), SecondOcSrvPid )
+
+				  end,
 
 
 	PscStr = case ?getAttr(presence_simulation_enabled) of
@@ -3980,7 +4377,7 @@ to_string( State ) ->
 	% Defined as much as presence_switching_device:
 	PscSwitchStr = case ?getAttr(presence_switching_device_desc) of
 
-		[] ->
+		undefined ->
 			"no presence-switching device has been defined";
 
 		BinPscSwitchDesc ->
@@ -4016,30 +4413,28 @@ Returns a textual description of the specified presence simulation internal
 record.
 """.
 -spec presence_simulation_to_string( presence_simulation() ) -> ustring().
+presence_simulation_to_string( PscSim ) ->
+	presence_simulation_to_string( PscSim, _MaybeOcSrvPid=undefined ).
+
+
+-doc """
+Returns a textual description of the specified presence simulation internal
+record.
+""".
+-spec presence_simulation_to_string( presence_simulation(),
+			option( oceanic_server_pid() ) ) -> ustring().
 presence_simulation_to_string( #presence_simulation{
 		id=Id,
 		enabled=IsEnabled,
 		activated=IsActivated,
-		source_eurid=SourceEurid,
-		target_eurid=TargetEurid,
+		actuator_event_specs=ActEvSpecs,
 		program=Program,
 		smart_lighting=IsSmart,
-		random_activity=IsRandom,
-		activation_telegrams={ PressOn, ReleaseOn },
-		deactivation_telegrams={ PressOff, ReleaseOff },
-		presence_task_info=MaybeTaskInfo } ) ->
+		random_activity=RandomAct,
+		presence_task_info=MaybeTaskInfo },
+							 MaybeOcSrvPid ) ->
 
 	SmartStr = case IsSmart of
-
-		true ->
-			"";
-
-		false ->
-			"not"
-
-	end,
-
-	RandomStr = case IsRandom of
 
 		true ->
 			"";
@@ -4060,28 +4455,56 @@ presence_simulation_to_string( #presence_simulation{
 
 	end,
 
+	ActStr = case ActEvSpecs of
+
+		[] ->
+			"no actuator";
+
+		[ SingleAct ] ->
+			SingleStr = case MaybeOcSrvPid of
+
+				undefined ->
+					oceanic:canon_emitted_event_spec_to_string( SingleAct );
+
+				OcSrvPid ->
+					oceanic:canon_emitted_event_spec_to_string( SingleAct,
+																OcSrvPid )
+
+			end,
+			text_utils:format( "a single ~ts", [ SingleStr ] );
+
+		Acts ->
+			Strs = case MaybeOcSrvPid of
+
+				undefined ->
+					oceanic:canon_emitted_event_specs_to_string( Acts );
+
+				OcSrvPid ->
+					oceanic:canon_emitted_event_specs_to_string( Acts,
+																 OcSrvPid )
+
+			end,
+			text_utils:format( "~B actuators: ~ts", [ length( Acts ),
+				text_utils:strings_to_string( Strs ) ] )
+
+	end,
+
 	text_utils:format( "presence simulation of id #~B, ~ts, "
-		"~tsusing smart lighting, ~tsemulating random activity, "
+		"~tsusing smart lighting, based on ~t, "
 		"whose presence program ~ts~n"
-		"Its source EURID is ~ts and target EURID is ~ts "
+		"It relies on ~B actuators: ~rsis source EURID is ~ts and target EURID is ~ts "
 		"(activation telegrams are ~ts for pressed, "
 		"~ts for released, deactivation telegrams are ~ts for pressed, "
 		"~ts for released); ~ts",
 		[ Id, case IsEnabled of
-					true -> "enabled";
+					true ->  "enabled";
 					false -> "disabled"
 			  end ++ " and currently "
 		  ++ case IsActivated of
-					true -> "activated";
+					true ->  "activated";
 					false -> "non-activated"
-			 end, SmartStr, RandomStr, program_to_string( Program ),
-		  oceanic:eurid_to_string( SourceEurid ),
-		  oceanic:eurid_to_string( TargetEurid ),
-		  oceanic:telegram_to_string( PressOn ),
-		  oceanic:telegram_to_string( ReleaseOn ),
-		  oceanic:telegram_to_string( PressOff ),
-		  oceanic:telegram_to_string( ReleaseOff ),
-		  PscTaskStr ] ).
+			 end, SmartStr, random_activity_to_string( RandomAct ),
+		  program_to_string( Program ), ActStr, PscTaskStr ] ).
 
 
 
@@ -4151,6 +4574,23 @@ slot_to_string( _Slot={ StartTime, StopTime }, PrevEndTime ) ->
 		time_utils:time_to_string( StartTime ),
 		time_utils:time_to_string( StopTime ),
 		time_utils:duration_to_string( 1000 * DurSec ) ] ).
+
+
+
+-doc """
+Returns a textual description of the specified canonical random activity
+settings.
+""".
+-spec random_activity_to_string( canon_random_activity_settings() ) ->
+		  ustring().
+random_activity_to_string( _CRAS=false ) ->
+	"no random activity";
+
+random_activity_to_string( _CRAS={ MeanLightDuration, MeanNoLightDuration } ) ->
+	text_utils:format( "random activity, with a mean lighting duration of ~ts "
+		"and a mean non-lighting duration of ~ts",
+		[ time_utils:duration_to_string( 1000 * MeanLightDuration ),
+		  time_utils:duration_to_string( 1000 * MeanNoLightDuration ) ] ).
 
 
 
