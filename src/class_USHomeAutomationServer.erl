@@ -1000,6 +1000,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 	%
 	RetainedPscSimUSettings = case MaybePscSimUserSettings of
 
+		% Most likely case here, the (in-file) configuration applies:
 		undefined ->
 			case ConfPscSimUSettings of
 
@@ -1019,7 +1020,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 			ConfPscSimUSettings;
 
 
-		 PscSimUserSettings when is_list( PscSimUserSettings ) ->
+		% Here constructor-level settings will apply:
+		PscSimUserSettings when is_list( PscSimUserSettings ) ->
 			case ConfPscSimUSettings of
 
 				[] ->
@@ -1349,7 +1351,7 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
 	{ PscTable, NextPscId, MaybeTimeEqTable, MaybeMidTaskId };
 
 
-% Main clause:
+% Main, full clause:
 init_presence_simulation( _PresenceSimSettings=[
 		{ PscProg, TargetedPscActuators, SmartLighting, RandActSettings } | T ],
 						  OcSrvPid, PscTable, NextPscId,
@@ -1423,6 +1425,27 @@ init_presence_simulation( _PresenceSimSettings=[
 	init_presence_simulation( T, OcSrvPid, NewPscTable, NextPscId+1,
 							  NewTimeEqTableNeeded, State );
 
+
+% No random activity specified:
+init_presence_simulation( _PresenceSimSettings=[
+		{ PscProg, TargetedPscActuators, SmartLighting } | T ],
+						  OcSrvPid, PscTable, NextPscId,
+						  TimeEqTableNeeded, State ) ->
+	init_presence_simulation( _PSimSettings=[
+		{ PscProg, TargetedPscActuators, SmartLighting, _RandAct=true } | T ],
+							  OcSrvPid, PscTable, NextPscId,
+							  TimeEqTableNeeded, State );
+
+
+% No smart lighting specified either:
+init_presence_simulation( _PresenceSimSettings=[
+		{ PscProg, TargetedPscActuators } | T ],
+						  OcSrvPid, PscTable, NextPscId,
+						  TimeEqTableNeeded, State ) ->
+	init_presence_simulation( _PSimSettings=[
+		{ PscProg, TargetedPscActuators, _SmartLighting=true } | T ],
+							  OcSrvPid, PscTable, NextPscId,
+							  TimeEqTableNeeded, State );
 
 init_presence_simulation( _PresenceSimSettings=[ Other | _T ], _OcSrvPid,
 						  _PscTable, _NextPscId, _TimeEqTableNeeded, _State ) ->
@@ -2171,7 +2194,8 @@ ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 		send_psc_trace_fmt( debug, "Activating presence simulation #~B.",
 			[ PscSim#presence_simulation.id ], State ) ),
 
-	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ActEvSpecs,
+		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
 
 	% DeviceTable = ?getAttr(device_table),
 
@@ -2204,7 +2228,8 @@ ensure_not_lighting( PscSim=#presence_simulation{
 	ReciprocalActEvSpecs =
 		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
 
-	oceanic:trigger_actuators( ReciprocalActEvSpecs, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ReciprocalActEvSpecs,
+		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
 
 	PscSim#presence_simulation{ activated=false };
 
@@ -2715,7 +2740,8 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 						actuator_event_specs=ActEvSpecs } | T ],
 					 PscTable, State ) ->
 
-	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ActEvSpecs,
+		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
 
 	NewPscSim = PscSim#presence_simulation{ activated=true },
 
@@ -2768,7 +2794,8 @@ ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
 	ReciprocalActEvSpecs =
 		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
 
-	oceanic:trigger_actuators( ReciprocalActEvSpecs, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ReciprocalActEvSpecs,
+		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
 
 	NewPscSim = PscSim#presence_simulation{ activated=false },
 
@@ -4490,12 +4517,9 @@ presence_simulation_to_string( #presence_simulation{
 	end,
 
 	text_utils:format( "presence simulation of id #~B, ~ts, "
-		"~tsusing smart lighting, based on ~t, "
+		"~tsusing smart lighting, based on ~ts, "
 		"whose presence program ~ts~n"
-		"It relies on ~B actuators: ~rsis source EURID is ~ts and target EURID is ~ts "
-		"(activation telegrams are ~ts for pressed, "
-		"~ts for released, deactivation telegrams are ~ts for pressed, "
-		"~ts for released); ~ts",
+		"It relies on ~ts; ~ts",
 		[ Id, case IsEnabled of
 					true ->  "enabled";
 					false -> "disabled"
