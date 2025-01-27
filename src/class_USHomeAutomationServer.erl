@@ -697,7 +697,7 @@ Full settings gathered regarding the home automation server.
 	{ server_location, option( position() ),
 	  "the (geographic) location, as a position, of this US-Main server" },
 
-	{ presence_switching_trigger_specs, [ listened_event_spec() ],
+	{ presence_switching_trigger_specs, [ canon_listened_event_spec() ],
 	  "the specifications of the events that can be received from devices "
 	  "(typically push buttons or double rockers) that may be used to directly "
 	  "switch on/off the presence status" },
@@ -3865,8 +3865,9 @@ manage_presence_switching( DevEvent, State ) ->
 
 	ButRef = oceanic:get_button_reference( DevEvent ),
 
-	PscSwitchButrefs = ?getAttr(presence_switching_button_refs),
-
+	% [ canon_listened_event_spec() ]:
+	CLESs = ?getAttr(presence_switching_trigger_specs),
+FIXME
 	case lists:member( ButRef, PscSwitchButrefs ) of
 
 		true ->
