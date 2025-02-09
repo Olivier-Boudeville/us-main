@@ -597,14 +597,15 @@ Full settings gathered regarding the home automation server.
 -type device_name() :: oceanic:device_name().
 -type device_description() :: oceanic:device_description().
 -type device_event() :: oceanic:device_event().
+-type device_event_type() :: oceanic: device_event_type().
+
 -type back_online_info() :: oceanic:back_online_info().
 -type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
-%-type channel() :: oceanic:channel().
--type button_ref() :: oceanic:button_ref().
 -type telegram() :: oceanic:telegram().
 -type eep_id() :: oceanic:eep_id().
 %-type trigger_track_spec() :: oceanic:trigger_track_spec().
+%-type canon_incoming_trigger_spec() :: oceanic:canon_incoming_trigger_spec().
 -type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
 -type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
 -type emitted_event_spec() :: oceanic:emitted_event_spec().
@@ -648,8 +649,8 @@ Full settings gathered regarding the home automation server.
 	  "home - thus no opening matters - or temporarily, so that one has a "
 	  "chance of leaving home without triggering the alarm)" },
 
-	{ alarm_triggered, boolean(), "tells whether the alarm is triggered "
-	  "(i.e. whether a siren is expected to be roaring)" },
+	{ alarm_triggered, boolean(), "tells whether the alarm is currently "
+	  "activated (i.e. whether a siren is expected to be roaring)" },
 
 
 	{ alarm_trigger_specs, [ canon_listened_event_spec() ],
@@ -1193,7 +1194,10 @@ Initialises the overall presence simulation.
 		{ presence_table(), presence_sim_id(), option( time_equation_table() ),
 		  option( task_id() ) }.
 init_presence_simulation( _PscSimUSettings=[], _MaybeOcSrvPid, State ) ->
-	send_psc_trace( info, "No presence simulation wanted.", State ),
+
+	send_psc_trace( info, "No presence simulation wanted, nothing done.",
+					State ),
+
 	{ _EmptyPscTable=table:new(), _NextPscId=1, _TimeEqTableNeeded=false,
 	  _MaybeMidTaskId=undefined };
 
@@ -1279,8 +1283,8 @@ init_presence_simulation( [ { _PscProg=default_program, TargetedPscActuators,
 
 
 % The "actual" clauses now.
-%
-% Only final, exit point:
+
+% The only final, exit point:
 init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
 						  NextPscId, TimeEqTableNeeded, State ) ->
 
@@ -1988,7 +1992,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 							_CurrentTime, MaybeCelestialInfo, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace( debug, "Enabled yet in constant-absence simulation "
+		send_psc_trace( debug, "Enabled, yet in constant-absence simulation "
 			"program, hence not lighting and not planning any presence "
 			"transition.",
 			State ) ),
@@ -2173,7 +2177,7 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 
 -doc "Ensures that the lighting is on for this presence simulation.".
 -spec ensure_lighting( presence_simulation(), boolean(), wooper:state() ) ->
-			{ presence_simulation(), wooper:state() }.
+			presence_simulation().
 ensure_lighting( PscSim, _IsActivated=true, State ) ->
 
 	% Nothing done, as here we trust the known state and suppose no external
@@ -2185,7 +2189,7 @@ ensure_lighting( PscSim, _IsActivated=true, State ) ->
 			[ PscSim#presence_simulation.id ], State ),
 		basic_utils:ignore_unused( State ) ),
 
-	{ PscSim, State };
+	PscSim;
 
 ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 				 _IsActivated=false, State ) ->
@@ -2209,11 +2213,13 @@ ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 
 	% NewState = setAttribute( State, device_table, DeviceTable ),
 
-	{ PscSim#presence_simulation{ activated=true }, State }.
+	PscSim#presence_simulation{ activated=true }.
 
 
 
--doc "Ensures that the lighting is off for this presence simulation.".
+-doc """
+Ensures that the lighting is off for this presence simulation.
+""".
 -spec ensure_not_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_not_lighting( PscSim=#presence_simulation{
@@ -2221,8 +2227,9 @@ ensure_not_lighting( PscSim=#presence_simulation{
 					 _IsActivated=true, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( debug, "Deactivating presence simulation #~B.",
-				[ PscSim#presence_simulation.id ], State ) ),
+		send_psc_trace_fmt( debug,
+			"Deactivating presence simulation #~B, as it was registered "
+			"as activated.", [ PscSim#presence_simulation.id ], State ) ),
 
 	% The switching off is derived from the base switching on:
 	ReciprocalActEvSpecs =
@@ -2763,6 +2770,8 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
 
 -doc """
 Ensures that there is no more lighting at all, for all presence simulations.
+
+Trusts their internal activation status.
 """.
 -spec ensure_not_any_lighting( wooper:state() ) -> wooper:state().
 ensure_not_any_lighting( State ) ->
@@ -2773,7 +2782,6 @@ ensure_not_any_lighting( State ) ->
 							 State ).
 
 
-
 % (helper)
 ensure_not_any_lighting( _PscSims=[], PscTable, State ) ->
 	setAttribute( State, presence_table, PscTable );
@@ -2781,23 +2789,10 @@ ensure_not_any_lighting( _PscSims=[], PscTable, State ) ->
 % If activated, must be switched off:
 ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
 		id=PscId,
-		activated=true,
-		actuator_event_specs=ActEvSpecs } | T ],
+		activated=true } | T ],
 						 PscTable, State ) ->
 
-	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
-			"presence simulation #~B was activated, deactivating it.",
-			[ PscId ], State ) ),
-
-	% The switching off is derived from the base switching on:
-	ReciprocalActEvSpecs =
-		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
-
-	oceanic:trigger_actuators( ReciprocalActEvSpecs,
-		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
-
-	NewPscSim = PscSim#presence_simulation{ activated=false },
+	NewPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
 
 	NewPscTable = table:add_new_entry( _K=PscId, _V=NewPscSim, PscTable ),
 
@@ -3306,7 +3301,7 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, RecState ),
 
-	AlarmState = manage_alarm( DeviceEvent, PresState ),
+	AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
 
 	wooper:return_state( AlarmState );
 
@@ -3350,7 +3345,7 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	% If ever the device was not configured, yet declared as presence-switching:
 	PresState = manage_presence_switching( DeviceEvent, RecState ),
 
-	AlarmState = manage_alarm( DeviceEvent, PresState ),
+	AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
 
 	wooper:return_state( AlarmState );
 
@@ -3434,7 +3429,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
 
-	AlarmState = manage_alarm( DeviceEvent, PresState ),
+	AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
 
 	wooper:return_state( AlarmState );
 
@@ -3459,7 +3454,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
 
 	PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
 
-	AlarmState = manage_alarm( DeviceEvent, PresState ),
+	AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
 
 	wooper:return_state( AlarmState );
 
@@ -3632,7 +3627,11 @@ Requests whether, from the point of view of this server, somebody is at home.
 """.
 -spec getPresenceStatus( wooper:state() ) -> const_request_return( boolean() ).
 getPresenceStatus( State ) ->
-	wooper:const_return_result( ?getAttr(actual_presence) ).
+	Status = ?getAttr(actual_presence),
+
+	?debug_fmt( "Presence status requested, returning ~ts.", [ Status ] ),
+
+	wooper:const_return_result( Status ).
 
 
 -doc """
@@ -3661,7 +3660,10 @@ setPresenceStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 
 
 
--doc "Called whenever the status regarding actual presence changed.".
+-doc """
+Called whenever the actual presence status changed.
+""".
+-spec on_presence_change( boolean(), wooper:state() ) -> wooper:state().
 on_presence_change( NewStatus, State ) ->
 
 	?debug_fmt( "Applying new presence status: ~ts (from ~ts).",
@@ -3750,6 +3752,15 @@ setAlarmStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 	wooper:return_state( NewState ).
 
 
+
+-doc """
+Returns the types of events that bypass any inhibition of an alarm and that are
+unconditionally taken into account
+""".
+-spec get_passthrough_event_types() -> [ device_event_type() ].
+get_passthrough_event_types() ->
+	% For example not a single_input_contact_event:
+	[ push_button_event, double_rocker_switch_event ].
 
 
 
@@ -3850,118 +3861,212 @@ get_trace_emitter_name_from( BinDevName ) ->
 
 
 -doc """
-Checks whether an actual presence switching (somebody being at home or not) is
-to be done.
+Manages a presence-related event: checks whether an actual presence switching
+(somebody being at home or not) is to be done.
 """.
 -spec manage_presence_switching( device_event(), wooper:state() ) ->
 										wooper:state().
-% Assuming here the device for presence switching is a double-rocker:
 manage_presence_switching( DevEvent, State ) ->
 
 	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Examining whether following event relates to presence "
-			"switching: ~ts",
-			[ oceanic:device_event_to_string( DevEvent ) ] ) ),
+		?debug_fmt( "Examining whether the following event relates to presence "
+			"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
 
-	ButRef = oceanic:get_button_reference( DevEvent ),
-
-	% [ canon_listened_event_spec() ]:
+	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(presence_switching_trigger_specs),
-FIXME
-	case lists:member( ButRef, PscSwitchButrefs ) of
 
-		true ->
-			on_presence_switching_device_triggered( ButRef, DevEvent, State );
+	case oceanic:event_matches_trigger( DevEvent, CLESs ) of
 
 		false ->
 			cond_utils:if_defined( us_main_debug_home_automation,
-				send_psc_trace_fmt( debug, "(the button reference ~ts of "
-					"the event emitter does not match any of the "
-					"presence switching ones, ~ts)", [
-						oceanic:button_ref_to_string( ButRef ),
-						oceanic:button_refs_to_string( PscSwitchButrefs ) ],
+				send_psc_trace_fmt( debug, "This event does not match any "
+					"of the presence switching ones: ~ts", [
+						oceanic:canon_listened_event_specs_to_string( CLESs ) ],
 									State ) ),
-			State
+			State;
+
+		{ true, EmitterEurid, _NewDevStatus=on } ->
+
+			BaseMsg = text_utils:format( "Presence switched on (declaring "
+				"that someone is at home) by device ~ts",
+				[ oceanic:get_device_description( EmitterEurid,
+												  ?getAttr(oc_srv_pid) ) ] ),
+
+			case ?getAttr(actual_presence) of
+
+				true ->
+					?debug_fmt( "~ts, yet already considered at home, "
+								"so nothing done.", [ BaseMsg ] ),
+					State;
+
+				false ->
+					?debug_fmt( "~ts whereas considered away, "
+								"so switching presence on now.", [ BaseMsg ] ),
+					on_presence_change( _NewPresStatus=true, State )
+
+			end;
+
+
+		{ true, EmitterEurid, _NewDevStatus=off } ->
+
+			BaseMsg = text_utils:format( "Presence switched off (declaring "
+				"that nobody is at home) by device ~ts",
+				[ oceanic:get_device_description( EmitterEurid,
+												  ?getAttr(oc_srv_pid) ) ] ),
+
+			case ?getAttr(actual_presence) of
+
+				true ->
+					?debug_fmt( "~ts whereas considered at home, "
+								"so switching presence off now.", [ BaseMsg ] ),
+					on_presence_change( _NewPresStatus=false, State );
+
+				false ->
+					?debug_fmt( "~ts, yet already considered away, "
+								"so nothing done.", [ BaseMsg ] ),
+					State
+
+			end
+
+	end.
+
+
+
+
+
+-doc """
+Manages an alarm-related event.; checks whether an actual switching of the alarm
+status (activating/deactivating) is to be done.
+
+Note that, depending on the type of device that switches (on or off) an alarm, a trigger will or will not be ignored: push buttons/rockers will directly decide of the alarm status, whereas opening detectors will impact it iff the alarm is not inhibited.
+
+Indeed, if using an (emergency) button, we want to be able to switch on/off an
+alarm in all cases, whereas, if the alarm is inhibited (typically if being at
+home), we do not want the opening of a door to trigger an alarm then.
+""".
+-spec manage_alarm_switching( device_event(), wooper:state() ) -> wooper:state().
+manage_alarm_switching( DevEvent, State ) ->
+
+	cond_utils:if_defined( us_main_debug_home_automation,
+		?debug_fmt( "Examining whether the following event relates to alarm "
+			"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+
+	% [canon_listened_event_spec()]:
+	CLESs = ?getAttr(alarm_trigger_specs),
+
+	% Match is determined in all cases, even if at home, as one may want to
+	% be able to deactivate the alarm even if at home:
+	%
+	case oceanic:event_matches_trigger( DevEvent, CLESs ) of
+
+		false ->
+			cond_utils:if_defined( us_main_debug_home_automation,
+				send_psc_trace_fmt( debug, "This event does not match any "
+					"of the alarm switching ones: ~ts", [
+						oceanic:canon_listened_event_specs_to_string( CLESs ) ],
+									State ) ),
+			State;
+
+		% Alart start requested:
+		{ true, EmitterEurid, _NewDevStatus=on } ->
+
+			BaseMsg = text_utils:format( "Alarm switched on (intrusion "
+				"detected) by device ~ts",
+				[ oceanic:get_device_description( EmitterEurid,
+												  ?getAttr(oc_srv_pid) ) ] ),
+
+			% We could rely on the alarm_triggered attribute not to trigger it
+			% again, yet for such a critical message we prefer triggering it
+			% (switching it on or off) unconditionally (hence possibly again) -
+			% provided it is not inhibited with a non-prioritary event, of
+			% course.
+
+			EvType = oceanic:get_event_type( DevEvent ),
+
+			case { ?getAttr(alarm_inhibited),
+					lists:member( EvType, get_passthrough_event_types() ) } of
+
+				{ _AnyIsInhibited, _IsPassThroughEventType=true } ->
+					?debug_fmt( "~ts (whose type, ~ts, bypasses any alarm "
+						"inhibition), so triggering the alarm now.",
+						[ BaseMsg, EvType ] ),
+					apply_alarm_status( _NewAlarmStatus=true, State );
+
+				% Typically single_input_contact_event, for opening detectors:
+				{ _IsInhibited=true, _NotPassThroughEventType } ->
+					?debug_fmt( "~ts, whose type (~ts) respects the current "
+						"alarm inhibition, so not triggering specifically the "
+						"alarm now.", [ BaseMsg, EvType ] ),
+					% Does not stop it either:
+					State;
+
+				{ _IsInhibited=false, _NotPassThroughEventType } ->
+					?debug_fmt( "~ts, whereas the alarm is not inhibited, so "
+						"triggering it now.", [ BaseMsg, EvType ] ),
+					apply_alarm_status( _NewAlarmStatus=true, State )
+
+			end;
+
+
+		% Alart stop requested:
+		{ true, EmitterEurid, _NewDevStatus=off } ->
+
+			% No inhibition taken into account when wanting to stop a running
+			% alarm:
+
+			EvType = oceanic:get_event_type( DevEvent ),
+
+			case lists:member( EvType, get_passthrough_event_types() ) of
+
+				true ->
+					?debug_fmt( "Alarm switched off (end of intrusion) "
+						"by device ~ts (unconditionally, as of type ~ts).",
+						 [ oceanic:get_device_description( EmitterEurid,
+								?getAttr(oc_srv_pid) ), EvType ] ),
+
+					apply_alarm_status( _NewAlarmStatus=false, State );
+
+				false ->
+					?debug_fmt( "Alarm left unchanged off (end of intrusion) "
+						"by device ~ts (unconditionally, as of type ~ts).",
+						 [ oceanic:get_device_description( EmitterEurid,
+								?getAttr(oc_srv_pid) ), EvType ] )
+
+			end
 
 	end.
 
 
 
 -doc """
-Processes the trigger of the (already checked in terms of button reference,
-i.e. EURID and channel) presence switching device.
+Called whenever the actual alarm status changed.
 
-Only the "pressed" events are reacted upon - not the "released" ones.
+Unconditional: any effect of alarm inhibition supposed to be taken into account,
+and any prior alarm status ignored (too critical to rely on assumptions).
 """.
--spec on_presence_switching_device_triggered( button_ref(), device_event(),
-								wooper:state() ) -> wooper:state().
-% Assuming here double-rocker; here the channel matches, and the top button is
-% pressed, meaning "someone at home":
-%
-on_presence_switching_device_triggered( ButRef,
-		_DevEvent=#double_rocker_switch_event{
-						first_action_button={ _PscSwitchChannel, _Pos=top },
-						energy_bow=pressed },
-										State ) ->
+-spec apply_alarm_status( boolean(), wooper:state() ) -> wooper:state().
+apply_alarm_status( NewStatus=true, State ) ->
 
-	?debug_fmt( "Told by a presence switching device (~ts) that "
-		"somebody is at home.", [ oceanic:button_ref_to_string( ButRef ) ] ),
+	?debug_fmt( "Switching now the alarm on (trigger status was ~ts).",
+				[ ?getAttr(alarm_triggered) ] ),
 
-	case ?getAttr(actual_presence) of
+	SetState = setAttribute( State, actual_triggered, NewStatus ),
 
-		true ->
-			% Already "at home", nothing done:
-			State;
+	% TODO: apply alarm_actuator_specs, set-up timer and disable any past one.
 
-		false ->
-			% Switching from "nobody at home" to "somebody at home":
-			on_presence_change( _NewStatus=true, State )
-
-	end;
-
-% Device tells that nobody is at home:
-on_presence_switching_device_triggered( ButRef,
-		_DevEvent=#double_rocker_switch_event{
-						first_action_button={ _PscSwitchChannel, _Pos=bottom },
-						energy_bow=pressed },
-										State ) ->
-
-	?debug_fmt( "Told by a presence switching device (~ts) that "
-		"nobody is at home.", [ oceanic:button_ref_to_string( ButRef ) ] ),
-
-	case ?getAttr(actual_presence) of
-
-		true ->
-			% Switching from "somebody at home" to "nobody at home":
-			on_presence_change( _NewStatus=false, State );
-
-		false ->
-			% Already "away", nothing done:
-			State
-
-	end;
-
-on_presence_switching_device_triggered( _ButRef, DevEvent, State ) ->
-	?debug_fmt( "(non-matching event ~ts for presence switching)",
-				[ oceanic:device_event_to_string( DevEvent ) ] ),
-	State.
+	SetState;
 
 
+apply_alarm_status( NewStatus=false, State ) ->
 
+	?debug_fmt( "Switching now the alarm off (trigger status was ~ts).",
+				[ ?getAttr(alarm_triggered) ] ),
 
--doc """
-Manages an alarm-related event.
-""".
--spec manage_alarm( device_event(), wooper:state() ) -> wooper:state().
-manage_alarm( DevEvent, State ) ->
+	SetState = setAttribute( State, actual_triggered, NewStatus ),
 
-	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Examining whether following event relates to alarm "
-			"management: ~ts",
-			[ oceanic:device_event_to_string( DevEvent ) ] ),
-		basic_utils:ignore_unused( DevEvent ) ),
+	% TODO: apply alarm_actuator_specs and disable any past one.
 
-	State.
+	SetState.
 
 
 
