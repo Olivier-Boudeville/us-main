@@ -70,8 +70,8 @@ thanks to Ceylan-Oceanic.
 
 % Silencing:
 %-export([ send_alarm_trace/3, send_alarm_trace_fmt/4,
-%		  send_psc_trace/3, send_psc_trace_fmt/4,
-%		  from_decimal_hour/1 ]).
+%		   send_psc_trace/3, send_psc_trace_fmt/4,
+%		   from_decimal_hour/1 ]).
 
 
 -define( bridge_name, ?MODULE ).
@@ -238,6 +238,12 @@ The time for dawn and dusk (if any - think to the extreme latitudes), at a given
 			   psc_sim_user_setting/0,
 			   celestial_timing/0, celestial_info/0 ]).
 
+
+% 15 minutes, in seconds:
+%-define( default_alarm_duration, 15 * 60 ).
+
+% For testing, 15 seconds:
+-define( default_alarm_duration, 15 ).
 
 
 % Type silencing:
@@ -662,6 +668,15 @@ Full settings gathered regarding the home automation server.
 	  "the specifications of the events that can be emitted to trigger "
 	  "actuators (typically smart plugs powering sirens) that shall be "
 	  "triggered when an actual alarm is triggered" },
+
+
+	{ alarm_duration, seconds(),
+	  "the base duration of an alarm, once triggered; can be shortened "
+	  "by alarm-inhibiting devices" },
+
+	{ alarm_stop_task_id, option( task_id() ),
+	  "the identifier of a scheduler task (if any) whose purpose is to "
+	  "stop an alarm after a fixed duration once triggered" },
 
 
 	{ actual_presence, boolean(), "tells whether there is someone at home; "
@@ -1164,7 +1179,9 @@ init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
 		{ alarm_inhibited, true },
 		{ alarm_triggered, false },
 		{ alarm_trigger_specs, [] },
-		{ alarm_actuator_specs, [] } ] );
+		{ alarm_actuator_specs, [] },
+		{ alarm_duration, ?default_alarm_duration },
+		{ alarm_stop_task_id, undefined } ] );
 
 init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 			State ) ->
@@ -1180,7 +1197,10 @@ init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 
 		% Already vetted:
 		{ alarm_trigger_specs, AlarmTriggerListenEvSpecs },
-		{ alarm_actuator_specs, AlarmActuatorEmitEvSpecs } ] ).
+		{ alarm_actuator_specs, AlarmActuatorEmitEvSpecs },
+
+		{ alarm_duration, ?default_alarm_duration },
+		{ alarm_stop_task_id, undefined } ] ).
 
 
 
@@ -2740,7 +2760,7 @@ ensure_all_lighting( State ) ->
 ensure_all_lighting( _PscSims=[], PscTable, State ) ->
 	setAttribute( State, presence_table, PscTable );
 
-% If activated, must be switched off:
+% If not activated, must be switched on:
 ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 						id=Id,
 						activated=false,
@@ -3179,6 +3199,19 @@ updatePresencePrograms( State ) ->
 						   ?getAttr(scheduler_pid) ! logState ),
 
 	wooper:return_state( UpdatedState ).
+
+
+
+-doc """
+Stops any ongoing alarm.
+
+Typically called to disengage automatically a triggered alarm after a maximum
+duration.
+""".
+-spec stopAlarm( wooper:state() ) -> oneway_return().
+stopAlarm( State ) ->
+	StopState = apply_alarm_status( _NewStatus=false, State ),
+	wooper:return_state( StopState ).
 
 
 
@@ -3868,9 +3901,10 @@ Manages a presence-related event: checks whether an actual presence switching
 										wooper:state().
 manage_presence_switching( DevEvent, State ) ->
 
-	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Examining whether the following event relates to presence "
-			"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+	% Too verbose:
+	%cond_utils:if_defined( us_main_debug_home_automation,
+	%	?debug_fmt( "Examining whether the following event relates to presence "
+	%		"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
 
 	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(presence_switching_trigger_specs),
@@ -3879,18 +3913,23 @@ manage_presence_switching( DevEvent, State ) ->
 
 		false ->
 			cond_utils:if_defined( us_main_debug_home_automation,
-				send_psc_trace_fmt( debug, "This event does not match any "
-					"of the presence switching ones: ~ts", [
-						oceanic:canon_listened_event_specs_to_string( CLESs ) ],
+				send_psc_trace_fmt( debug, "The following event does not "
+					"match any of the presence switching ones "
+					"(which are ~ts): ~ts",
+					[ oceanic:canon_listened_event_specs_to_string( CLESs ),
+					  oceanic:device_event_to_string( DevEvent ) ],
 									State ) ),
 			State;
 
+		% Presence declared:
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
 			BaseMsg = text_utils:format( "Presence switched on (declaring "
-				"that someone is at home) by device ~ts",
+				"that someone is at home) by device ~ts "
+				"(due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ) ] ),
+												  ?getAttr(oc_srv_pid) ),
+				  oceanic:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
 
@@ -3907,12 +3946,15 @@ manage_presence_switching( DevEvent, State ) ->
 			end;
 
 
+		% Absence declared:
 		{ true, EmitterEurid, _NewDevStatus=off } ->
 
 			BaseMsg = text_utils:format( "Presence switched off (declaring "
-				"that nobody is at home) by device ~ts",
+				"that nobody is at home) by device ~ts "
+				"(due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ) ] ),
+												  ?getAttr(oc_srv_pid) ),
+				  oceanic:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
 
@@ -3932,13 +3974,14 @@ manage_presence_switching( DevEvent, State ) ->
 
 
 
-
-
 -doc """
-Manages an alarm-related event.; checks whether an actual switching of the alarm
+Manages an alarm-related event: checks whether an actual switching of the alarm
 status (activating/deactivating) is to be done.
 
-Note that, depending on the type of device that switches (on or off) an alarm, a trigger will or will not be ignored: push buttons/rockers will directly decide of the alarm status, whereas opening detectors will impact it iff the alarm is not inhibited.
+Note that, depending on the type of device that switches (on or off) an alarm, a
+trigger will be ignored or not: push buttons/rockers will directly decide of the
+alarm status, whereas opening detectors will switch it on (of course never off)
+iff the alarm is not inhibited.
 
 Indeed, if using an (emergency) button, we want to be able to switch on/off an
 alarm in all cases, whereas, if the alarm is inhibited (typically if being at
@@ -3947,9 +3990,10 @@ home), we do not want the opening of a door to trigger an alarm then.
 -spec manage_alarm_switching( device_event(), wooper:state() ) -> wooper:state().
 manage_alarm_switching( DevEvent, State ) ->
 
-	cond_utils:if_defined( us_main_debug_home_automation,
-		?debug_fmt( "Examining whether the following event relates to alarm "
-			"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+	% Too verbose:
+	%cond_utils:if_defined( us_main_debug_home_automation,
+	%   ?debug_fmt( "Examining whether the following event relates to alarm "
+	%		"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
 
 	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(alarm_trigger_specs),
@@ -3961,9 +4005,11 @@ manage_alarm_switching( DevEvent, State ) ->
 
 		false ->
 			cond_utils:if_defined( us_main_debug_home_automation,
-				send_psc_trace_fmt( debug, "This event does not match any "
-					"of the alarm switching ones: ~ts", [
-						oceanic:canon_listened_event_specs_to_string( CLESs ) ],
+				send_psc_trace_fmt( debug, "The following event does not "
+					"match any of the alarm switching ones "
+					"(which are ~ts): ~ts",
+					[ oceanic:canon_listened_event_specs_to_string( CLESs ),
+					  oceanic:device_event_to_string( DevEvent ) ],
 									State ) ),
 			State;
 
@@ -3971,9 +4017,10 @@ manage_alarm_switching( DevEvent, State ) ->
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
 			BaseMsg = text_utils:format( "Alarm switched on (intrusion "
-				"detected) by device ~ts",
+				"detected) by device ~ts (due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ) ] ),
+												  ?getAttr(oc_srv_pid) ),
+				  oceanic:device_event_to_string( DevEvent ) ] ),
 
 			% We could rely on the alarm_triggered attribute not to trigger it
 			% again, yet for such a critical message we prefer triggering it
@@ -4014,23 +4061,28 @@ manage_alarm_switching( DevEvent, State ) ->
 			% No inhibition taken into account when wanting to stop a running
 			% alarm:
 
+			EndMsg = text_utils:format( "due to the following event: ~ts",
+				[ oceanic:device_event_to_string( DevEvent ) ] ),
+
 			EvType = oceanic:get_event_type( DevEvent ),
 
 			case lists:member( EvType, get_passthrough_event_types() ) of
 
 				true ->
 					?debug_fmt( "Alarm switched off (end of intrusion) "
-						"by device ~ts (unconditionally, as of type ~ts).",
+						"by device ~ts (unconditionally, as of type ~ts), ~ts",
 						 [ oceanic:get_device_description( EmitterEurid,
-								?getAttr(oc_srv_pid) ), EvType ] ),
+								?getAttr(oc_srv_pid) ), EvType, EndMsg ] ),
 
 					apply_alarm_status( _NewAlarmStatus=false, State );
 
 				false ->
 					?debug_fmt( "Alarm left unchanged off (end of intrusion) "
-						"by device ~ts (unconditionally, as of type ~ts).",
+						"by device ~ts (unconditionally, as of type ~ts), ~ts",
 						 [ oceanic:get_device_description( EmitterEurid,
-								?getAttr(oc_srv_pid) ), EvType ] )
+								?getAttr(oc_srv_pid) ), EvType, EndMsg ] ),
+
+					State
 
 			end
 
@@ -4050,11 +4102,63 @@ apply_alarm_status( NewStatus=true, State ) ->
 	?debug_fmt( "Switching now the alarm on (trigger status was ~ts).",
 				[ ?getAttr(alarm_triggered) ] ),
 
-	SetState = setAttribute( State, actual_triggered, NewStatus ),
+	% First priority:
+	oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
+		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
 
-	% TODO: apply alarm_actuator_specs, set-up timer and disable any past one.
+	SchedPid = ?getAttr(scheduler_pid),
 
-	SetState;
+	% Setting-up a timer to stop that alarm, but disabling any past one first:
+	case ?getAttr(alarm_stop_task_id ) of
+
+		undefined ->
+			ok;
+
+		PastTaskId ->
+			SchedPid ! { unregisterTask, PastTaskId, self() },
+			?debug_fmt( "Unregistering past alarm stop task #~B.",
+						[ PastTaskId ] ),
+			receive
+
+				{ wooper_result, task_unregistered } ->
+					ok;
+
+				{ wooper_result, task_already_done } ->
+					?error( "Unregistered alarm stop task already done." );
+
+				{ wooper_result, { task_unregistration_failed, Reason } } ->
+					?error_fmt( "Unregistration of the alarm stop task failed; "
+								"reason: ~p.", [ Reason ] )
+
+			end
+
+	end,
+
+	AfterDuration = ?getAttr(alarm_duration),
+
+	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarm, AfterDuration ],
+				 self() },
+
+	?debug_fmt( "Registering alarm stop task to happen in ~ts.",
+				[ time_utils:duration_to_string( 1000 * AfterDuration ) ] ),
+
+	% Full lighting wanted as well in case of alarm (a bit of interleaving):
+	LightState = ensure_all_lighting( State ),
+
+	% For registerOneshotTaskIn:
+	MaybeTaskId = receive
+
+		{ wooper_result, { task_registered, TId } } ->
+			TId;
+
+		{ wooper_result, task_done } ->
+			?error( "Just-registered alarm stop task reported already done." ),
+			undefined
+
+	end,
+
+	setAttributes( LightState, [ { actual_triggered, NewStatus },
+								 { alarm_stop_task_id, MaybeTaskId } ] );
 
 
 apply_alarm_status( NewStatus=false, State ) ->
@@ -4062,9 +4166,43 @@ apply_alarm_status( NewStatus=false, State ) ->
 	?debug_fmt( "Switching now the alarm off (trigger status was ~ts).",
 				[ ?getAttr(alarm_triggered) ] ),
 
+	% The switching off is derived from the base switching on:
+	ReciprocalActEvSpecs = [ get_reciprocal_device_event_spec( AES )
+								|| AES <- ?getAttr(alarm_actuator_specs) ],
+
+	oceanic:trigger_actuators( ReciprocalActEvSpecs,
+		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
+
 	SetState = setAttribute( State, actual_triggered, NewStatus ),
 
-	% TODO: apply alarm_actuator_specs and disable any past one.
+	% No specific lighting stop wanted.
+
+	case ?getAttr(alarm_stop_task_id ) of
+
+		undefined ->
+			ok;
+
+		PastTaskId ->
+			SchedPid = ?getAttr(scheduler_pid),
+
+			SchedPid ! { unregisterTask, PastTaskId, self() },
+			?debug_fmt( "Unregistering past alarm stop task #~B.",
+						[ PastTaskId ] ),
+			receive
+
+				{ wooper_result, task_unregistered } ->
+					ok;
+
+				{ wooper_result, task_already_done } ->
+					?error( "Unregistered alarm stop task already done." );
+
+				{ wooper_result, { task_unregistration_failed, Reason } } ->
+					?error_fmt( "Unregistration of the alarm stop task failed; "
+								"reason: ~p.", [ Reason ] )
+
+			end
+
+	end,
 
 	SetState.
 
