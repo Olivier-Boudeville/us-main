@@ -4012,7 +4012,7 @@ manage_alarm_switching( DevEvent, State ) ->
 	case oceanic:event_matches_trigger( DevEvent, CLESs ) of
 
 		false ->
-			cond_utils:if_defined( us_main_debug_home_automation,
+			cond_utils:if_defined( us_main_debug_alarm,
 				send_alarm_trace_fmt( debug, "The following event does not "
 					"match any of the alarm switching ones "
 					"(which are ~ts): ~ts",
@@ -4042,25 +4042,33 @@ manage_alarm_switching( DevEvent, State ) ->
 					lists:member( EvType, get_passthrough_event_types() ) } of
 
 				{ _AnyIsInhibited, _IsPassThroughEventType=true } ->
+
 					send_alarm_trace_fmt( info,
 						"~ts, whose type, ~ts, bypasses any alarm inhibition; "
 						"so triggering the alarm now.",
 						[ BaseMsg, EvType ], State ),
+
 					apply_alarm_status( _NewAlarmStatus=true, State );
+
 
 				% Typically single_input_contact_event, for opening detectors:
 				{ _IsInhibited=true, _NotPassThroughEventType } ->
+
 					send_alarm_trace_fmt( debug,
 						"~ts, whose type (~ts) respects the current "
 						"alarm inhibition; so not triggering specifically the "
 						"alarm now.", [ BaseMsg, EvType ], State ),
+
 					% Does not stop it either:
 					State;
 
+
 				{ _IsInhibited=false, _NotPassThroughEventType } ->
+
 					send_alarm_trace_fmt( debug, "~ts, whereas the alarm "
 						"is not inhibited, so triggering it now.",
 						[ BaseMsg, EvType ], State ),
+
 					apply_alarm_status( _NewAlarmStatus=true, State )
 
 			end;
@@ -4132,9 +4140,10 @@ apply_alarm_status( NewStatus=true, State ) ->
 		PastTaskId ->
 			SchedPid ! { unregisterTask, PastTaskId, self() },
 
-			send_alarm_trace_fmt( debug,
-				"Unregistering past alarm stop task #~B.", [ PastTaskId ],
-				State ),
+			cond_utils:if_defined( us_main_debug_alarm,
+				send_alarm_trace_fmt( debug,
+					"Unregistering past alarm stop task #~B.", [ PastTaskId ],
+					State ) ),
 
 			receive
 
@@ -4158,9 +4167,9 @@ apply_alarm_status( NewStatus=true, State ) ->
 	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarm, AfterDuration ],
 				 self() },
 
-	send_alarm_trace_fmt( debug,
+	cond_utils:if_defined( us_main_debug_alarm,	send_alarm_trace_fmt( debug,
 		"Registering alarm stop task to happen in ~ts.",
-		[ time_utils:duration_to_string( 1000 * AfterDuration ) ], State ),
+		[ time_utils:duration_to_string( 1000 * AfterDuration ) ], State ) ),
 
 	% Full lighting wanted as well in case of alarm (a bit of interleaving):
 	%LightState = ensure_all_lighting( State ),
@@ -4213,9 +4222,9 @@ apply_alarm_status( NewStatus=false, State ) ->
 
 			SchedPid ! { unregisterTask, PastTaskId, self() },
 
-			send_alarm_trace_fmt( debug,
-				"Unregistering past alarm stop task #~B.", [ PastTaskId ],
-				SetState ),
+			cond_utils:if_defined( us_main_debug_alarm,	send_alarm_trace_fmt(
+				debug, "Unregistering past alarm stop task #~B.",
+				[ PastTaskId ],	SetState ) ),
 
 			receive
 
