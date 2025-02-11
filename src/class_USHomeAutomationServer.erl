@@ -68,11 +68,6 @@ thanks to Ceylan-Oceanic.
 -export([ get_licit_config_keys/0, manage_configuration/2 ]).
 
 
-% Silencing:
-%-export([ send_alarm_trace/3, send_alarm_trace_fmt/4,
-%		   send_psc_trace/3, send_psc_trace_fmt/4,
-%		   from_decimal_hour/1 ]).
-
 
 -define( bridge_name, ?MODULE ).
 
@@ -1174,7 +1169,10 @@ Initialises the alarm system.
 		wooper:state() ) -> wooper:state().
 init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
 			_MaybeOcSrvPid=undefined, State ) ->
-	?debug( "No Oceanic support available, no alarm managed." ),
+
+	send_alarm_trace( info, "No Oceanic support available, no alarm managed.",
+					  State ),
+
 	setAttributes( State, [
 		{ alarm_inhibited, true },
 		{ alarm_triggered, false },
@@ -1746,7 +1744,7 @@ presence simuation is wanted and that nobody is at home.
 update_presence_simulations( PscSims, State ) ->
 
 	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( notice, "Updating ~B presence "
+		send_psc_trace_fmt( debug, "Updating ~B presence "
 			"simulation(s) now (supposedly nobody is at home).",
 			[ length( PscSims ) ], State ) ),
 
@@ -3210,7 +3208,15 @@ duration.
 """.
 -spec stopAlarm( wooper:state() ) -> oneway_return().
 stopAlarm( State ) ->
-	StopState = apply_alarm_status( _NewStatus=false, State ),
+
+	send_alarm_trace( info, "Requested (possibly by the scheduler) "
+					  "to stop the alarm now.", State ),
+
+	DoneState = setAttribute( State, alarm_stop_task_id, undefined ),
+
+
+	StopState = apply_alarm_status( _NewStatus=false, DoneState ),
+
 	wooper:return_state( StopState ).
 
 
@@ -3451,12 +3457,14 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
-	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
-
-	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
-
-	class_TraceEmitter:send_named_emitter( info, State, Msg,
-		get_trace_emitter_name_from( BinDevName ) ),
+	% Verbose:
+	cond_utils:if_defined( us_main_debug_home_automation,
+		begin
+			Msg = oceanic:device_event_to_short_string( DeviceEvent ),
+			BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+			class_TraceEmitter:send_named_emitter( info, State, Msg,
+				get_trace_emitter_name_from( BinDevName ) )
+		end),
 
 	ProcessedState = process_device_event( DeviceEvent, State ),
 
@@ -3925,7 +3933,7 @@ manage_presence_switching( DevEvent, State ) ->
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
 			BaseMsg = text_utils:format( "Presence switched on (declaring "
-				"that someone is at home) by device ~ts "
+				"that someone is at home) by ~ts "
 				"(due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
 												  ?getAttr(oc_srv_pid) ),
@@ -3950,7 +3958,7 @@ manage_presence_switching( DevEvent, State ) ->
 		{ true, EmitterEurid, _NewDevStatus=off } ->
 
 			BaseMsg = text_utils:format( "Presence switched off (declaring "
-				"that nobody is at home) by device ~ts "
+				"that nobody is at home) by ~ts "
 				"(due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
 												  ?getAttr(oc_srv_pid) ),
@@ -4005,7 +4013,7 @@ manage_alarm_switching( DevEvent, State ) ->
 
 		false ->
 			cond_utils:if_defined( us_main_debug_home_automation,
-				send_psc_trace_fmt( debug, "The following event does not "
+				send_alarm_trace_fmt( debug, "The following event does not "
 					"match any of the alarm switching ones "
 					"(which are ~ts): ~ts",
 					[ oceanic:canon_listened_event_specs_to_string( CLESs ),
@@ -4017,7 +4025,7 @@ manage_alarm_switching( DevEvent, State ) ->
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
 			BaseMsg = text_utils:format( "Alarm switched on (intrusion "
-				"detected) by device ~ts (due to the following event: ~ts)",
+				"detected) by ~ts, (due to the following event: ~ts)",
 				[ oceanic:get_device_description( EmitterEurid,
 												  ?getAttr(oc_srv_pid) ),
 				  oceanic:device_event_to_string( DevEvent ) ] ),
@@ -4034,22 +4042,25 @@ manage_alarm_switching( DevEvent, State ) ->
 					lists:member( EvType, get_passthrough_event_types() ) } of
 
 				{ _AnyIsInhibited, _IsPassThroughEventType=true } ->
-					?debug_fmt( "~ts (whose type, ~ts, bypasses any alarm "
-						"inhibition), so triggering the alarm now.",
-						[ BaseMsg, EvType ] ),
+					send_alarm_trace_fmt( info,
+						"~ts, whose type, ~ts, bypasses any alarm inhibition; "
+						"so triggering the alarm now.",
+						[ BaseMsg, EvType ], State ),
 					apply_alarm_status( _NewAlarmStatus=true, State );
 
 				% Typically single_input_contact_event, for opening detectors:
 				{ _IsInhibited=true, _NotPassThroughEventType } ->
-					?debug_fmt( "~ts, whose type (~ts) respects the current "
-						"alarm inhibition, so not triggering specifically the "
-						"alarm now.", [ BaseMsg, EvType ] ),
+					send_alarm_trace_fmt( debug,
+						"~ts, whose type (~ts) respects the current "
+						"alarm inhibition; so not triggering specifically the "
+						"alarm now.", [ BaseMsg, EvType ], State ),
 					% Does not stop it either:
 					State;
 
 				{ _IsInhibited=false, _NotPassThroughEventType } ->
-					?debug_fmt( "~ts, whereas the alarm is not inhibited, so "
-						"triggering it now.", [ BaseMsg, EvType ] ),
+					send_alarm_trace_fmt( debug, "~ts, whereas the alarm "
+						"is not inhibited, so triggering it now.",
+						[ BaseMsg, EvType ], State ),
 					apply_alarm_status( _NewAlarmStatus=true, State )
 
 			end;
@@ -4061,7 +4072,7 @@ manage_alarm_switching( DevEvent, State ) ->
 			% No inhibition taken into account when wanting to stop a running
 			% alarm:
 
-			EndMsg = text_utils:format( "due to the following event: ~ts",
+			EndMsg = text_utils:format( "the following event: ~ts",
 				[ oceanic:device_event_to_string( DevEvent ) ] ),
 
 			EvType = oceanic:get_event_type( DevEvent ),
@@ -4069,18 +4080,21 @@ manage_alarm_switching( DevEvent, State ) ->
 			case lists:member( EvType, get_passthrough_event_types() ) of
 
 				true ->
-					?debug_fmt( "Alarm switched off (end of intrusion) "
-						"by device ~ts (unconditionally, as of type ~ts), ~ts",
-						 [ oceanic:get_device_description( EmitterEurid,
-								?getAttr(oc_srv_pid) ), EvType, EndMsg ] ),
+					send_alarm_trace_fmt( info,
+						"Alarm switched off (end of intrusion) by ~ts "
+						"(unconditionally, as of type ~ts), due to ~ts",
+						[ oceanic:get_device_description( EmitterEurid,
+								?getAttr(oc_srv_pid) ), EvType, EndMsg ],
+						State ),
 
 					apply_alarm_status( _NewAlarmStatus=false, State );
 
 				false ->
-					?debug_fmt( "Alarm left unchanged off (end of intrusion) "
-						"by device ~ts (unconditionally, as of type ~ts), ~ts",
-						 [ oceanic:get_device_description( EmitterEurid,
-								?getAttr(oc_srv_pid) ), EvType, EndMsg ] ),
+					send_alarm_trace_fmt( debug,
+						"Not switching alarm off after event from ~ts "
+						"of (non-passthrough) type ~ts: ignoring ~ts.",
+						[ EvType, oceanic:get_device_description( EmitterEurid,
+							?getAttr(oc_srv_pid) ), EndMsg ], State ),
 
 					State
 
@@ -4099,8 +4113,9 @@ and any prior alarm status ignored (too critical to rely on assumptions).
 -spec apply_alarm_status( boolean(), wooper:state() ) -> wooper:state().
 apply_alarm_status( NewStatus=true, State ) ->
 
-	?debug_fmt( "Switching now the alarm on (trigger status was ~ts).",
-				[ ?getAttr(alarm_triggered) ] ),
+	send_alarm_trace_fmt( notice,
+		"Switching now the alarm on (trigger status was ~ts).",
+		[ ?getAttr(alarm_triggered) ], State ),
 
 	% First priority:
 	oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
@@ -4116,19 +4131,23 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 		PastTaskId ->
 			SchedPid ! { unregisterTask, PastTaskId, self() },
-			?debug_fmt( "Unregistering past alarm stop task #~B.",
-						[ PastTaskId ] ),
+
+			send_alarm_trace_fmt( debug,
+				"Unregistering past alarm stop task #~B.", [ PastTaskId ],
+				State ),
+
 			receive
 
 				{ wooper_result, task_unregistered } ->
 					ok;
 
 				{ wooper_result, task_already_done } ->
-					?error( "Unregistered alarm stop task already done." );
+					send_alarm_trace( error,
+						"Unregistered alarm stop task already done.", State );
 
 				{ wooper_result, { task_unregistration_failed, Reason } } ->
-					?error_fmt( "Unregistration of the alarm stop task failed; "
-								"reason: ~p.", [ Reason ] )
+					send_alarm_trace_fmt( error, "Unregistration of the alarm "
+						"stop task failed; reason: ~p.", [ Reason ], State )
 
 			end
 
@@ -4139,11 +4158,15 @@ apply_alarm_status( NewStatus=true, State ) ->
 	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarm, AfterDuration ],
 				 self() },
 
-	?debug_fmt( "Registering alarm stop task to happen in ~ts.",
-				[ time_utils:duration_to_string( 1000 * AfterDuration ) ] ),
+	send_alarm_trace_fmt( debug,
+		"Registering alarm stop task to happen in ~ts.",
+		[ time_utils:duration_to_string( 1000 * AfterDuration ) ], State ),
 
 	% Full lighting wanted as well in case of alarm (a bit of interleaving):
-	LightState = ensure_all_lighting( State ),
+	%LightState = ensure_all_lighting( State ),
+
+	% For debug, no noise:
+	LightState = State,
 
 	% For registerOneshotTaskIn:
 	MaybeTaskId = receive
@@ -4152,7 +4175,9 @@ apply_alarm_status( NewStatus=true, State ) ->
 			TId;
 
 		{ wooper_result, task_done } ->
-			?error( "Just-registered alarm stop task reported already done." ),
+			send_alarm_trace( error,
+				"Just-registered alarm stop task reported already done.",
+				State ),
 			undefined
 
 	end,
@@ -4163,8 +4188,9 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 apply_alarm_status( NewStatus=false, State ) ->
 
-	?debug_fmt( "Switching now the alarm off (trigger status was ~ts).",
-				[ ?getAttr(alarm_triggered) ] ),
+	send_alarm_trace_fmt( notice,
+		"Switching now the alarm off (trigger status was ~ts).",
+		[ ?getAttr(alarm_triggered) ], State ),
 
 	% The switching off is derived from the base switching on:
 	ReciprocalActEvSpecs = [ get_reciprocal_device_event_spec( AES )
@@ -4186,19 +4212,25 @@ apply_alarm_status( NewStatus=false, State ) ->
 			SchedPid = ?getAttr(scheduler_pid),
 
 			SchedPid ! { unregisterTask, PastTaskId, self() },
-			?debug_fmt( "Unregistering past alarm stop task #~B.",
-						[ PastTaskId ] ),
+
+			send_alarm_trace_fmt( debug,
+				"Unregistering past alarm stop task #~B.", [ PastTaskId ],
+				SetState ),
+
 			receive
 
 				{ wooper_result, task_unregistered } ->
 					ok;
 
 				{ wooper_result, task_already_done } ->
-					?error( "Unregistered alarm stop task already done." );
+					send_alarm_trace( error,
+						"Unregistered alarm stop task already done.",
+						SetState );
 
 				{ wooper_result, { task_unregistration_failed, Reason } } ->
-					?error_fmt( "Unregistration of the alarm stop task failed; "
-								"reason: ~p.", [ Reason ] )
+					send_alarm_trace_fmt( error, "Unregistration of the "
+						"alarm stop task failed; reason: ~p.", [ Reason ],
+						SetState )
 
 			end
 
@@ -4298,19 +4330,17 @@ manage_configuration( ConfigTable, State ) ->
 											 ConfigTable ) of
 
 		key_not_found ->
-			?info( "Home automation: no user settings regarding "
-				   "server location." ),
+			send_psc_trace( info, "No user settings regarding server location.",
+							State),
 			undefined;
 
 
 		{ value, { { latitude, Lat }, { longitude, Long } } } ->
-			is_float( Lat ) orelse
-				throw( { invalid_latitude, Lat,
-						 ?us_main_server_location_key } ),
+			is_float( Lat ) orelse throw(
+				{ invalid_latitude, Lat, ?us_main_server_location_key } ),
 
-			is_float( Long ) orelse
-				throw( { invalid_longitude, Long,
-						 ?us_main_server_location_key } ),
+			is_float( Long ) orelse throw(
+				{ invalid_longitude, Long, ?us_main_server_location_key } ),
 
 			{ Lat, Long }
 
@@ -4321,17 +4351,16 @@ manage_configuration( ConfigTable, State ) ->
 			?us_main_alarm_triggers_key, ConfigTable ) of
 
 		VAT when VAT =:= key_not_found; VAT =:= { value, [] } ->
-			?info( "No alarm trigger configured." ),
+			send_alarm_trace( info, "No alarm trigger configured.", State ),
 			[];
 
 		{ value, ALESs } when is_list( ALESs ) ->
 			CanALESs = oceanic:canonicalise_listened_event_specs( ALESs ),
-
-			?info_fmt( "The following ~B configured alarm trigger listening "
-				"specifications will be used: ~ts.", [ length( CanALESs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:canon_listened_event_spec_to_string(
-						   CanALES ) || CanALES <- CanALESs ] ) ] ),
+			send_alarm_trace_fmt( info, "The following ~B configured alarm "
+				"trigger listening specifications will be used: ~ts.",
+				[ length( CanALESs ), text_utils:strings_to_listed_string(
+					[ oceanic:canon_listened_event_spec_to_string(
+						CanALES ) || CanALES <- CanALESs ] ) ], State ),
 
 			CanALESs;
 
@@ -4346,17 +4375,17 @@ manage_configuration( ConfigTable, State ) ->
 			?us_main_alarm_actuators_key, ConfigTable ) of
 
 		VAA when VAA =:= key_not_found; VAA =:= { value, [] } ->
-			?info( "No alarm actuator configured." ),
+			send_alarm_trace( info, "No alarm actuator configured.", State ),
 			[];
 
 		{ value, AEESs } when is_list( AEESs ) ->
 			CanAEESs = oceanic:canonicalise_emitted_event_specs( AEESs ),
 
-			?info_fmt( "The following ~B configured alarm actuator emitting "
-				"specifications will be used: ~ts.", [ length( CanAEESs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:canon_emitted_event_spec_to_string(
-							CanAEES ) || CanAEES <- CanAEESs ] ) ] ),
+			send_alarm_trace_fmt( info, "The following ~B configured alarm "
+				"actuator emitting specifications will be used: ~ts.",
+				[ length( CanAEESs ), text_utils:strings_to_listed_string(
+					[ oceanic:canon_emitted_event_spec_to_string(
+						CanAEES ) || CanAEES <- CanAEESs ] ) ], State ),
 
 			CanAEESs;
 
@@ -4371,17 +4400,18 @@ manage_configuration( ConfigTable, State ) ->
 			?us_main_presence_triggers_key, ConfigTable ) of
 
 		VPT when VPT =:= key_not_found; VPT =:= { value, [] } ->
-			?info( "No presence-switching trigger configured." ),
+			send_psc_trace( info, "No presence-switching trigger configured.",
+							State ),
 			[];
 
 		{ value, PLESs } when is_list( PLESs ) ->
 			CanPLESs = oceanic:canonicalise_listened_event_specs( PLESs ),
 
-			?info_fmt( "The following ~B configured presence trigger listening "
-				"specifications will be used: ~ts.", [ length( CanPLESs ),
-					text_utils:strings_to_listed_string(
-						[ oceanic:canon_listened_event_spec_to_string(
-						   CanPLES ) || CanPLES <- CanPLESs ] ) ] ),
+			send_psc_trace_fmt( info, "The following ~B configured presence "
+				"trigger listening specifications will be used: ~ts.",
+				[ length( CanPLESs ), text_utils:strings_to_listed_string(
+					[ oceanic:canon_listened_event_spec_to_string(
+						CanPLES ) || CanPLES <- CanPLESs ] ) ], State ),
 
 			CanPLESs;
 
@@ -4396,22 +4426,22 @@ manage_configuration( ConfigTable, State ) ->
 
 	% PscActuatorEmitEvSpecs = case table:lookup_entry(
 	%		?us_main_presence_actuators_key, ConfigTable ) of
-
+	%
 	%	VPA when VPA =:= key_not_found; VPA =:= { value, [] } ->
-	%		?info( "No presence actuator configured." ),
+	%		send_psc_trace( info, "No presence actuator configured.", State ),
 	%		[];
-
+	%
 	%	{ value, PEESs } when is_list( PEESs ) ->
 	%		CanPEESs = oceanic:canonicalise_emitted_event_specs( PEESs ),
-
-	%		?info_fmt( "The following ~B configured presence actuator emitting "
-	%			"specifications will be used: ~ts.", [ length( CanPEESs ),
-	%				text_utils:strings_to_listed_string(
-	%					[ oceanic:canon_emitted_event_spec_to_string(
-	%						CanPEES ) || CanPEES <- CanPEESs ] ) ] ),
-
+	%
+	%		send_psc_trace_fmt( info, "The following ~B configured presence "
+	%           actuator emitting specifications will be used: ~ts.",
+	%           [ length( CanPEESs ), text_utils:strings_to_listed_string(
+	%				[ oceanic:canon_emitted_event_spec_to_string(
+	%					CanPEES ) || CanPEES <- CanPEESs ] ) ], State ),
+	%
 	%		CanPEESs;
-
+	%
 	%	{ value, PNotPEESs } ->
 	%		throw( { invalid_presence_actuator_specs, PNotPEESs,
 	%				 ?us_main_presence_actuators_key } )
@@ -4422,16 +4452,17 @@ manage_configuration( ConfigTable, State ) ->
 			?us_main_presence_settings_key, ConfigTable ) of
 
 		key_not_found ->
-			?info( "No presence-simulation settings configured." ),
+			send_psc_trace( info,
+				"No presence-simulation settings configured.", State ),
 			[];
 
 		% Expecting a list of psc_simu_user_setting() (checked later directly by
 		% this home automation server):
 		%
 		{ value, PscUSimSettings } when is_list( PscUSimSettings ) ->
-			?info_fmt( "The following ~B user-configured presence-simulation "
-					   "settings will be used:~n ~p",
-					   [ length( PscUSimSettings ), PscUSimSettings ] ),
+			send_psc_trace_fmt( info, "The following ~B user-configured "
+				"presence-simulation settings will be used:~n ~p",
+				[ length( PscUSimSettings ), PscUSimSettings ], State ),
 			PscUSimSettings;
 
 		{ value, NotPscUSimSettings } ->
