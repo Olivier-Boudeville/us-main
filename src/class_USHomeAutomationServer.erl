@@ -3201,19 +3201,18 @@ updatePresencePrograms( State ) ->
 
 
 -doc """
-Stops any ongoing alarm.
+Stops any ongoing alarm, from the scheduler.
 
 Typically called to disengage automatically a triggered alarm after a maximum
 duration.
 """.
--spec stopAlarm( wooper:state() ) -> oneway_return().
-stopAlarm( State ) ->
+-spec stopAlarmScheduled( wooper:state() ) -> oneway_return().
+stopAlarmScheduled( State ) ->
 
-	send_alarm_trace( info, "Requested (possibly by the scheduler) "
+	send_alarm_trace( info, "Requested (presumably by the scheduler) "
 					  "to stop the alarm now.", State ),
 
 	DoneState = setAttribute( State, alarm_stop_task_id, undefined ),
-
 
 	StopState = apply_alarm_status( _NewStatus=false, DoneState ),
 
@@ -3976,6 +3975,29 @@ manage_presence_switching( DevEvent, State ) ->
 								"so nothing done.", [ BaseMsg ] ),
 					State
 
+			end;
+
+
+		% Presence status inverted:
+		{ true, EmitterEurid, _NewDevStatus=inverted } ->
+
+			BaseMsg = text_utils:format( "Presence status inverted by ~ts "
+				"(due to the following event: ~ts): switching to presence ",
+				[ oceanic:get_device_description( EmitterEurid,
+												  ?getAttr(oc_srv_pid) ),
+				  oceanic:device_event_to_string( DevEvent ) ] ),
+
+
+			case ?getAttr(actual_presence) of
+
+				true ->
+					?debug_fmt( "~tsoff (nobody at home)", [ BaseMsg ] ),
+					on_presence_change( _NewPresStatus=false, State );
+
+				false ->
+					?debug_fmt( "~tson (somebody at home)", [ BaseMsg ] ),
+					on_presence_change( _NewPresStatus=true, State )
+
 			end
 
 	end.
@@ -4164,7 +4186,7 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 	AfterDuration = ?getAttr(alarm_duration),
 
-	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarm, AfterDuration ],
+	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarmScheduled, AfterDuration ],
 				 self() },
 
 	cond_utils:if_defined( us_main_debug_alarm,	send_alarm_trace_fmt( debug,
@@ -4172,10 +4194,10 @@ apply_alarm_status( NewStatus=true, State ) ->
 		[ time_utils:duration_to_string( 1000 * AfterDuration ) ], State ) ),
 
 	% Full lighting wanted as well in case of alarm (a bit of interleaving):
-	%LightState = ensure_all_lighting( State ),
+	LightState = ensure_all_lighting( State ),
 
 	% For debug, no noise:
-	LightState = State,
+	%LightState = State,
 
 	% For registerOneshotTaskIn:
 	MaybeTaskId = receive
@@ -4191,7 +4213,7 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 	end,
 
-	setAttributes( LightState, [ { actual_triggered, NewStatus },
+	setAttributes( LightState, [ { alarm_triggered, NewStatus },
 								 { alarm_stop_task_id, MaybeTaskId } ] );
 
 
@@ -4208,7 +4230,10 @@ apply_alarm_status( NewStatus=false, State ) ->
 	oceanic:trigger_actuators( ReciprocalActEvSpecs,
 		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
 
-	SetState = setAttribute( State, actual_triggered, NewStatus ),
+
+	SetState = setAttributes( State, [ { alarm_triggered, NewStatus },
+							           % Anticipating next actions:
+									   { alarm_stop_task_id, undefined } ] ),
 
 	% No specific lighting stop wanted.
 
