@@ -3991,11 +3991,11 @@ manage_presence_switching( DevEvent, State ) ->
 			case ?getAttr(actual_presence) of
 
 				true ->
-					?debug_fmt( "~tsoff (nobody at home)", [ BaseMsg ] ),
+					?debug_fmt( "~tsoff (nobody at home).", [ BaseMsg ] ),
 					on_presence_change( _NewPresStatus=false, State );
 
 				false ->
-					?debug_fmt( "~tson (somebody at home)", [ BaseMsg ] ),
+					?debug_fmt( "~tson (somebody at home).", [ BaseMsg ] ),
 					on_presence_change( _NewPresStatus=true, State )
 
 			end
@@ -4232,7 +4232,7 @@ apply_alarm_status( NewStatus=false, State ) ->
 
 
 	SetState = setAttributes( State, [ { alarm_triggered, NewStatus },
-							           % Anticipating next actions:
+									   % Anticipating next actions:
 									   { alarm_stop_task_id, undefined } ] ),
 
 	% No specific lighting stop wanted.
