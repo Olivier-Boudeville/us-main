@@ -978,7 +978,7 @@ vet_email_address( MEA=undefined ) ->
 	MEA;
 
 vet_email_address( EA ) when is_list( EA ) ->
-	case text_utils:split( EA, _Delimiters=[ $@ ] ) of
+	case text_utils:split( EA, _Delimiter=$@ ) of
 
 		[ _User, _FQDN ] ->
 			text_utils:string_to_binary( EA );

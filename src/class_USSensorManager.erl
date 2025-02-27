@@ -1433,7 +1433,7 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 	% Having for example "nct6779-isa-0a00":
 	RawSensorIdStr = text_utils:binary_to_string( RawSensorIdBinStr ),
 
-	case text_utils:split( RawSensorIdStr, _Delimiters=[ $- ] ) of
+	case text_utils:split( RawSensorIdStr, _Delimiter=$- ) of
 
 		[ RawSensorType, InterfStr, NumStr ] ->
 
@@ -2017,9 +2017,10 @@ init_temp_point( _TempEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 	%       init_temp_point( T, BinPointName, TempData, SensorId, PointValueMap,
 	%                        State );
 
+	% Used more than once:
 	Separator = $_,
 
-	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
+	case text_utils:split( AttrName, Separator ) of
 
 		[ _WithoutSepElem ] ->
 
@@ -2364,9 +2365,11 @@ init_fan_point( _FanEntries=[ { AttrNameBin, AttrValue } | T ], BinPointName,
 				FanData, SensorId, State ) ->
 
 	AttrName = text_utils:binary_to_string( AttrNameBin ),
+
+	% Used more than once:
 	Separator = $_,
 
-	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
+	case text_utils:split( AttrName, Separator ) of
 
 		[ _WithoutSepElem ] ->
 
@@ -2652,9 +2655,11 @@ init_intrus_point( _IntrusEntries=[ { AttrNameBin, AttrValue } | T ],
 				   BinPointName, IntrusData, SensorId, State ) ->
 
 	AttrName = text_utils:binary_to_string( AttrNameBin ),
-	Separator = $_,
 
-	case text_utils:split( AttrName, _Delimiters=[ Separator ] ) of
+	% Used more than once:
+	Separator = $ ,
+
+	case text_utils:split( AttrName, Separator ) of
 
 		[ _WithoutSepElem ] ->
 
@@ -3348,8 +3353,7 @@ examine_fan_speed( PointNameBin, CurrentSpeed,
 						"whereas this fan is not known being a PWM one.",
 						[ sensor_id_to_string( SensorId ), PointNameBin,
 						  unit_utils:rpm_to_string( CurrentSpeed ),
-						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ),
-						  PointNameBin ] );
+						  unit_utils:rpm_to_string( MaybeAlarmLowSpeed ) ] );
 
 				{ nominal, excessive_speed } ->
 					?alert_fmt( "Fan speed monitored by ~ts at measurement "
