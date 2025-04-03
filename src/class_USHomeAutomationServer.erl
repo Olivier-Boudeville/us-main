@@ -326,7 +326,8 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	% Specifies the target actuators to be reached for emulate an actual
 	% presence (typically a smart plug controlling a lamp):
 	%
-	% (possibly using a broadcast address, typically if no EURID is known for it)
+	% (possibly using a broadcast address, typically if no EURID is known for
+	% it)
 	%
 	actuator_event_specs :: [ canon_emitted_event_spec() ],
 
@@ -1003,8 +1004,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	AlarmState = init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
-							 MaybeOcSrvPid, SrvState ),
+	AlarmState = init_alarm( AlarmTriggerListenEvSpecs,
+        AlarmActuatorEmitEvSpecs, MaybeOcSrvPid, SrvState ),
 
 	% Any constructor-level settings (usually not specified) will take priority
 	% over in-configuration ones:
@@ -1244,7 +1245,7 @@ init_presence_simulation( PscSimUSettings, OcSrvPid, State ) ->
 	%   "from following settings:~n ~p.", [ PscSimUSettings ], State ),
 
 	init_presence_simulation( PscSimUSettings, OcSrvPid, _PscTable=table:new(),
-							  _NextPscId=1,	_TimeEqTableNeeded=false, State ).
+							  _NextPscId=1, _TimeEqTableNeeded=false, State ).
 
 
 
@@ -4186,10 +4187,10 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 	AfterDuration = ?getAttr(alarm_duration),
 
-	SchedPid ! { registerOneshotTaskIn, [ _TaskCmd=stopAlarmScheduled, AfterDuration ],
-				 self() },
+	SchedPid ! { registerOneshotTaskIn,
+                 [ _TaskCmd=stopAlarmScheduled, AfterDuration ], self() },
 
-	cond_utils:if_defined( us_main_debug_alarm,	send_alarm_trace_fmt( debug,
+	cond_utils:if_defined( us_main_debug_alarm, send_alarm_trace_fmt( debug,
 		"Registering alarm stop task to happen in ~ts.",
 		[ time_utils:duration_to_string( 1000 * AfterDuration ) ], State ) ),
 
@@ -4247,9 +4248,9 @@ apply_alarm_status( NewStatus=false, State ) ->
 
 			SchedPid ! { unregisterTask, PastTaskId, self() },
 
-			cond_utils:if_defined( us_main_debug_alarm,	send_alarm_trace_fmt(
+			cond_utils:if_defined( us_main_debug_alarm, send_alarm_trace_fmt(
 				debug, "Unregistering past alarm stop task #~B.",
-				[ PastTaskId ],	SetState ) ),
+				[ PastTaskId ], SetState ) ),
 
 			receive
 
