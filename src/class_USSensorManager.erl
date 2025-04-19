@@ -817,9 +817,6 @@ data (e.g. regarding temperature, intrusion, etc.).
 
 -type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
 
--type user_muted_sensor_points() ::
-		class_USMainConfigServer:user_muted_sensor_points().
-
 
 
 % The class-specific attributes:
@@ -2630,8 +2627,8 @@ init_intrus_point( _IntrusEntries=[], BinPointName,
 		"status was reported; disabling this point.",
 		[ BinPointName, sensor_id_to_string( SensorId ) ] ),
 
-	IntrusData=#intrusion_data{ input_attribute=BinPointName,
-								status=disabled };
+	IntrusData#intrusion_data{ input_attribute=BinPointName,
+                               status=disabled };
 
 
 % End of recursion, here with an expected intrusion reading:
