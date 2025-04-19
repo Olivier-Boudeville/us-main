@@ -56,9 +56,9 @@ endif
 ifeq ($(ENABLE_DEBUG),true)
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
 	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
-	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_alarm
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
+	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_alarm
 endif
 
 # Defining check flags:
@@ -106,7 +106,7 @@ endif
 # and the code itself, see
 # class_USMainConfigServer:get_us_main_version{_string,}/0):
 #
-US_MAIN_VERSION := 0.0.19
+US_MAIN_VERSION := 0.0.20
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
@@ -190,7 +190,7 @@ EPMD_PORT := 4507
 
 
 ifndef EDOC_OPTS
-	EDOC_OPTS = '[{dir,"$(API_DOC_ROOT)"}, {def,{vsn,"$(PROJECT_VERSION)"}}, {preprocess,true}, {macros,[{$(PROJECT_EDOC_VERSION_KEY),"$(PROJECT_VERSION)"}]}, {includes,["$(LAYER_TOP)/include", "$(US_COMMON_TOP)/.."]}, {overview, "$(LAYER_TOP)/overview.edoc"}]'
+	EDOC_OPTS = '[{dir,"$(API_DOC_ROOT)"}, {def,{vsn,"$(PROJECT_VERSION)"}}, {preprocess,true}, {macros,[{$(PROJECT_EDOC_VERSION_KEY),"$(PROJECT_VERSION)"}]}, {includes,["..", "$(US_COMMON_TOP)/..", "$(MYRIAD_TOP)/.."]}, {overview, "doc/overview.edoc"}]'
 endif
 
 
