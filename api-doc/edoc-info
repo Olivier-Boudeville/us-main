@@ -2,5 +2,6 @@
 {application,'US-Main'}.
 {modules,[class_USCommunicationGateway,class_USContactDirectory,
           class_USHomeAutomationServer,class_USMainConfigServer,
-          class_USSensorManager,us_main_app,us_main_monitor_app,
-          us_main_stop_app,us_main_sup]}.
+          class_USSensorManager,us_main_app,us_main_client,
+          us_main_controller_app,us_main_monitor_app,us_main_stop_app,
+          us_main_sup]}.

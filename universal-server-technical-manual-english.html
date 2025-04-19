@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<meta name="generator" content="Docutils 0.20.1: https://docutils.sourceforge.io/" />
+<meta name="generator" content="Docutils 0.21.2: https://docutils.sourceforge.io/" />
 <meta content="Universal Server" name="keywords" />
 <title>Welcome to the Universal Server documentation</title>
 <link rel="stylesheet" href="pygments-default.css" type="text/css" />
@@ -23,7 +23,7 @@
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2024 Olivier Boudeville</p>
+<tr class="field"><th class="field-name">Organisation:</th><td class="field-body"><p class="first">Copyright (C) 2019-2025 Olivier Boudeville</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Contact:</th><td class="field-body"><p class="first">about (dash) universal-server (at) esperide (dot) com</p>
@@ -32,10 +32,10 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Sunday, January 14, 2024</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Saturday, April 19, 2025</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.18</p>
+<tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.20</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Status:</th><td class="field-body"><p class="first">In progress</p>
@@ -54,7 +54,7 @@
 <p></p>
 <p><span class="raw-html"><a name="us-main_toc"></a></span></p>
 <div class="contents topic" id="topic-1">
-<span id="table-of-contents"></span><p class="topic-title"><strong>Table of Contents</strong></p>
+<span id="table-of-contents"></span><p class="topic-title"><a class="reference internal" href="#top"><strong>Table of Contents</strong></a></p>
 <ul class="simple">
 <li><a class="reference internal" href="#overview" id="toc-entry-1">Overview</a></li>
 <li><a class="reference internal" href="#layer-stack" id="toc-entry-2">Layer Stack</a></li>
@@ -89,12 +89,13 @@
 </ul>
 </li>
 <li><a class="reference internal" href="#launching-us-main" id="toc-entry-23">Launching US-Main</a></li>
-<li><a class="reference internal" href="#monitoring-us-main" id="toc-entry-24">Monitoring US-Main</a></li>
-<li><a class="reference internal" href="#support" id="toc-entry-25">Support</a></li>
-<li><a class="reference internal" href="#licence" id="toc-entry-26">Licence</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-27">Credits</a></li>
-<li><a class="reference internal" href="#please-react" id="toc-entry-28">Please React!</a></li>
-<li><a class="reference internal" href="#ending-word" id="toc-entry-29">Ending Word</a></li>
+<li><a class="reference internal" href="#troubleshooting-us-main" id="toc-entry-24">Troubleshooting US-Main</a></li>
+<li><a class="reference internal" href="#monitoring-us-main" id="toc-entry-25">Monitoring US-Main</a></li>
+<li><a class="reference internal" href="#support" id="toc-entry-26">Support</a></li>
+<li><a class="reference internal" href="#licence" id="toc-entry-27">Licence</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-28">Credits</a></li>
+<li><a class="reference internal" href="#please-react" id="toc-entry-29">Please React!</a></li>
+<li><a class="reference internal" href="#ending-word" id="toc-entry-30">Ending Word</a></li>
 </ul>
 </div>
 <p></p>
@@ -465,13 +466,39 @@ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-
  **************************************************************
  (authbind success reported)
 </pre>
-<p>one may use <tt class="docutils literal">to_erl</tt> to connect directly; just remember that exiting the interpreter as usual (CTRL-C twice) thus means <em>killing</em> that node; prefer CTRL-D (once).</p>
-<p>For further information one may refer to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main shell scripts</a>, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).</p>
+<p>one may use <tt class="docutils literal">to_erl</tt> to connect directly; just remember that exiting the interpreter as usual (Ctrl-C twice) thus means <em>killing</em> that node; prefer Ctrl-D (once); see <a class="reference external" href="http://howtos.esperide.org/Erlang.html#using-run-erl-to-erl">this section</a> for details.</p>
+<p>For further information one may also refer to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main shell scripts</a>, which cover various administration-related tasks (deploying, starting, monitoring, stopping an US-Main server).</p>
 <p>Apparently, in some cases (not always), stopping the US-Main server (typically with <tt class="docutils literal">systemctl stop <span class="pre">us-main-as-native-build.service</span></tt>) will <em>not</em> unregister it from its EPMD, which will not be stopped either. As a consequence, any next launching of the US-Main server is bound to fail after a time-out, and the VM log file (e.g. <tt class="docutils literal"><span class="pre">/opt/universal-server/us_main-native/us_main/log/erlang.log.1</span></tt>) will confirm that a node with the same name (<tt class="docutils literal">us_main</tt>) already exists (and thus prevents the new launch).</p>
 <p>In this case, the best solution is to kill that lingering EPMD (e.g. <tt class="docutils literal">epmd <span class="pre">-port</span> 4507 <span class="pre">-kill</span></tt>) or, more brutally, to run the <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.</p>
 </div>
+<div class="section" id="troubleshooting-us-main">
+<h1><a class="toc-backref" href="#toc-entry-24">Troubleshooting US-Main</a></h1>
+<p>The recommended procedure is to inspect:</p>
+<ul class="simple">
+<li>to run first the <tt class="docutils literal"><span class="pre">monitor-us-main.sh</span></tt> for any (possibly remote) host of interest</li>
+<li>the result of <tt class="docutils literal">systemctl status <span class="pre">us-main-as-native-build.service</span></tt></li>
+<li>the one of <tt class="docutils literal">journalctl <span class="pre">--pager-end</span> <span class="pre">--unit=us-main-as-native-build.service</span></tt></li>
+<li><tt class="docutils literal"><span class="pre">/var/log/universal-server/us-main/us_main.traces</span></tt>, if any</li>
+<li>the latest <tt class="docutils literal"><span class="pre">/opt/universal-server/us_main-latest/us_main/log/erlang.log.*</span></tt></li>
+<li>any content in <tt class="docutils literal"><span class="pre">/var/log/universal-server/us-main/</span></tt></li>
+</ul>
+<p>Should the launch fail at startup before any information can be reported, the best course of action is to launch US-Main by oneself (possibly as root to avoid errors being reported regarding user and group rights).</p>
+<p>For example:</p>
+<pre class="code bash literal-block">
+<span class="c1"># This may as well point directly to a development source tree:
+</span>$<span class="w"> </span><span class="nv">US_MAIN_ROOT</span><span class="o">=</span>/opt/universal-server/us_main-native-latest/us_main<span class="w">
+
+</span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span><span class="si">${</span><span class="nv">US_MAIN_ROOT</span><span class="si">}</span>/src<span class="w">
+
+</span>$<span class="w"> </span>make<span class="w"> </span>us_main_exec
+</pre>
+<p>The information reported on the console may suffice, notably thanks to the error reports; otherwise one may inspect the content of <tt class="docutils literal"><span class="pre">${US_MAIN_ROOT}/priv/for-testing/log/us_main.traces</span></tt> for further information.</p>
+<p>For deeper troubleshooting, the goal is to mimic the behaviour of <tt class="docutils literal"><span class="pre">us-main-as-native-build.service</span></tt>, i.e. the action of the <tt class="docutils literal"><span class="pre">start-us-main-native-build.sh</span></tt> script.</p>
+<p>So it can be run, as root, to further investigate.</p>
+<p>A common cause of failure, if the launch time-out triggered, is having already an instance of US-Main running, thus preventing any new launch thereof. This may be checked for example thanks to <tt class="docutils literal">ps <span class="pre">-edf</span> | grep beam.smp | grep us_main</tt>.</p>
+</div>
 <div class="section" id="monitoring-us-main">
-<h1><a class="toc-backref" href="#toc-entry-24">Monitoring US-Main</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-25">Monitoring US-Main</a></h1>
 <p>If using the default US-Main EPMD port, checking whether an instance is running is as simple as:</p>
 <pre class="code bash literal-block">
 $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ERL_EPMD_PORT</span><span class="o">=</span><span class="m">4507</span><span class="w"> </span><span class="p">;</span><span class="w"> </span>epmd<span class="w"> </span>-names<span class="w">
@@ -481,25 +508,25 @@ $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><
 <p>Then executing <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).</p>
 </div>
 <div class="section" id="support">
-<h1><a class="toc-backref" href="#toc-entry-25">Support</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-26">Support</a></h1>
 <p>Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">project interface</a> (typically <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/issues">issues</a>) or directly at the email address mentioned at the beginning of this document.</p>
 </div>
 <div class="section" id="licence">
-<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-26">Licence</a></h1>
+<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-27">Licence</a></h1>
 <p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
 <p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
 <p>We hope indeed that enhancements will be back-contributed (e.g. thanks to merge requests), so that everyone will be able to benefit from them.</p>
 </div>
 <div class="section" id="credits">
-<h1><a class="toc-backref" href="#toc-entry-27">Credits</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-28">Credits</a></h1>
 <p>Many thanks to David Alberto for <a class="reference external" href="https://www.astrolabe-science.fr/duree-du-jour-et-latitude/">his kind sharing in terms of computation of latitude-based daylight durations</a> (in French).</p>
 </div>
 <div class="section" id="please-react">
-<h1><a class="toc-backref" href="#toc-entry-28">Please React!</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-29">Please React!</a></h1>
 <p>If you have information more detailed or more recent than those presented in this document, if you noticed errors, neglects or points insufficiently discussed, drop us a line! (for that, follow the <a class="reference internal" href="#support">Support</a> guidelines).</p>
 </div>
 <div class="section" id="ending-word">
-<h1><a class="toc-backref" href="#toc-entry-29">Ending Word</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-30">Ending Word</a></h1>
 <p>Have fun with the Universal Server!</p>
 <p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-small"></img></center></span>
 </p>
