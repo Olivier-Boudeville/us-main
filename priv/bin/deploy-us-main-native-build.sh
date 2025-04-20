@@ -516,7 +516,7 @@ if [ ${do_build} -eq 0 ]; then
 	us_launch_type="native"
 	us_main_install_root="${us_main_dir}"
 
-	#echo "Sourcing '${us_main_common_script}' from $(pwd)."
+	echo "Sourcing '${us_main_common_script}' from $(pwd)."
 	. "${us_main_common_script}" #1>/dev/null
 
 	read_us_config_file #1>/dev/null

@@ -53,7 +53,7 @@ fi
 
 # Comment redirections for more details:
 
-read_us_config_file $1 #1>/dev/null
+read_us_config_file "$1" #1>/dev/null
 
 read_us_main_config_file #1>/dev/null
 
