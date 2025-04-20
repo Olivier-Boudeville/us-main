@@ -58,20 +58,22 @@ jobs:
         # directly here:
         #
         cfg_dir="${HOME}/.config/universal-server/"
-        echo "Configuration directory is: '${cfg_dir}'."
+        echo " - configuration directory: ${cfg_dir}"
         mkdir -p "${cfg_dir}"
         cd "${cfg_dir}"
         ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
         # Derived from us_common/priv/for-testing/us.config, as we need a proper
         # us.config file:
-        echo "{us_main_config_filename, "us-main-for-tests.config"}." > "${cfg_dir}/us.config"
+        echo '{us_main_config_filename, "us-main-for-tests.config"}.' > "${cfg_dir}/us.config"
         # Way too much troubles with: 'rebar3 compile' (faulty attempts to
         # look-up/rebuild sources of already-built layers), so we use our own
         # deployment script.
-        # Simpler to force our own test path:
-        test_tree="${HOME}/test-us-main"
+        #
+        # Here we chose to force our own test path (resulting for example in
+        # /github/home/us_main-native-deployment-20250420'):
+        #
+        test_tree="${HOME}"
         mkdir "${test_tree}"
-        # By design this is the (only) clone available, whereas we need a proper us.config file:
         "${base_dir}/priv/bin/deploy-us-main-native-build.sh" --no-launch --allow-root-exec "${test_tree}"
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
