@@ -86,8 +86,9 @@ jobs:
         # So now we will test based on the second US-Main tree, using the
         # US-Main clone that we just deployed (i.e. not the initial one provided
         # by the CI) and its other sibling clones:
-        echo "Using test tree '${test_tree}'."
-        cd "${test_tree}/us_main"
+        deployed_tree="$(ls -d ${HOME}/us_main-native-deployment-*)"
+        echo "Using deployed tree '${deployed_tree}'."
+        cd "${deployed_tree}/us_main"
         make info-context
         # Needed so that Gammu can emulate a 3G device there:
         mkdir /tmp/gammu-dummy-device
