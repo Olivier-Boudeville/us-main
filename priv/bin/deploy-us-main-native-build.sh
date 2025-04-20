@@ -51,10 +51,10 @@ base_us_dir="/opt/universal-server"
 
 
 # To be able to coexist with OTP releases (named as us_main-${archive_version});
-# relative to base_us_dir:
+# relative to base_us_dir, and more convenient if timestamped (so that multiple
+# versions can easily coexist):
 #
-#native_install_dir="us_main-native"
-native_install_dir="us_main-native-$(date '+%Y%m%d')"
+native_install_dir="us_main-native-deployment-$(date '+%Y%m%d')"
 
 usage="
 Usage: $(basename $0) [-h|--help] [${no_launch_opt}] [${allow_root_exec_opt}] [BASE_US_DIR]: deploys (clones and builds) locally, as a normal user (sudo requested only whenever necessary), a fully functional US-Main environment natively (i.e. from its sources, not as an integrated OTP release) in the specified base directory (otherwise in the default '${base_us_dir}' directory), as '${native_install_dir}', then launches it (unless requested not to, with the '${no_launch_opt}' option).
