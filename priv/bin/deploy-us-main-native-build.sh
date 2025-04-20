@@ -161,11 +161,14 @@ ceylan_opts="EXECUTION_TARGET=${execution_target}"
 
 
 # $0 may already be absolute:
-if [ "$0" = /* ]; then
-	log_dir="$(dirname $0)"
-else
-	log_dir="$(pwd)"
-fi
+case "$0" in
+
+   /*)
+	   log_dir="$(dirname $0)";;
+
+   *)
+	   log_dir="$(pwd)";;
+esac
 
 log_file="${log_dir}/$(basename $0).log"
 
