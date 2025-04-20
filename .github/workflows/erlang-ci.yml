@@ -73,7 +73,7 @@ jobs:
         # /github/home/us_main-native-deployment-20250420'):
         #
         test_tree="${HOME}"
-        mkdir "${test_tree}"
+        mkdir -p "${test_tree}"
         "${base_dir}/priv/bin/deploy-us-main-native-build.sh" --no-launch --allow-root-exec "${test_tree}"
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
