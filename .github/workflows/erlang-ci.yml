@@ -48,7 +48,7 @@ jobs:
         # look-up/rebuild sources of already-built layers), so we use our own
         # deployment script:
         #
-        priv/bin/deploy-us-main-native-build.sh --no-launch
+        priv/bin/deploy-us-main-native-build.sh --no-launch --allow-root-exec
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
         make info-context

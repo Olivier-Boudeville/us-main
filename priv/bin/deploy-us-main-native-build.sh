@@ -31,11 +31,12 @@ do_clone=0
 do_build=0
 
 do_launch=0
-
 no_launch_opt="--no-launch"
 
 checkout_opt="--checkout"
 
+root_exec_allowed=1
+allow_root_exec_opt="--allow-root-exec"
 
 # To avoid typos:
 checkout_dir="_checkouts"
@@ -51,7 +52,9 @@ base_us_dir="/opt/universal-server"
 native_install_dir="us_main-native-$(date '+%Y%m%d')"
 
 usage="
-Usage: $(basename $0) [-h|--help] [${no_launch_opt}] [BASE_US_DIR]: deploys (clones and builds) locally, as a normal user (sudo requested only whenever necessary), a fully functional US-Main environment natively (i.e. from its sources, not as an integrated OTP release) in the specified base directory (otherwise in the default '${base_us_dir}' directory), as '${native_install_dir}', then launches it (unless requested not to, with the '${no_launch_opt}' option).
+Usage: $(basename $0) [-h|--help] [${no_launch_opt}] [${allow_root_exec_opt}] [BASE_US_DIR]: deploys (clones and builds) locally, as a normal user (sudo requested only whenever necessary), a fully functional US-Main environment natively (i.e. from its sources, not as an integrated OTP release) in the specified base directory (otherwise in the default '${base_us_dir}' directory), as '${native_install_dir}', then launches it (unless requested not to, with the '${no_launch_opt}' option).
+
+The '${allow_root_exec_opt}' option allows this script to run as root (mostly useful for continuous integration).
 
 Creates a full installation where most dependencies are sibling directories of US-Main, symlinked in checkout directories, so that code-level upgrades are easier to perform than in an OTP/rebar3 context.
 
@@ -99,6 +102,12 @@ while [ $token_eaten -eq 0 ]; do
 		token_eaten=0
 	fi
 
+	if [ "$1" = "${allow_root_exec_opt}" ]; then
+		echo "(root execution enabled)"
+		root_exec_allowed=0
+		token_eaten=0
+	fi
+
 	if [ $token_eaten -eq 0 ]; then
 		shift
 	fi
@@ -142,12 +151,17 @@ cd /
 
 # Checking first:
 
-if [ "$(id -u)" = "0" ]; then
+if [ $root_exec_allowed -eq 1 ]; then
 
-	echo "  Error, this script must not be run as root (sudo will be requested only when necessary)." 1>&2
-	exit 5
+	if [ "$(id -u)" = "0" ]; then
+
+		echo "  Error, this script must not be run as root (sudo will be requested only when necessary)." 1>&2
+		exit 5
+
+	fi
 
 fi
+
 
 erlc="$(which erlc 2>/dev/null)"
 
