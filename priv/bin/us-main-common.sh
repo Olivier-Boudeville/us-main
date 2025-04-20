@@ -403,7 +403,7 @@ read_us_main_config_file()
 
 	else
 
-		echo "Read for US-main log dir '${us_main_log_dir}'."
+		#echo "Read for US-main log dir '${us_main_log_dir}'."
 
 		# Checks whether absolute:
 		case "${us_main_log_dir}" in
@@ -425,8 +425,12 @@ read_us_main_config_file()
 
 	if [ ! -d "${us_main_log_dir}" ]; then
 
-		echo "  Error, no US-Main log directory (for non-VM logs) found ('${us_main_log_dir}')." 1>&2
-		exit 160
+		#echo "  Error, no US-Main log directory (for non-VM logs) found ('${us_main_log_dir}')." 1>&2
+		#exit 160
+
+		# Better to auto-create then:
+		echo "  Warning: no US-Main log directory (for non-VM logs) found ('${us_main_log_dir}')." 1>&2
+		mkdir -p "${us_main_log_dir}"
 
 	fi
 
