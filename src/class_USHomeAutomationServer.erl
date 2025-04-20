@@ -4170,14 +4170,15 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 			receive
 
-				{ wooper_result, task_unregistered } ->
+				{ wooper_result, { task_unregistered, PastTaskId } } ->
 					ok;
 
-				{ wooper_result, task_already_done } ->
+				{ wooper_result, { task_already_done, PastTaskId } } ->
 					send_alarm_trace( error,
 						"Unregistered alarm stop task already done.", State );
 
-				{ wooper_result, { task_unregistration_failed, Reason } } ->
+				{ wooper_result, { task_unregistration_failed, Reason,
+                                   PastTaskId } } ->
 					send_alarm_trace_fmt( error, "Unregistration of the alarm "
 						"stop task failed; reason: ~p.", [ Reason ], State )
 
@@ -4254,15 +4255,16 @@ apply_alarm_status( NewStatus=false, State ) ->
 
 			receive
 
-				{ wooper_result, task_unregistered } ->
+				{ wooper_result, { task_unregistered, PastTaskId } } ->
 					ok;
 
-				{ wooper_result, task_already_done } ->
+				{ wooper_result, { task_already_done, PastTaskId } } ->
 					send_alarm_trace( error,
 						"Unregistered alarm stop task already done.",
 						SetState );
 
-				{ wooper_result, { task_unregistration_failed, Reason } } ->
+				{ wooper_result, { task_unregistration_failed, Reason,
+                                   PastTaskId } } ->
 					send_alarm_trace_fmt( error, "Unregistration of the "
 						"alarm stop task failed; reason: ~p.", [ Reason ],
 						SetState )
