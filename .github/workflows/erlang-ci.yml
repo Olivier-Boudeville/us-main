@@ -42,6 +42,7 @@ jobs:
         apt-get update
         apt-get install --assume-yes sudo tree pkg-config libgammu-dev lm-sensors
         apt-get -t bookworm-backports install --assume-yes libgammu-dev
+        echo " - running as: $(id)"
         echo " - building from: $(pwd)"
         echo " - content of this directory: $(ls . 2>/dev/null | tr '\n' ' ')"
         echo " - content of parent directory: $(ls .. 2>/dev/null | tr '\n' ' ')"
@@ -74,6 +75,8 @@ jobs:
         #
         test_tree="${HOME}"
         mkdir -p "${test_tree}"
+        export USER=$(id -nu)
+        echo "Deploying as ${USER} in '${test_tree}'."
         "${base_dir}/priv/bin/deploy-us-main-native-build.sh" --no-launch --allow-root-exec "${test_tree}"
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
