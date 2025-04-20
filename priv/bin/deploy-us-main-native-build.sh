@@ -1,10 +1,13 @@
 #!/bin/sh
 
+# Copyright (C) 2020-2025 Olivier Boudeville
+
 # A script to automatically deploy a US-Main native build from scratch (provided
 # that Erlang is already available).
 #
-# This is the most common procedure, generally not relying on the '--no-launch'
+# This is the most common procedure, especially if using the '--no-launch'
 # command-line option.
+
 
 # See also:
 # - the get-us-main-from-sources.sh script to install a test version of US-Main
@@ -26,9 +29,11 @@
 
 # Tells whether repositories shall be cloned (if not done already):
 do_clone=0
+#do_clone=1
 
 # Tells whether dependencies shall be built (if not done already):
 do_build=0
+#do_build=1
 
 do_launch=0
 no_launch_opt="--no-launch"
@@ -69,13 +74,14 @@ If not using the '${no_launch_opt}' option, please ensure that no prior US-Main 
 
 # Commented: - rebar3 (see http://myriad.esperide.org/#getting-rebar3), for dependencies that are not ours
 
+
 # Will thus install the following US-Main prerequisites:
 # - Myriad, WOOPER and Traces
 # - [optional] Mobile (then Seaplus as well)
 # - [optional] Oceanic (then our erlang-serial as well and a relevant TTY)
 # - US-Common
 
-github_base="https://github.com/Olivier-Boudeville"
+our_github_base="https://github.com/Olivier-Boudeville"
 
 
 # Note that this mode of obtaining US-Main does not rely on rebar3 for US-Main
@@ -114,19 +120,32 @@ while [ $token_eaten -eq 0 ]; do
 
 done
 
+
 # Acts as a default option catchall as well:
 if [ -n "$1" ]; then
+
 	base_us_dir="$1"
+
 	# If specified, must exist:
 	if [ ! -d "${base_us_dir}" ]; then
 
-		echo "  Error, the specified installation directory, '${base_us_dir}', does not exist.
+		echo "  Error, the specified installation directory, '${base_us_dir}', does not exist (from '$(pwd)').
 ${usage}" 1>&2
 		exit 4
 
 	fi
 
+	# Ensure is absolute:
+	case "${base_us_dir}" in
+
+		/*) : ;;
+		*) base_us_dir="$(realpath ${base_us_dir})" ;;
+
+	esac
+
 fi
+
+#echo "base_us_dir = ${base_us_dir}"
 
 
 # Selects the (build-time) execution target for all Ceylan layers:
@@ -140,9 +159,36 @@ execution_target="production"
 ceylan_opts="EXECUTION_TARGET=${execution_target}"
 
 
-#echo "do_launch = ${do_launch}"
-#echo "base_us_dir = ${base_us_dir}"
-#echo "ceylan_opts = ${ceylan_opts}"
+
+# $0 may already be absolute:
+if [ "$0" = /* ]; then
+	log_dir="$(dirname $0)"
+else
+	log_dir="$(pwd)"
+fi
+
+log_file="${log_dir}/$(basename $0).log"
+
+
+echo "Writing in log file '${log_file}'."
+
+if [ -f "${log_file}" ]; then
+	/bin/rm -f "${log_file}"
+fi
+
+
+display_and_log()
+{
+
+	echo "$*" | tee --append "${log_file}"
+
+}
+
+
+
+#display_and_log "do_launch = ${do_launch}"
+#display_and_log "base_us_dir = ${base_us_dir}"
+#display_and_log "ceylan_opts = ${ceylan_opts}"
 
 
 # Just to avoid error messages if running from a non-existing directory:
@@ -168,7 +214,7 @@ erlc="$(which erlc 2>/dev/null)"
 # No version checked:
 if [ ! -x "${erlc}" ]; then
 
-	echo "  Error, no Erlang compiler (erlc) found. Consider installing Erlang first, possibly thanks to our dedicated script, ${github_base}/Ceylan-Myriad/blob/master/conf/install-erlang.sh." 1>&2
+	echo "  Error, no Erlang compiler (erlc) found. Consider installing Erlang first, possibly thanks to our dedicated script, ${our_github_base}/Ceylan-Myriad/blob/master/conf/install-erlang.sh." 1>&2
 
 	exit 10
 
@@ -192,19 +238,25 @@ make="$(which make 2>/dev/null)"
 if [ ! -x "${make}" ]; then
 
 	echo "  Error, no 'make' tool found." 1>&2
+	exit 18
+
+fi
+
+
+display_and_log "Securing sudoer rights for the upcoming operations that require it."
+if ! sudo echo; then
+
+	echo "  Error, sudo failed." 1>&2
 	exit 19
 
 fi
 
 
-echo "Securing sudoer rights for the upcoming operations that require it."
-sudo echo
-
 base_us_dir_created=1
 
 if [ ! -d "${base_us_dir}" ]; then
 
-	echo " Creating US base directory '${base_us_dir}'."
+	display_and_log " Creating US base directory '${base_us_dir}'."
 	# Most permissive, will be updated later in the installation:
 	sudo /bin/mkdir --mode=777 "${base_us_dir}"
 	base_us_dir_created=0
@@ -221,12 +273,11 @@ abs_native_install_dir="${base_us_dir}/${native_install_dir}"
 us_main_dir="${abs_native_install_dir}/us_main"
 
 
-echo "   Installing US-Main in '${abs_native_install_dir}'..."
-echo
+
+display_and_log "   Installing US-Main in '${abs_native_install_dir}'..."
+display_and_log
 
 
-# First US-Main itself, so that any _checkouts directory can be created
-# afterwards:
 
 if [ $do_clone -eq 0 ]; then
 
@@ -256,22 +307,16 @@ if [ $do_clone -eq 0 ]; then
 
 	fi
 
-	echo "Getting the relevant repositories (as $(id -un)):"
+
+	display_and_log "Getting the relevant repositories (as $(id -un)):"
 
 
-	echo " - cloning jsx"
+    # First US-Main itself, so that any _checkouts directory can be created
+    # afterwards:
+	#
+	display_and_log " - cloning US-Main"
 
-	if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
-
-		echo " Error, unable to obtain jsx." 1>&2
-		exit 35
-
-	fi
-
-
-	echo " - cloning US-Main"
-
-	if ! ${git} clone ${clone_opts} "${github_base}/us-main" us_main; then
+	if ! ${git} clone ${clone_opts} "${our_github_base}/us-main" us_main; then
 
 		echo " Error, unable to obtain US-Main." 1>&2
 		exit 40
@@ -279,63 +324,95 @@ if [ $do_clone -eq 0 ]; then
 	fi
 
 	# A specific branch might be selected:
-	target_branch="master"
-	#target_branch="web-app-addition"
+	us_main_branch="master"
+	#us_main_branch="web-app-addition"
 
 	# To avoid "Already on 'master'":
-	if [ "${target_branch}" != "master" ]; then
+	if [ "${us_main_branch}" != "master" ]; then
 
-		cd us_main && ${git} checkout "${target_branch}" 1>/dev/null && cd ..
+		cd us_main && ${git} switch "${us_main_branch}" 1>>"${log_file}" && cd ..
 		if [ ! $? -eq 0 ]; then
 
-			echo " Error, unable to switch to US-Main branch '${target_branch}'." 1>&2
-			exit 42
+			echo " Error, unable to switch to US-Main branch '${us_main_branch}'." 1>&2
+			exit 41
 
 		fi
 
 	fi
 
+	ln -sf us_main/conf/GNUmakefile-for-native-root GNUmakefile
 
-	echo " - cloning US-Common"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/us-common" us_common; then
+	display_and_log " - cloning jsx"
 
-		echo " Error, unable to obtain US-Common." 1>&2
-		exit 35
+	if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
+
+		echo " Error, unable to obtain jsx parser." 1>&2
+		exit 38
 
 	fi
 
 
-	echo " - cloning our fork of erlang-serial (for TTY control)"
+	display_and_log " - cloning our fork of erlang-serial (for TTY control)"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/erlang-serial"; then
+	if ! ${git} clone ${clone_opts} "${our_github_base}/erlang-serial"; then
 
 		echo " Error, unable to obtain erlang-serial." 1>&2
 		exit 34
 
 	fi
 
-	echo " - cloning Ceylan-Oceanic (for Enocean support)"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Oceanic" oceanic; then
+	display_and_log " - cloning Ceylan-Myriad"
+
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Myriad" myriad; then
+
+		echo " Error, unable to obtain Ceylan-Myriad." 1>&2
+		exit 20
+
+	fi
+
+	# A specific branch might be selected:
+	myriad_branch="master"
+	#myriad_branch="xxx"
+
+	# To avoid "Already on 'master'":
+	if [ "${myriad_branch}" != "master" ]; then
+
+		cd myriad && ${git} switch "${myriad_branch}" 1>>"${log_file}" && cd ..
+		if [ ! $? -eq 0 ]; then
+
+			echo " Error, unable to switch to Ceylan-Myriad branch '${myriad_branch}'." 1>&2
+			exit 21
+
+		fi
+
+	fi
+
+
+	display_and_log " - cloning Ceylan-Oceanic (for Enocean support)"
+
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Oceanic" oceanic; then
 
 		echo " Error, unable to obtain Ceylan-Oceanic." 1>&2
 		exit 33
 
 	fi
 
-	echo " - cloning Ceylan-Seaplus (for Erlang/C integration)"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Seaplus" seaplus; then
+	display_and_log " - cloning Ceylan-Seaplus (for Erlang/C integration)"
+
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Seaplus" seaplus; then
 
 		echo " Error, unable to obtain Ceylan-Seaplus." 1>&2
 		exit 32
 
 	fi
 
-	echo " - cloning Ceylan-Mobile (for SMS management)"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Mobile" mobile; then
+	display_and_log " - cloning Ceylan-Mobile (for SMS management)"
+
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Mobile" mobile; then
 
 		echo " Error, unable to obtain Ceylan-Mobile." 1>&2
 		exit 31
@@ -343,19 +420,9 @@ if [ $do_clone -eq 0 ]; then
 	fi
 
 
-	echo " - cloning Ceylan-Traces"
+	display_and_log " - cloning Ceylan-WOOPER"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Traces" traces; then
-
-		echo " Error, unable to obtain Ceylan-Traces." 1>&2
-		exit 30
-
-	fi
-
-
-	echo " - cloning Ceylan-WOOPER"
-
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-WOOPER" wooper; then
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-WOOPER" wooper; then
 
 		echo " Error, unable to obtain Ceylan-WOOPER." 1>&2
 		exit 25
@@ -363,27 +430,24 @@ if [ $do_clone -eq 0 ]; then
 	fi
 
 
-	echo " - cloning Ceylan-Myriad"
+	display_and_log " - cloning Ceylan-Traces"
 
-	if ! ${git} clone ${clone_opts} "${github_base}/Ceylan-Myriad" myriad; then
+	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Traces" traces; then
 
-		echo " Error, unable to obtain Ceylan-Myriad." 1>&2
-		exit 20
+		echo " Error, unable to obtain Ceylan-Traces." 1>&2
+		exit 30
 
 	fi
 
-	ln -sf us_main/conf/GNUmakefile-for-native-root GNUmakefile
 
-	# Back in ${base_us_dir}:
-	cd ..
+	display_and_log " - cloning US-Common"
 
-	# Designates this install as the latest one then.
-	#
-	# Rare option needed, otherwise apparently mistook for a directory resulting
-	# in an incorrect link:
-	#
-	sudo /bin/ln -sf --no-target-directory "${native_install_dir}" us_main-native
-	sudo /bin/ln -sf --no-target-directory us_main-native us_main-latest
+	if ! ${git} clone ${clone_opts} "${our_github_base}/us-common" us_common; then
+
+		echo " Error, unable to obtain US-Common." 1>&2
+		exit 35
+
+	fi
 
 fi
 
@@ -393,14 +457,41 @@ if [ ${do_build} -eq 0 ]; then
 
 	cd "${abs_native_install_dir}"
 
-	echo
-	echo "Building these packages (as $(id -un), with Erlang $(erl -eval '{ok, V} = file:read_file( filename:join([code:root_dir(), "releases", erlang:system_info(otp_release), "OTP_VERSION"]) ), io:fwrite(V), halt().' -noshell) and following Ceylan options: ${ceylan_opts}):"
+	display_and_log
+	display_and_log "Building these packages as $(id -un), with Erlang $(erl -eval '{ok, V} = file:read_file( filename:join([code:root_dir(), "releases", erlang:system_info(otp_release), "OTP_VERSION"]) ), io:fwrite(V), halt().' -noshell) and following Ceylan options: ${ceylan_opts}, from '$(pwd)':"
+
+	echo " - building erlang-serial"
+	cd erlang-serial && ${make} 1>>"${log_file}" && DESTDIR=. ${make} install 1>>"${log_file}"
+	if [ ! $? -eq 0 ]; then
+		echo " Error, the build of our fork of erlang-serial failed." 1>&2
+		exit 65
+	fi
+	cd ..
+
+
+	# Now building our own standalone version of jsx; rebar3 required.
+	#
+	# The resulting BEAM files are both in 'ebin' and in
+	# '_build/default/lib/jsx/ebin':
+	#
+	display_and_log " - building jsx"
+	cd jsx && ${rebar3} compile 1>>"${log_file}"
+	if [ ! $? -eq 0 ]; then
+		echo " Error, the build of jsx failed." 1>&2
+		exit 90
+	fi
+
+	# Otherwise may not be found by US-Main:
+	#ln -s _build/default/lib/jsx/ebin
+
+	cd ..
+
 
 	# As much as possible, notably for our developments, we prefer relying on
 	# our any vanilla good old build system (i.e. not on rebar3).
 
-	echo " - building Ceylan-Myriad"
-	cd myriad && ${make} all ${ceylan_opts} 1>/dev/null
+	display_and_log " - building Ceylan-Myriad"
+	cd myriad && ${make} all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Myriad failed." 1>&2
 		exit 50
@@ -408,8 +499,8 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	# Our build; uses Myriad's sibling tree:
-	echo " - building Ceylan-WOOPER"
-	cd wooper && ${make} ${ceylan_opts} all 1>/dev/null
+	display_and_log " - building Ceylan-WOOPER"
+	cd wooper && ${make} ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-WOOPER failed." 1>&2
 		exit 55
@@ -417,8 +508,8 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	# Our build; uses Myriad's and WOOPER's sibling trees:
-	echo " - building Ceylan-Traces"
-	cd traces && ${make} ${ceylan_opts} all 1>/dev/null
+	display_and_log " - building Ceylan-Traces"
+	cd traces && ${make} ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Traces failed." 1>&2
 		exit 60
@@ -426,32 +517,25 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 
-	echo " - building erlang-serial"
-	cd erlang-serial && ${make} 1>/dev/null && DESTDIR=. ${make} install 1>/dev/null
-	if [ ! $? -eq 0 ]; then
-		echo " Error, the build of our fork of erlang-serial failed." 1>&2
-		exit 65
-	fi
-	cd ..
 
-	echo " - building Ceylan-Oceanic"
-	cd oceanic && ${make} ${ceylan_opts} all 1>/dev/null
+	display_and_log " - building Ceylan-Oceanic"
+	cd oceanic && ${make} ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Oceanic failed." 1>&2
 		exit 70
 	fi
 	cd ..
 
-	echo " - building Ceylan-Seaplus"
-	cd seaplus && ${make} ${ceylan_opts} all 1>/dev/null
+	display_and_log " - building Ceylan-Seaplus"
+	cd seaplus && ${make} ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Seaplus failed." 1>&2
 		exit 75
 	fi
 	cd ..
 
-	echo " - building Ceylan-Mobile"
-	cd mobile && ${make} ${ceylan_opts} all 1>/dev/null
+	display_and_log " - building Ceylan-Mobile"
+	cd mobile && ${make} ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Mobile failed." 1>&2
 		exit 80
@@ -463,32 +547,20 @@ if [ ${do_build} -eq 0 ]; then
 	# our native build, which thus uses Myriad's, WOOPER's and Traces' sibling
 	# trees:
 	#
-	echo " - building US-Common"
-	cd us_common && ${make} all ${ceylan_opts} 1>/dev/null
+	display_and_log " - building US-Common"
+	cd us_common && ${make} all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of US-Common failed." 1>&2
 		exit 85
 	fi
 	cd ..
 
-	# BEAMs then to be found in jsx/_build/default/lib/jsx/ebin:
-	echo " - building jsx"
-	cd jsx && ${rebar3} compile 1>/dev/null
-	if [ ! $? -eq 0 ]; then
-		echo " Error, the build of jsx failed." 1>&2
-		exit 90
-	fi
 
-	# Otherwise will not be found by US-Main:
-	ln -s _build/default/lib/jsx/ebin
-
-	cd ..
-
-	echo " - building US-Main"
+	display_and_log " - building US-Main"
 	cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../seaplus && ln -s ../../mobile && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && ln -s ../../jsx && cd ..
 
 	# Our build; uses Ceylan's sibling trees:
-	if ! ${make} all ${ceylan_opts} 1>/dev/null; then
+	if ! ${make} all ${ceylan_opts} 1>>"${log_file}"; then
 		echo " Error, the build of US-Main failed." 1>&2
 		exit 95
 	fi
@@ -516,12 +588,12 @@ if [ ${do_build} -eq 0 ]; then
 	us_launch_type="native"
 	us_main_install_root="${us_main_dir}"
 
-	echo "Sourcing '${us_main_common_script}' from $(pwd)."
-	. "${us_main_common_script}" #1>/dev/null
+	display_and_log "Sourcing '${us_main_common_script}' from $(pwd)."
+	. "${us_main_common_script}" #1>>"${log_file}"
 
-	read_us_config_file #1>/dev/null
+	read_us_config_file #1>>"${log_file}"
 
-	read_us_main_config_file #1>/dev/null
+	read_us_main_config_file #1>>"${log_file}"
 
 	# First permissions (chmod), then owner/group (chown):
 
@@ -530,7 +602,7 @@ if [ ${do_build} -eq 0 ]; then
 	# abs_native_install_dir/* rather than only us_main_dir, as the dependencies
 	# shall also have their permissions updated:
 
-	echo " Changing the permissions of deployed roots in '${abs_native_install_dir}' to ${dir_perms}."
+	display_and_log " Changing the permissions of deployed roots in '${abs_native_install_dir}' to ${dir_perms}."
 
 	# Not wanting to select non-directories:
 	dirs="$(/bin/ls -d ${abs_native_install_dir}/*/)"
@@ -543,7 +615,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	fi
 
-	echo " Changing the permissions of deployed root '${abs_native_install_dir}' itself to ${dir_perms}."
+	display_and_log " Changing the permissions of deployed root '${abs_native_install_dir}' itself to ${dir_perms}."
 	if ! sudo chmod ${dir_perms} "${abs_native_install_dir}"; then
 
 		echo "Error, changing permissions of deployed root '${abs_native_install_dir}' itself to ${dir_perms} failed." 1>&2
@@ -554,7 +626,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	if [ ${base_us_dir_created} -eq 0 ]; then
 
-		echo " Changing the permissions of base US install directory '${base_us_dir}' to ${dir_perms}."
+		display_and_log " Changing the permissions of base US install directory '${base_us_dir}' to ${dir_perms}."
 
 		if ! sudo chmod ${dir_perms} "${base_us_dir}"; then
 
@@ -577,7 +649,7 @@ if [ ${do_build} -eq 0 ]; then
 			chown_spec="${chown_spec}:${us_groupname}"
 		fi
 
-		echo " Changing recursively owner/group of all deployed elements as ${chown_spec} from '${abs_native_install_dir}'."
+		display_and_log " Changing recursively owner/group of all deployed elements as ${chown_spec} from '${abs_native_install_dir}'."
 		if ! sudo chown --recursive "${chown_spec}" "${abs_native_install_dir}"; then
 
 			echo "Error, changing recursively user/group owner (as ${chown_spec}) from '${abs_native_install_dir}' failed." 1>&2
@@ -588,7 +660,7 @@ if [ ${do_build} -eq 0 ]; then
 
 		if [ ${base_us_dir_created} -eq 0 ]; then
 
-			echo " Changing also the owner/group of base US install directory '${base_us_dir}' as '${chown_spec}'."
+			display_and_log " Changing also the owner/group of base US install directory '${base_us_dir}' as '${chown_spec}'."
 
 			# This one is not recursive:
 			if ! sudo chown "${chown_spec}" "${base_us_dir}"; then
@@ -604,8 +676,20 @@ if [ ${do_build} -eq 0 ]; then
 	fi
 
 
-	echo
-	echo "Native US-Main built and ready in ${abs_native_install_dir}."
+	# Final touch for the build:
+
+	cd "${base_us_dir}"
+
+	# Designates this install as the latest one then.
+	#
+	# Rare option needed, otherwise apparently mistook for a directory resulting
+	# in an incorrect link:
+	#
+	sudo /bin/ln -sf --no-target-directory "${native_install_dir}" us_main-native
+	sudo /bin/ln -sf --no-target-directory us_main-native us_main-latest
+
+	display_and_log
+	display_and_log "Native US-Main built and ready in ${abs_native_install_dir}."
 
 fi
 
@@ -613,7 +697,7 @@ fi
 # Not checking specifically the expected US and US-Main configuration files:
 # running US-Main will tell us whether they exist and are legit.
 
-echo
+display_and_log
 
 
 if [ $do_launch -eq 0 ]; then
@@ -625,12 +709,12 @@ if [ $do_launch -eq 0 ]; then
 	#
 	if [ ! -d "${us_main_dir}" ]; then
 
-		echo " Error, the target US-Main directory, '${us_main_dir}', does not exist." 1>&2
+		echo "  Error, the target US-Main directory, '${us_main_dir}', does not exist." 1>&2
 		exit 75
 
 	fi
 
-	echo "   Running US-Main native application (as '$(id -un)' initially)"
+	display_and_log "   Running US-Main native application (as '$(id -un)' initially)"
 
 	# Simplest: cd src && ${make} us_main_exec
 
@@ -642,7 +726,7 @@ if [ $do_launch -eq 0 ]; then
 
 	if [ ! -x "${start_script}" ]; then
 
-		echo " Error, no start script found (no '${start_script}' found)." 1>&2
+		echo "  Error, no start script found (no '${start_script}' found)." 1>&2
 		exit 30
 
 	fi
@@ -657,16 +741,16 @@ if [ $do_launch -eq 0 ]; then
 
 		exec="${d}/bin/us_main"
 
-		echo "Testing for ${exec}..."
+		display_and_log "Testing for ${exec}..."
 
 		if [ -x "${exec}" ]; then
-			echo " Trying to stop gracefully any prior release in ${d}."
-			sudo ${exec} stop 1>/dev/null 2>&1
+			display_and_log " Trying to stop gracefully any prior release in ${d}."
+			sudo ${exec} stop 1>>"${log_file}" 2>&1
 		fi
 
 	done
 
-	echo "### Launching US-Main native build now"
+	display_and_log "### Launching US-Main native build now, specifying '${us_config_dir}' as US configuration directory"
 
 	cd "${abs_native_install_dir}/us_main" || exit 81
 
@@ -677,17 +761,18 @@ if [ $do_launch -eq 0 ]; then
 	# (typically if the intended one is located in the
 	# ~/.config/universal-server directory of the launching user):
 
-	us_conf_dir="$(dirname ${us_config_file})"
+	#us_conf_dir="$(dirname ${us_config_file})"
 
-	sudo ${start_script} "${us_conf_dir}"
+	# Needing to specify the US configuration *directory* (not file):
+	sudo ${start_script} "${us_config_dir}"
 	res=$?
 
 	if [ $res -eq 0 ]; then
 
-		echo " US-Main launched (start script reported success)."
+		display_and_log " US-Main launched (start script reported success)."
 
 	else
-		echo " Error, start script ('${start_script}') failed (code: ${res})." 1>&2
+		echo "  Error, start script ('${start_script}') failed (code: ${res})." 1>&2
 
 		exit ${res}
 
@@ -697,13 +782,18 @@ if [ $do_launch -eq 0 ]; then
 
 	# Maybe use get-us-main-native-build-status.sh in the future.
 
+    display_and_log "Consider running our 'us_main/priv/bin/monitor-us-main.sh' script if wanting more detailed information regarding that launched instance."
 
 else
 
-	echo "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service')"
+	display_and_log "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service')"
 
-	echo "Any prior US-Main instance that would still linger could be removed thanks to our 'kill-us-main.sh' script. Use 'journalctl -eu us-main-as-native-build.service' to consult the corresponding systemd-level logs."
+    display_and_log "Any prior US-Main instance that would still linger could be removed thanks to our 'kill-us-main.sh' script. Use 'journalctl -eu us-main-as-native-build.service' to consult the corresponding systemd-level logs."
 
 fi
 
-echo "Consider running our 'us_main/priv/bin/monitor-us-main.sh' script if wanting more detailed information regarding that launched instance."
+
+new_log_file="${base_us_dir}/$(basename $0).log"
+
+echo "(moving finally log file '${log_file}' to '${new_log_file}')"
+sudo /bin/mv -f "${log_file}" "${new_log_file}"
