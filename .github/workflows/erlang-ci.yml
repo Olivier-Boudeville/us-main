@@ -44,34 +44,44 @@ jobs:
         apt-get -t bookworm-backports install --assume-yes libgammu-dev
         echo " - building from: $(pwd)"
         echo " - content of parent directory: $(ls .. 2>/dev/null | tr '\n' ' ')"
+        # For example '/github/home':
+        echo " - home is: ${HOME}"
+        # Absolute as well; for example '/__w/us-main/us-main':
         base_dir="$(pwd)"
-        echo "Base directory is: '${base_dir}'."
-        # Configuration needed for post-install permission fixes:
+        echo " - base (initial) directory: ${base_dir}"
+        # We will need proper US-Main and also US-Common configuration files;
+        # the former can be found in the present clone, but the latter would
+        # require a US-Common clone, which will be available only later, once
+        # the deployment has been done. So we create a minimum version thereof
+        # directly here:
+        #
         cfg_dir="${HOME}/.config/universal-server/"
         echo "Configuration directory is: '${cfg_dir}'."
-        us_common_base_dir="${base_dir}/_build/default/lib/us_common"
         mkdir -p "${cfg_dir}"
         cd "${cfg_dir}"
-        ln -s "${us_common_base_dir}/priv/for-testing/us.config"
-        ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
-        cd "${base_dir}"
+        us_main_base_dir="${base_dir}/us_main"
+        ln -s "${us_main_base_dir}/priv/for-testing/us-main-for-tests.config"
+        # Derived from us_common/priv/for-testing/us.config:
+        echo "{us_main_config_filename, "us-main-for-tests.config"}." > "${cfg_dir}/us.config"
         # Way too much troubles with: 'rebar3 compile' (faulty attempts to
         # look-up/rebuild sources of already-built layers), so we use our own
         # deployment script:
         #
-        priv/bin/deploy-us-main-native-build.sh --no-launch --allow-root-exec
+        # By design this is the (only) clone available, whereas we need a proper us.config file:
+        "${us_main_base_dir}/priv/bin/deploy-us-main-native-build.sh" --no-launch --allow-root-exec
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
+        cd "${us_main_base_dir}"
         make info-context
     - name: Run tests
       run: |
         # Needed so that Gammu can emulate a 3G device there:
         mkdir /tmp/gammu-dummy-device
-        cd ${base_dir}
         # Corresponding configuration information:
-        /bin/cp -f _build/default/lib/mobile/conf/gammurc-for-tests $HOME/.gammurc
+        /bin/cp -f "${base_dir}/mobile/conf/gammurc-for-tests" "${HOME}/.gammurc"
         # To avoid 'No sensors found!' to be returned by 'sensors', yet
         # bound to fail with 'No i2c device files found.', typically in a
         # continuous integration context:
         sensors-detect --auto || true
+        cd "${us_main_base_dir}"
         make test NODE_NAMING="--sn"
