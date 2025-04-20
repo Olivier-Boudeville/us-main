@@ -81,13 +81,14 @@ jobs:
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
         #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
         cd "${base_dir}"
-        make info-context
     - name: Run tests
       run: |
         # So now we will test based on the second US-Main tree, using the
         # US-Main clone that we just deployed (i.e. not the initial one provided
         # by the CI) and its other sibling clones:
         echo "Using test tree '${test_tree}'."
+        cd "${test_tree}/us_main"
+        make info-context
         # Needed so that Gammu can emulate a 3G device there:
         mkdir /tmp/gammu-dummy-device
         # Corresponding configuration information:
@@ -96,5 +97,4 @@ jobs:
         # bound to fail with 'No i2c device files found.', typically in a
         # continuous integration context:
         sensors-detect --auto || true
-        cd "${test_tree}/us_main"
         make test NODE_NAMING="--sn"
