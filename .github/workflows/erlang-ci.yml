@@ -1,4 +1,4 @@
-name: Erlang CI
+name: US-Main CI
 
 on:
   push:
@@ -9,8 +9,11 @@ on:
 jobs:
 
   build:
-    # The actual OS is dictated by the image, which is currently a Debian 11
-    # (bullseye):
+    # Relying on a standard GitHub-hosted runner, see
+    # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#standard-github-hosted-runners-for-public-repositories
+    #
+    # The actual OS is dictated by the image, which is currently reported as a
+    # Debian distribution (currently: bookworm).
     #
     runs-on: ubuntu-latest
 
@@ -24,7 +27,7 @@ jobs:
       run: |
         echo "Checking distribution and version"
         cat /etc/*-release
-        # Actually does not look as an Ubuntu but a Debian:
+        # Actually does not look as an Ubuntu but as a Debian:
         #echo "## Listing repositories: $(cat /etc/apt/sources.list)"
         #echo "## Updating packages (1/2)"
         #apt-get update
@@ -34,16 +37,20 @@ jobs:
         #add-apt-repository universe
         #echo "## Updating packages (2/2)"
         #apt-get update
-         echo "deb http://deb.debian.org/debian bullseye-backports main" >> /etc/apt/sources.list
+        echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list
         echo "## Updating packages"
         apt-get update
         apt-get install --assume-yes tree pkg-config libgammu-dev lm-sensors
-        apt-get -t bullseye-backports install --assume-yes libgammu-dev
-        rebar3 compile
+        apt-get -t bookworm-backports install --assume-yes libgammu-dev
         echo " - building from: $(pwd)"
         echo " - content of parent directory: $(ls .. 2>/dev/null | tr '\n' ' ')"
-        echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
-        echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
+        # Way too much troubles with: 'rebar3 compile' (faulty attempts to
+        # look-up/rebuild sources of already-built layers), so we use our own
+        # deployment script:
+        #
+        priv/bin/deploy-us-main-native-build.sh --no-launch
+        #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"
+        #echo " - content of _build/default/lib directory: $(ls _build/default/lib 2>/dev/null)"
         make info-context
     - name: Run tests
       run: |
