@@ -23,9 +23,8 @@ The "Universal Server" (`US-Main', part of the <a href="https://us.esperide.org/
 Optionally US-Main may use the <em>Universal Webserver</em>, i.e. <a href="http://us-web.esperide.org" target="_blank">US-Web</a> (for web integration), <a href="http://mobile.esperide.org" target="_blank">Ceylan-Mobile</a> (for 3G connectivity, notably SMS sending) and <a href="http://seaplus.esperide.org" target="_blank">Ceylan-Seaplus</a> (as a prerequisite of Ceylan-Mobile for a bridge to the C language).
 </p>
 
-
 <p>
-<b>Note that, currently, code based on WOOPER is not correctly taken into account by edoc</b>: due to limitations, most of the listed functions lack their documentation, and all methods and also generated code, such as constructors, are invisible to edoc, respectively as it is not aware that they are actually exported in, or added to, the AST. However the full US-Main codebase <em>is</em> intensely documented, refer to <a href="https://github.com/Olivier-Boudeville/US-Main/tree/master/src" target="_blank">this repository</a> for full information.
+<b>Note that, currently, code based on WOOPER is not correctly taken into account by edoc</b>: due to some limitations, most of the listed functions lack their documentation, and all methods and also generated code, such as constructors, are invisible to edoc, respectively as it is not aware that they are actually exported in, or added to, the AST. However the full US-Main codebase <em>is</em> intensely documented, refer to <a href="https://github.com/Olivier-Boudeville/US-Main/tree/master/src" target="_blank">this repository</a> for full information.
 </p>
 
 @reference See the <a href="http://us-main.esperide.org" target="_blank">US-Main official website</a> or <a href="https://olivier-boudeville.github.io/us-main/index.html" target="_blank">its mirror</a>
