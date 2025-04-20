@@ -399,23 +399,27 @@ read_us_main_config_file()
 
 		us_main_log_dir="/var/log/universal-server/us-main"
 		echo "No base directory specified for US-Main logs (no 'us_main_log_dir' entry in the US-Main configuration file '${us_main_config_file}'), trying default log directory '${us_main_log_dir}'."
+		mkdir -p "${us_main_log_dir}"
 
 	else
 
+		echo "Read for US-main log dir '${us_main_log_dir}'."
+
 		# Checks whether absolute:
-		if [[ "${us_main_log_dir:0:1}" == / || "${us_main_log_dir:0:2}" == ~[/a-z] ]]; then
+		case "${us_main_log_dir}" in
 
-			echo "Using directly specified directory for US-Main logs, '${us_main_log_dir}'."
+			/*)
+				echo "Using directly specified absolute directory for US-Main logs, '${us_main_log_dir}'."
+				;;
+			*)
+				# If it is relative, it is relative to the US-Main application
+				# base directory:
+				#
+				us_main_log_dir="${us_main_app_base_dir}/${us_main_log_dir}"
+				echo "Using specified directory for US-Main logs (made absolute), '${us_main_log_dir}'."
+				;;
 
-		else
-
-			# If it is relative, it is relative to the US-Main application base
-			# directory:
-			#
-			us_main_log_dir="${us_main_app_base_dir}/${us_main_log_dir}"
-			echo "Using specified directory for US-Main logs (made absolute), '${us_main_log_dir}'."
-
-		fi
+		esac
 
 	fi
 
