@@ -79,6 +79,7 @@ us_actual_root="${us_main_install_root}"
 
 # As depends on it:
 us_common_script="${us_common_root}/priv/bin/us-common.sh"
+
 if [ -f "${us_common_script}" ]; then
 
 	#echo "### Sourcing now ${us_common_script}"
@@ -190,7 +191,7 @@ read_us_main_config_file()
 
 		fi
 
-		echo "No main username specified, using current one, '${us_main_username}'."
+		echo "No Us-Main username specified, using current one, '${us_main_username}'."
 
 	else
 
@@ -292,7 +293,8 @@ read_us_main_config_file()
 	fi
 
 
-	# VM-level logs:
+	# VM-level logs (not based on us_main_log_dir - which is dedicated to the
+	# US-Main applicative ones):
 	#
 	# (note that us_main_vm_log_dir is for US-Main what us_log_dir is for
 	# US-Common)
@@ -434,7 +436,7 @@ read_us_main_config_file()
 
 	fi
 
-	echo "US-Main (main-level) logs expected in the '${us_main_log_dir}' directory."
+	echo "US-Main applicative logs expected in the '${us_main_log_dir}' directory."
 
 	# Defined for all script users:
 	trace_file="${us_main_log_dir}/us_main.traces"
@@ -620,10 +622,10 @@ inspect_us_main_log()
 	while [ ! ${attempts} -eq ${max_attempts} ] && [ ! -f "${us_main_vm_log_file}" ]; do
 
 		if [ -z "${us_main_vm_log_file}" ]; then
-			echo "(no VM log file found, attempt ${attempts}/${max_attempts})"
+			echo "  (no VM log file found in '${us_main_vm_log_dir}', attempt ${attempts}/${max_attempts})"
 		else
 			# Might happen:
-			echo "(warning: VM log file '${us_main_vm_log_file}' not found, attempt ${attempts}/${max_attempts})"
+			echo "  (warning: VM log file '${us_main_vm_log_file}' not found, attempt ${attempts}/${max_attempts})"
 		fi
 
 		sleep 1

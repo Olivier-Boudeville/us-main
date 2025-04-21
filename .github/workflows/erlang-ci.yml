@@ -75,7 +75,7 @@ jobs:
         #
         test_tree="${HOME}"
         mkdir -p "${test_tree}"
-        export USER=$(id -nu)
+        export USER="$(id -nu)"
         echo "Deploying as ${USER} in '${test_tree}'."
         "${base_dir}/priv/bin/deploy-us-main-native-build.sh" --no-launch --allow-root-exec "${test_tree}"
         #echo " - content of _checkouts directory: $(ls _checkouts 2>/dev/null)"

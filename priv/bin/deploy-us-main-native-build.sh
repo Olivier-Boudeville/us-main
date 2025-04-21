@@ -267,8 +267,8 @@ if [ ! -d "${base_us_dir}" ]; then
 fi
 
 
-# Typically a release-like '/opt/universal-server/us_main-native' tree,
-# containing all dependencies:
+# Typically a release-like '/opt/universal-server/us_main{-native,}-deployment'
+# tree, containing all dependencies:
 #
 abs_native_install_dir="${base_us_dir}/${native_install_dir}"
 
@@ -288,7 +288,7 @@ if [ $do_clone -eq 0 ]; then
 
 	if [ -d "${native_install_dir}" ]; then
 
-		echo "  Error, target installation directory, '${base_us_dir}/${native_install_dir}', already exists. Remove it first (preferably as root, as US-Main may be set to run as a specific user that would then own some log files in this tree)." 1>&2
+		echo "  Error, target installation directory, '${base_us_dir}/${native_install_dir}', already exists (from '$(pwd)'). Remove it first (preferably as root, as US-Main may be set to run as a specific user that would then own some log files in this tree)." 1>&2
 
 		exit 20
 
@@ -717,7 +717,7 @@ if [ $do_launch -eq 0 ]; then
 
 	fi
 
-	display_and_log "   Running US-Main native application (as '$(id -un)' initially)"
+	display_and_log "   Running US-Main native application (as '$(id -un)' initially, from '${us_main_dir}'))"
 
 	# Simplest: cd src && ${make} us_main_exec
 
@@ -763,8 +763,6 @@ if [ $do_launch -eq 0 ]; then
 	# script thanks to sudo may not select the proper configuration file
 	# (typically if the intended one is located in the
 	# ~/.config/universal-server directory of the launching user):
-
-	#us_conf_dir="$(dirname ${us_config_file})"
 
 	# Needing to specify the US configuration *directory* (not file):
 	sudo ${start_script} "${us_config_dir}"
