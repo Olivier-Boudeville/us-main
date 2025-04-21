@@ -56,16 +56,17 @@ base_us_dir="/opt/universal-server"
 #
 native_install_dir="us_main-native-deployment-$(date '+%Y%m%d')"
 
+# For prerequisites, refer to .github/workflows/erlang-ci.yml.
 usage="
 Usage: $(basename $0) [-h|--help] [${no_launch_opt}] [${allow_root_exec_opt}] [BASE_US_DIR]: deploys (clones and builds) locally, as a normal user (sudo requested only whenever necessary), a fully functional US-Main environment natively (i.e. from its sources, not as an integrated OTP release) in the specified base directory (otherwise in the default '${base_us_dir}' directory), as '${native_install_dir}', then launches it (unless requested not to, with the '${no_launch_opt}' option).
 
-The '${allow_root_exec_opt}' option allows this script to run as root (mostly useful for continuous integration).
+The '${allow_root_exec_opt}' option allows this script to run as root (which is disapproved; it is mostly useful for continuous integration).
 
 Creates a full installation where most dependencies are sibling directories of US-Main, symlinked in checkout directories, so that code-level upgrades are easier to perform than in an OTP/rebar3 context.
 
 The prerequisites expected to be already installed are:
  - Erlang/OTP (see http://myriad.esperide.org/#prerequisites)
- - the 'sensors' package
+ - the 'sudo' and 'sensors'/'lm-sensors' packages; optional: 'pkg-config' and 'libgammu-dev'
 
 If any Enocean USB dongle is to be used, a corresponding TTY entry shall have been created (refer to the documentation of Ceylan-Oceanic for further guidance) prior to running US-Main.
 
