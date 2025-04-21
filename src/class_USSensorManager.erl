@@ -66,8 +66,8 @@ fans), and of reporting any abnormal situation" ).
 % Many sensors look like poorly-designed random generators.
 %
 % Initially we registered all sensors and points, even muted ones. It was overly
-% complex and mostly useless. Now we drop them, so unknown reported ones are
-% just ignored (anyway the set of sensors never changes).
+% complex and mostly useless. Now we drop muted ones, so unknown reported ones
+% are just ignored (anyway the set of sensors never changes).
 
 
 % This sensor manager is designed to be able to integrate to an OTP supervision
@@ -960,13 +960,15 @@ construct( State ) ->
 
 		{ _SensorEnabled=true, InitState } ->
 
-			?send_info( InitState, "Performing a first, direct, relevant "
-				"sensor update before scheduling it periodically." ),
+            PollPeriod = ?default_sensor_poll_periodicity,
+
+			?send_info_fmt( InitState, "Performing a first, direct, relevant "
+				"sensor update before scheduling it periodically "
+                "(every ~B seconds).", [ PollPeriod ] ),
 
 			UpdatedSensorState = update_sensor_data( InitState ),
 
-			init_polling( ?default_sensor_poll_periodicity,
-						  UpdatedSensorState );
+			init_polling( PollPeriod, UpdatedSensorState );
 
 		{ _SensorEnabled=false, InitState } ->
 			?send_notice( InitState,
@@ -4619,7 +4621,7 @@ to_string( State ) ->
 	end,
 
 	text_utils:format( "US sensor manager for '~ts', ~ts; using the "
-		"US configuration server ~w, using ~ts and "
+		"US configuration server ~ts, using ~ts and "
 		"the communication gateway ~w",
 		[ net_utils:localhost(), TrackStr, CfgStr, SchedStr,
 		  ?getAttr(comm_gateway_pid) ] ).
