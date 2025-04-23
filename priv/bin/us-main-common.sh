@@ -191,7 +191,7 @@ read_us_main_config_file()
 
 		fi
 
-		echo "No Us-Main username specified, using current one, '${us_main_username}'."
+		echo "No US-Main username specified, using current one, '${us_main_username}'."
 
 	else
 
