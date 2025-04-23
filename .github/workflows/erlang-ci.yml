@@ -62,7 +62,7 @@ jobs:
         echo " - configuration directory: ${cfg_dir}"
         mkdir -p "${cfg_dir}"
         cd "${cfg_dir}"
-        ln -s "${base_dir}/priv/for-testing/us-main-for-tests.config"
+        ln -s "${base_dir}/priv/conf/us-main-for-tests.config"
         # Derived from us_common/priv/for-testing/us.config, as we need a proper
         # us.config file:
         echo '{us_main_config_filename, "us-main-for-tests.config"}.' > "${cfg_dir}/us.config"

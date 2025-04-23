@@ -470,7 +470,6 @@ Configuring US-Main
 .. Note:: We discuss configuration before installation, as the settings of interest shall be defined prior to deployment, notably so that adequate permissions can be set on the installation, according to the user under which US-Main is intended to run.
 
 
-
 The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
 
 So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (possibly located in ``/etc/xdg/universal-server/`` or ``~/.config/universal-server/``), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
@@ -484,6 +483,15 @@ Notably, in this file, a ``us_main_config_filename`` entry can be specified in o
 
 This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
+Versions of these two configuration files may be used for testing purposes; as root:
+
+.. code:: bash
+
+  $ cd /etc/xdg/universal-server/
+  $ ln -s $US_COMMON_ROOT/priv/conf/us.config
+  $ ln -s $US_MAIN_ROOT/priv/conf/us-main-for-tests.config
+
+Of course in the general case one will devise one's configuration files according to one's context and needs.
 
 For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to resources. For example, provided a ``us-srv`` group has already been created:
 
@@ -508,21 +516,35 @@ Installing US-Main: Current Stable Version & Download
 
 As mentioned, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
 
-We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines), and building the Universal Server from sources, thanks to GNU ``make``.
+We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines [#]_), and building the Universal Server from sources, thanks to GNU ``make``.
+
+.. [#] Note that servers like US-Main have a machinery meant to be executed as root before switching to an application-specific user. As a result, Erlang is best available system-wide (as opposed to only a regular, non-privileged user).
 
 The Universal Server ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
 
 
 
-Automated Installation & Deployment
-===================================
+Automated Installation & Native Deployment (recommended)
+========================================================
 
-This is actually the simplest, safest, most used/recommended procedure: just run the `deploy-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/deploy-us-main-native-build.sh>`_ script (possibly with its ``--no-launch`` option if wanting just to have it ready) and hope for the best!
+This procedure relies on our *native* build/run system, which is the only one that is officially supported in the context of US-Main, and involves only two steps, on the target host.
+
+**First step** is to:
+
+- create a ``/etc/xdg/universal-server`` directory in which a relevant US configuration file (``us.config``) is added, referencing a suitable US-Main configuration file (e.g. ``foobar-us-main.config``) located in the same directory; refer to the `Configuring US-Main`_ section
+
+- ensure that our `deploy-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/deploy-us-main-native-build.sh>`_ script in available on that host (in a US-Main clone, it is located in ``priv/bin``), possibly simply at the root of one's normal user
+
+- ensure that no prior server is running at the target port(s) (otherwise specify the ``--no-launch`` option below); to be sure that no previous US-Main instance lingers, one may execute ``systemctl stop us-main-as-native-build.service`` and/or run our ``priv/bin/kill-us-main.sh`` script
+
+After deployment, the installation itself will be located by default in the ``/opt/universal-server/us_main-native-deployment-YYYYMMDD`` (timestamped) directory.
+
+**Step #2** exists in two versions, either based on a direct launching or, preferably, on one managed by Systemd (with ``systemctl``); refer to `Launching US-Main`_ for that.
 
 
 
-Using Cutting-Edge GIT
-======================
+Alternatively: Using Cutting-Edge Git
+=====================================
 
 This is more or less a manual, more limited version of the previous deployment script.
 
@@ -620,7 +642,9 @@ For more details, one may have a look at:
 Launching US-Main
 -----------------
 
-We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use).
+We suppose here that the US-Main configuration has already taken place (otherwise apply the guidelines in the `Configuring US-Main`_ section).
+
+We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).
 
 In this last case, first a symbolic link pointing to this script shall be typically created in the ``/usr/local/bin`` directory of the host of interest. Then the server is to be triggered based on ``/etc/systemd/system/us-main-as-native-build.service`` (see `us-main-as-native-build.service <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service>`_).
 
@@ -628,11 +652,18 @@ For example:
 
 .. code:: bash
 
+ # Prepare:
+ $ cd /usr/local/bin
+ $ ln -s /opt/universal-server/us_main-latest/us_main/priv/bin/start-us-main-native-build.sh
+ $ cd /etc/systemd/system
+ $ ln -s /opt/universal-server/us_main-latest/us_main/priv/conf/us-main-as-native-build.service
+
+ # Trigger:
  $ systemctl start us-main-as-native-build
  $ journalctl --pager-end --unit=us-main-as-native-build.service
  $ systemctl enable us-main-as-native-build
 
-Then one may run ``monitor-us-main.sh`` to browse its traces live at any time.
+Then one may run ``priv/bin/monitor-us-main.sh`` to browse its traces live at any time.
 
 Like notified in the start-up message::
 
