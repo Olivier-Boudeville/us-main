@@ -150,9 +150,9 @@ read_us_main_config_file()
 	# Interest: not clashing with the one of any other US-* application
 	# (e.g. US-Web).
 	#
-	us_main_erl_epmd_port=$(echo "${us_main_base_content}" | grep epmd_port | sed 's|^[[:space:]]*{[[:space:]]*epmd_port,[[:space:]]*||1' | sed 's|[[:space:]]*}.$||1')
+	us_main_epmd_port=$(echo "${us_main_base_content}" | grep epmd_port | sed 's|^[[:space:]]*{[[:space:]]*epmd_port,[[:space:]]*||1' | sed 's|[[:space:]]*}.$||1')
 
-	if [ -z "${us_main_erl_epmd_port}" ]; then
+	if [ -z "${us_main_epmd_port}" ]; then
 
 		#echo "No US-Main level Erlang EPMD port specified."
 
@@ -163,27 +163,27 @@ read_us_main_config_file()
 		#if [ -n "${erl_epmd_port}" ]; then
 
 		#   # Keeping US-Common defaults:
-		#   us_main_erl_epmd_port="${erl_epmd_port}"
+		#   us_main_epmd_port="${erl_epmd_port}"
 
 		#else
 
 		#	echo "No Erlang EPMD port specified at any US level, applying defaults (port ${default_us_main_epmd_port})."
 
-		#   us_main_erl_epmd_port="${default_us_main_epmd_port}"
+		#   us_main_epmd_port="${default_us_main_epmd_port}"
 
 		#fi
 
 		echo "No US-Main level Erlang EPMD port specified, applying the default US-Main one, ${default_us_main_epmd_port}."
-		us_main_erl_epmd_port="${default_us_main_epmd_port}"
+		us_main_epmd_port="${default_us_main_epmd_port}"
 
 	fi
 
 	# For shell-like uses:
-	epmd_opt="ERL_EPMD_PORT=${us_main_erl_epmd_port}"
+	epmd_opt="ERL_EPMD_PORT=${us_main_epmd_port}"
 	#echo "epmd_opt = ${epmd_opt}"
 
 	# For make uses:
-	epmd_make_opt="EPMD_PORT=${us_main_erl_epmd_port}"
+	epmd_make_opt="EPMD_PORT=${us_main_epmd_port}"
 
 
 

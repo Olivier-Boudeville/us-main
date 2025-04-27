@@ -136,24 +136,30 @@ else
 fi
 
 
+# Previously any (possibly the default) US-level EPMD port applied here, now the
+# US-Main one applies unconditionally:
 
-if [ -n "${erl_epmd_port}" ]; then
+#if [ -n "${erl_epmd_port}" ]; then
+#
+#	echo "Using user-defined US-Main EPMD port ${erl_epmd_port}."
+#	export ERL_EPMD_PORT="${erl_epmd_port}"
+#
+#else
 
-	echo "Using user-defined US-Main EPMD port ${erl_epmd_port}."
-	export ERL_EPMD_PORT="${erl_epmd_port}"
-
-else
 
 	# Using the default US-Main EPMD port (see the EPMD_PORT make variable),
 	# supposing that the instance was properly launched (see the 'launch-epmd'
 	# make target):
 
-	echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
+#	echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
 
-	export ERL_EPMD_PORT="${default_us_main_epmd_port}"
+#	export ERL_EPMD_PORT="${default_us_main_epmd_port}"
 
-fi
+#fi
 
+# Already resolved by us-main-common.sh:
+echo "Using, for US-Main EPMD port, ${us_main_epmd_port}."
+export ERL_EPMD_PORT="${us_main_epmd_port}"
 
 # Not always working:
 if ! ${epmd} -stop us_main; then
