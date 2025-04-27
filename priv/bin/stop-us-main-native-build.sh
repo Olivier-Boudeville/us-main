@@ -16,12 +16,9 @@
 # To consult them, use:
 #   $ journalctl --pager-end --unit=us-main-as-native-build.service
 
-# See also:
-#  - kill-us-main-native-build.sh
-#  - start-us-main-native-build.sh
-#  - deploy-us-main-native-build.sh
-
-
+# See also the {start,kill,control,monitor}-us-main.sh scripts, and the
+# get-us-main-status.sh one.
+k
 
 # Implementation notes:
 
@@ -215,7 +212,7 @@ export us_launch_type="native"
 
 # We expect a pre-installed US configuration file to exist:
 #echo "Reading US configuration file:"
-read_us_config_file "$1" #1>/dev/null
+read_us_config_file "${maybe_us_config_dir}" #1>/dev/null
 
 # Now we also need to read the US-Main configuration file here, to fetch any
 # EPMD port there:
@@ -249,6 +246,8 @@ cd src/apps || exit 17
 # No sudo or authbind necessary here, no US_* environment variables either:
 echo XDG_CONFIG_DIRS="${xdg_cfg_dirs}" make -s us_main_stop_exec EPMD_PORT=${us_main_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
 
+
+# A correct way of passing environment variables:
 XDG_CONFIG_DIRS="${xdg_cfg_dirs}" make -s us_main_stop_exec EPMD_PORT=${us_main_epmd_port} CMD_LINE_OPT="$* --target-cookie ${vm_cookie}"
 
 res=$?
@@ -312,7 +311,7 @@ fi
 #fi
 
 # Already resolved by us-main-common.sh:
-echo "Using, for US-Main EPMD port, ${us_main_epmd_port}."
+echo "Using, for the US-Main EPMD port, ${us_main_epmd_port}."
 export ERL_EPMD_PORT="${us_main_epmd_port}"
 
 if ! ${epmd} -stop us_main; then

@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# A script to kill for sure a local US-Main instance.
+
+# See also the {start,stop,control,monitor}-us-main.sh and get-us-main-status.sh
+# scripts.
+
+
 usage="Usage: $(basename $0): kills any running US-Main instance(s), and ensures none is registered in the specifically-associated EPMD."
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -8,6 +14,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 	exit 0
 
 fi
+
 
 if [ ! $# -eq 0 ]; then
 
@@ -31,7 +38,7 @@ fi
 
 
 # Of course using stop-us-main-{native-build,release}.sh shall be preferred, as
-# we kill (not terminate properly) any US-Main instance(s).
+# here we kill (not terminate properly) any US-Main instance(s).
 #
 # We used to kill EPMD as well, but we do not want to interfere with other
 # Erlang applications. However, killing all US-Main instances is not always
@@ -49,7 +56,7 @@ fi
 # variable).
 #
 # For that, we have to determine the path to the various US scripts involved. We
-# do the same as, for example, start-us-main-native-build.sh :
+# do the same as, for example, start-us-main-native-build.sh.
 
 # Getting the real path is useful, as this script may be actually run through a
 # symlink located elsewhere (e.g. in /usr/local/bin):
@@ -75,7 +82,7 @@ fi
 # We need first to locate the us-main-common.sh script:
 
 # Location expected also by us-common.sh afterwards:
-cd "${us_main_install_root}" || exit
+cd "${us_main_install_root}" || exit 40
 
 
 # Will source in turn us-common.sh:
@@ -97,9 +104,9 @@ us_launch_type="native"
 . "${us_main_common_script}" #1>/dev/null
 
 # We expect a pre-installed US configuration file to exist:
-read_us_config_file "$1" #1>/dev/null
+read_us_config_file "$1" 1>/dev/null
 
-read_us_main_config_file #1>/dev/null
+read_us_main_config_file 1>/dev/null
 
 
 
@@ -141,19 +148,18 @@ fi
 
 #if [ -n "${erl_epmd_port}" ]; then
 #
-#	echo "Using user-defined US-Main EPMD port ${erl_epmd_port}."
-#	export ERL_EPMD_PORT="${erl_epmd_port}"
+#   echo "Using user-defined US-Main EPMD port ${erl_epmd_port}."
+#   export ERL_EPMD_PORT="${erl_epmd_port}"
 #
 #else
 
+    # Using the default US-Main EPMD port (see the EPMD_PORT make variable),
+    # supposing that the instance was properly launched (see the 'launch-epmd'
+    # make target):
 
-	# Using the default US-Main EPMD port (see the EPMD_PORT make variable),
-	# supposing that the instance was properly launched (see the 'launch-epmd'
-	# make target):
+#   echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
 
-#	echo "Using default US-Main EPMD port ${default_us_main_epmd_port}."
-
-#	export ERL_EPMD_PORT="${default_us_main_epmd_port}"
+#   export ERL_EPMD_PORT="${default_us_main_epmd_port}"
 
 #fi
 
@@ -167,12 +173,11 @@ if ! ${epmd} -stop us_main; then
 	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
 
 	exit 5
-
+o
 fi
-
 
 sleep 1
 
-
+# At least this script:
 echo "Resulting US-Main processes found: $(ps -edf | grep us_main | grep -v grep)"
 echo "Resulting EPMD entries found: $(${epmd} -names)"

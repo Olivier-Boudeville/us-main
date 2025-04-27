@@ -42,7 +42,7 @@ if [ -d "${local_us_main_install_root}/priv" ]; then
 else
 
 	# The location enforced by deploy-us-main-native-build.sh:
-	us_main_install_root="/opt/universal-server/us_main-native/us_main"
+	us_main_install_root="/opt/universal-server/us_main-native-deployment/us_main"
 	echo "Selecting US-Main native build in standard server location '${us_main_install_root}'."
 
 	if [ ! -d "${us_main_install_root}/priv" ]; then
@@ -56,7 +56,13 @@ else
 fi
 
 
-usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line (note that the final directory of this path must be 'universal-server'), otherwise found through the default US search paths. The US-Main installation itself will be looked up in '${us_main_install_root}'. This script must be run as root."
+usage="Usage: $(basename $0) [US_CONF_DIR]: starts a US-Main server, to run as a native build, based on a US configuration directory specified on the command-line (note that the final directory of this path must be 'universal-server'), otherwise found through the default US search paths.
+
+The US-Main installation itself will be looked up relatively to this script, otherwise in the standard path applied by our deploy-us-main-native-build.sh script.
+
+Example: '$0 /opt/test/universal-server' is to read /opt/test/universal-server/us.config.
+
+This script must be run as root."
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -139,7 +145,7 @@ fi
 # We need first to locate the us-main-common.sh script:
 
 # Location expected also by us-common.sh afterwards:
-cd "${us_main_install_root}" || exit 1
+cd "${us_main_install_root}" || exit 16
 
 # As expected by us-main-common.sh for the VM logs:
 log_dir="${us_main_install_root}/log"
@@ -161,14 +167,15 @@ if [ ! -f "${us_main_common_script}" ]; then
 fi
 
 
-# Hint for the helper scripts:
-us_launch_type="native"
+# Hints for the helper scripts:
+export us_launch_type="native"
 
 echo "Sourcing '${us_main_common_script}' from $(pwd)."
 . "${us_main_common_script}" #1>/dev/null
 
 
 # We expect a pre-installed US configuration file to exist:
+#echo "Reading US configuration file:"
 read_us_config_file "${maybe_us_config_dir}" #1>/dev/null
 
 read_us_main_config_file #1>/dev/null
@@ -178,7 +185,7 @@ secure_authbind
 prepare_us_main_launch
 
 # From us_main:
-cd src || exit 2
+cd src || exit 17
 
 
 #echo "epmd_make_opt=${epmd_make_opt}"
@@ -189,18 +196,10 @@ cd src || exit 2
 # (note that a former instance of EPMD may wrongly report that a node with the
 # target name is still running, whereas no Erlang VM even exists)
 #
-make -s launch-epmd ${epmd_make_opt} || exit 2
-
-
-if [ -n "${erl_epmd_port}" ]; then
-	epmd_start_msg="configured EPMD port ${erl_epmd_port}"
-else
-	epmd_start_msg="default US-Main port ${default_us_main_epmd_port}"
-fi
-
+make -s launch-epmd ${epmd_make_opt} || exit 18
 
 echo
-echo " -- Starting US-Main natively-built application as user '${us_main_username}', on ${epmd_start_msg}, VM log expected in '${us_main_vm_log_dir}/erlang.log.1'..."
+echo " -- Starting US-Main natively-built application as user '${us_main_username}', on US-Main EPMD port ${us_main_epmd_port}, VM log expected in '${us_main_vm_log_dir}/erlang.log.1'..."
 
 # A correct way of passing environment variables (despite a sudo and an
 # authbind) proved finally to specify them prior to authbind, like in:
@@ -244,7 +243,7 @@ if [ ${res} -eq 0 ]; then
 	# Not wanting to diagnose too soon, otherwise we might return a failure code
 	# and trigger the brutal killing by systemd of an otherwise working us_main:
 	#
-	sleep 4
+	sleep 5
 
 	# Better diagnosis than the previous res code:
 	#
@@ -262,7 +261,7 @@ if [ ${res} -eq 0 ]; then
 		# quickly, as expected, yet 'systemctl start' will wait for a long time
 		# (most probably because of a time-out).
 		#
-		echo "  (failure assumed, as '${trace_file}' not found)"
+		echo "  (failure assumed - or slow start, as '${trace_file}' not found)"
 		exit 100
 
 	fi

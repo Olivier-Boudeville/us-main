@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# A script to control a remote US-Main instance.
+
 # The default US-Main configuration file *for remote access*:
 um_cfg_filename="us-main-remote-access.config"
 
@@ -67,7 +69,7 @@ Example of use: './$(basename $0) us-main-remote-access-for-development.config s
 parse_arguments()
 {
 
-	#echo "Examining argument '${cmd}' (received args: $*)."
+	echo "Examining argument '${cmd}' (received args: '$*')."
 
 	case ${cmd} in
 
@@ -142,21 +144,24 @@ ${usage}" 1>&2
 
 		# Unknown command, supposedly a configuration file path:
 		*) um_cfg_filename="${cmd}"
-		   #echo "US-Main Configuration file path set to '${um_cfg_filename}'."
+		   echo "US-Main Configuration file path set to '${um_cfg_filename}'."
+
 		   cmd="$1"
-		   shift
+
+		   if [ -n "${cmd}" ]; then
+			   shift
+		   fi
+
 		   #sleep 1
 		   all_args="$*"
 		   if [ -n "${all_args}" ]; then
-			   parse_arguments ${all_args}
+				parse_arguments ${all_args}
 		   fi
 		   ;;
 
 	esac
 
 }
-
-
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -167,6 +172,8 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
 fi
 
+
+# Unless it is a config path:
 cmd="$1"
 
 if [ -z "${cmd}" ]; then
@@ -181,6 +188,7 @@ fi
 shift
 
 parse_arguments $*
+
 
 echo "Using command '${cmd}', with arguments '${args}' and configuration file '${um_cfg_filename}'."
 
@@ -221,6 +229,6 @@ cd "${app_dir}"
 # Any argument(s) specified to this script shall be interpreted as a plain,
 # extra one:
 #
-echo make -s us_main_monitor_exec CMD_LINE_OPT="${cmd} ${args} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
+#echo make -s us_main_monitor_exec CMD_LINE_OPT="${cmd} ${args} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
 
 make -s us_main_controller_exec CMD_LINE_OPT="${cmd} ${args} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}

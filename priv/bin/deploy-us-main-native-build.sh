@@ -44,7 +44,7 @@ root_exec_allowed=1
 allow_root_exec_opt="--allow-root-exec"
 
 # To avoid typos:
-checkout_dir="_checkouts"
+#checkout_dir="_checkouts"
 priv_dir="priv"
 
 base_us_dir="/opt/universal-server"
@@ -347,14 +347,15 @@ if [ $do_clone -eq 0 ]; then
 	ln -sf us_main/conf/GNUmakefile-for-native-root GNUmakefile
 
 
-	display_and_log " - cloning jsx"
+	# Superseded by the built-in 'json' parser:
+	# display_and_log " - cloning jsx"
 
-	if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
+	# if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
 
-		echo " Error, unable to obtain jsx parser." 1>&2
-		exit 38
+	#   echo " Error, unable to obtain jsx parser." 1>&2
+	#   exit 38
 
-	fi
+	# fi
 
 
 	display_and_log " - cloning our fork of erlang-serial (for TTY control)"
@@ -472,23 +473,24 @@ if [ ${do_build} -eq 0 ]; then
 	fi
 	cd ..
 
-
-	# Now building our own standalone version of jsx; rebar3 required.
+	# ('json' now used instead)
+	#
+	# Previously building our own standalone version of jsx; rebar3 required.
 	#
 	# The resulting BEAM files are both in 'ebin' and in
 	# '_build/default/lib/jsx/ebin':
 	#
-	display_and_log " - building jsx"
-	cd jsx && ${rebar3} compile 1>>"${log_file}"
-	if [ ! $? -eq 0 ]; then
-		echo " Error, the build of jsx failed." 1>&2
-		exit 90
-	fi
+	# display_and_log " - building jsx"
+	# cd jsx && ${rebar3} compile 1>>"${log_file}"
+	# if [ ! $? -eq 0 ]; then
+	#   echo " Error, the build of jsx failed." 1>&2
+	#   exit 90
+	# fi
 
 	# Otherwise may not be found by US-Main:
-	#ln -s _build/default/lib/jsx/ebin
-
-	cd ..
+	# ln -s _build/default/lib/jsx/ebin
+	#
+	# cd ..
 
 
 	# As much as possible, notably for our developments, we prefer relying on
@@ -560,8 +562,10 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 
+	# Too much trouble building US-Main with rebar3, now doing it by ourselves:
 	display_and_log " - building US-Main"
-	cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../seaplus && ln -s ../../mobile && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && ln -s ../../jsx && cd ..
+	# Removed: '&& ln -s ../../jsx'; anyway rebar3 not used anymore.
+	#cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../seaplus && ln -s ../../mobile && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && cd ..
 
 	# Our build; uses Ceylan's sibling trees:
 	if ! ${make} all ${ceylan_opts} 1>>"${log_file}"; then
@@ -709,7 +713,7 @@ if [ $do_launch -eq 0 ]; then
 	# Not expecting here a previous native instance to run.
 
 	# Absolute path; typically in
-	# '/opt/universal-server/us_main-native/us_main':
+	# '/opt/universal-server/us_main-native-deployment-*/us_main':
 	#
 	if [ ! -d "${us_main_dir}" ]; then
 
