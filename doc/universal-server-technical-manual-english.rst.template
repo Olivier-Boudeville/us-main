@@ -1,15 +1,15 @@
 .. _Top:
 
 
-.. title:: Welcome to the Universal Server documentation
+.. title:: Welcome to the Universal Server US-Main documentation
 
 .. comment stylesheet specified through GNUmakefile
 
 
 
-============================================
-Technical Manual of the ``Universal Server``
-============================================
+=====================================================
+Technical Manual of the ``Universal Server``: US-Main
+=====================================================
 
 
 .. role:: raw-html(raw)
@@ -39,7 +39,7 @@ Technical Manual of the ``Universal Server``
 :Dedication: Users and maintainers of the ``Universal Server``.
 :Abstract:
 
-	The `Universal Server <http://us-main.esperide.org/>`_, part of the umbrella project `of the same name <https://github.com/Olivier-Boudeville/Universal-Server>`_, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of home automation.
+	The `Universal Server <http://us-main.esperide.org/>`_ (US-Main), part of the umbrella project `of the same name <https://github.com/Olivier-Boudeville/Universal-Server>`_, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of home automation.
 
 	We present here a short overview of these services, to introduce them to newcomers.
 
@@ -470,18 +470,30 @@ Configuring US-Main
 .. Note:: We discuss configuration before installation, as the settings of interest shall be defined prior to deployment, notably so that adequate permissions can be set on the installation, according to the user under which US-Main is intended to run.
 
 
+US-level Configuration
+======================
+
 The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
 
 So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (possibly located in ``/etc/xdg/universal-server/`` or ``~/.config/universal-server/``), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
 
-Notably, in this file, a ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
+
+
+Specifying the US-Main Configuration File
+-----------------------------------------
+
+In ``us.config`` , an ``us_main_config_filename`` entry can be specified in order to designate the US-Main configuration file that shall be used; for example:
 
 .. code:: erlang
 
  {us_main_config_filename, "us-main-for-tests.config"}.
 
 
-This US-Main configuration file concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
+
+US-Main Configuration
+=====================
+
+This US-Main configuration file designated by ``us.config`` concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
 Versions of these two configuration files may be used for testing purposes; as root:
 
@@ -493,12 +505,49 @@ Versions of these two configuration files may be used for testing purposes; as r
 
 Of course in the general case one will devise one's configuration files according to one's context and needs.
 
-For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to resources. For example, provided a ``us-srv`` group has already been created:
+
+
+Specifying a US-Main Specific EPMD Port
+---------------------------------------
+
+For US-Main, the default EPMD port is ``4507`` (preferred to the default, more general US-level EPMD port, ``4506``).
+
+This helps compartmentalising the nodes, and then US-Main (possibly including its EPMD daemon) can be restarted without affecting the other Erlang applications that may be running concurrently.
+
+The user may specify an EPMD of their liking; this can be done by specifying in the US-Main configuration file (instead of in ``us.config``) an ``epmd_port`` entry, for example:
+
+.. code:: erlang
+
+ {epmd_port, 4666}.
+
+
+
+Setting User and Group
+----------------------
+
+For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to the US-Main resources.
+
+For example, provided that a ``us-srv`` group has already been created (otherwise, do it with ``groupadd us-srv``), a ``main-srv`` user can be defined, and made belonging to that group:
 
 .. code:: bash
 
+ # Only sftp allowed if relying on a rssh (package available on the AUR) shell,
+ # or prefer just /bin/false:
+ #
  $ useradd --create-home --shell /bin/rssh -g us-srv main-srv
+ # (to change afterwards: 'chsh --shell /bin/false main-srv')
 
+If having a regular user (e.g. named ``bond``) that shall be able to operate on US-Main deployments (e.g. to monitor its traces locally), it can be added to that group as well: ``usermod -a -G us-srv bond`` (if this user is logged in, will not be effective before the logout of this user).
+
+Finally, the ``us.config`` US-Common configuration file and the US-Main one it references shall have the right user and group, for example:
+
+.. code:: bash
+
+ $ chown main-srv:us-srv /etc/xdg/universal-server/*.config
+
+
+Communication Gateway
+---------------------
 
 The `communication gateway`_ will rely on Ceylan-Mobile to send SMS. For that, a suitable 3G device (typically a USB key) will have to be used.
 
@@ -644,6 +693,8 @@ Launching US-Main
 
 We suppose here that the US-Main configuration has already taken place (otherwise apply the guidelines in the `Configuring US-Main`_ section).
 
+The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root.
+
 We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).
 
 In this last case, first a symbolic link pointing to this script shall be typically created in the ``/usr/local/bin`` directory of the host of interest. Then the server is to be triggered based on ``/etc/systemd/system/us-main-as-native-build.service`` (see `us-main-as-native-build.service <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service>`_).
@@ -660,14 +711,14 @@ For example:
 
  # Trigger:
  $ systemctl start us-main-as-native-build
- $ journalctl --pager-end --unit=us-main-as-native-build.service
+ $ journalctl --lines=200 --unit=us-main-as-native-build.service --follow
  $ systemctl enable us-main-as-native-build
 
 Then one may run ``priv/bin/monitor-us-main.sh`` to browse its traces live at any time.
 
 Like notified in the start-up message::
 
- -- Starting US-Main natively-built application as user 'stallone' (EPMD port: 4506)...
+ -- Starting US-Main natively-built application as user 'stallone' (EPMD port: 4507)...
 		Executing application us_main_app.beam as a service (second form)
  Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-up is successful indeed.
 
@@ -728,7 +779,7 @@ A common cause of failure, if the launch time-out triggered, is having already a
 Monitoring US-Main
 ------------------
 
-If using the default US-Main EPMD port, checking whether an instance is running is as simple as:
+Basd on the US-Main EPMD port that was preferred, checking whether an instance is running is as simple as:
 
 .. code:: bash
 
