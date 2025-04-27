@@ -153,19 +153,24 @@ read_us_main_config_file()
 
 		#echo "No US-Main level Erlang EPMD port specified."
 
+		# Previously any (possibly the default) US-level EPMD applied in this
+		# case, now the US-Main one applies:
+
 		# Applying defaults iff US-Common did not already:
-		if [ -n "${erl_epmd_port}" ]; then
+		#if [ -n "${erl_epmd_port}" ]; then
 
-			# Keeping US-Common defaults:
-			us_main_erl_epmd_port="${erl_epmd_port}"
+		#   # Keeping US-Common defaults:
+		#   us_main_erl_epmd_port="${erl_epmd_port}"
 
-		else
+		#else
 
-			echo "No Erlang EPMD port specified at any US level, applying defaults (port ${default_us_main_epmd_port})."
+		#	echo "No Erlang EPMD port specified at any US level, applying defaults (port ${default_us_main_epmd_port})."
 
-			us_main_erl_epmd_port="${default_us_main_epmd_port}"
+		#   us_main_erl_epmd_port="${default_us_main_epmd_port}"
 
-		fi
+		#fi
+
+		us_main_erl_epmd_port="${default_us_main_epmd_port}"
 
 	fi
 
