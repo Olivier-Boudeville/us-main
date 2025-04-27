@@ -143,10 +143,13 @@ read_us_main_config_file()
 	us_main_base_content=$(/bin/cat "${us_main_config_file}" | sed 's|^[[:space:]]*%.*||1')
 
 
-	# The EPMD port (possibly already set at the overall US-level) may be
-	# overridden here in US-Main, so that it does not clash with the one of any
-	# other US-* application (e.g. US-Web).
-
+	# The EPMD port (possibly already set at the overall US-level) is actually
+	# never used here, as either it is overridden for US-Main here, or the
+	# default US-Main one applies.
+	#
+	# Interest: not clashing with the one of any other US-* application
+	# (e.g. US-Web).
+	#
 	us_main_erl_epmd_port=$(echo "${us_main_base_content}" | grep epmd_port | sed 's|^[[:space:]]*{[[:space:]]*epmd_port,[[:space:]]*||1' | sed 's|[[:space:]]*}.$||1')
 
 	if [ -z "${us_main_erl_epmd_port}" ]; then
@@ -170,6 +173,7 @@ read_us_main_config_file()
 
 		#fi
 
+		echo "No US-Main level Erlang EPMD port specified, applying the default US-Main one, ${default_us_main_epmd_port}."
 		us_main_erl_epmd_port="${default_us_main_epmd_port}"
 
 	fi
