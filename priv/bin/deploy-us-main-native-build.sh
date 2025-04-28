@@ -566,6 +566,7 @@ if [ ${do_build} -eq 0 ]; then
 	display_and_log " - building US-Main"
 	# Removed: '&& ln -s ../../jsx'; anyway rebar3 not used anymore.
 	#cd us_main && mkdir ${checkout_dir} && cd ${checkout_dir} && ln -s ../../myriad && ln -s ../../wooper && ln -s ../../traces && ln -s ../../seaplus && ln -s ../../mobile && ln -s ../../us_common && ln -s ../../erlang-serial && ln -s ../../oceanic && cd ..
+	cd us_main
 
 	# Our build; uses Ceylan's sibling trees:
 	if ! ${make} all ${ceylan_opts} 1>>"${log_file}"; then
