@@ -173,7 +173,7 @@ if ! ${epmd} -stop us_main; then
 	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
 
 	exit 5
-o
+
 fi
 
 sleep 1
