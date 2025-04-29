@@ -36,14 +36,12 @@ Technical Manual of the ``Universal Server``: US-Main
 :Lastly updated: GENERATION_DATE_TAG
 :Version: PROJECT_VERSION_TAG
 :Status: In progress
-:Dedication: Users and maintainers of the ``Universal Server``.
+:Dedication: Users and maintainers of the ``Universal Server``, US-Main.
 :Abstract:
 
 	The `Universal Server <http://us-main.esperide.org/>`_ (US-Main), part of the umbrella project `of the same name <https://github.com/Olivier-Boudeville/Universal-Server>`_, is a multi-service daemon in charge of the automation (monitoring, scheduling and performing) of various computer-based tasks, such as the proper management of the server itself or, in the future, of home automation.
 
 	We present here a short overview of these services, to introduce them to newcomers.
-
-.. comment The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main>`_, which are intensely commented and generally straightforward.
 
 
 .. meta::
@@ -64,13 +62,14 @@ Technical Manual of the ``Universal Server``: US-Main
 
 :raw-latex:`\pagebreak`
 
+
 --------
 Overview
 --------
 
-We present here a short overview of the general automated services offered by our so-called "Universal Server", to introduce them to newcomers. These services are implemented by `US-Main <https://github.com/Olivier-Boudeville/us-main>`_, which relies notably on `US-Common <https://github.com/Olivier-Boudeville/us-common>`_.
+We present here a short overview of the general automated services offered by our so-called *Universal Server*, to introduce them to newcomers. These services are implemented by `US-Main <https://github.com/Olivier-Boudeville/us-main>`_, which relies notably on `US-Common <https://github.com/Olivier-Boudeville/us-common>`_.
 
-The next level of information is to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main/tree/master/src>`_, which are intensely commented and generally straightforward.
+Beyond this document, the next level of information about US-Main is either to browse the `US-Main API documentation <api-doc/index.html>`_ or simply to read the corresponding `source files <https://github.com/Olivier-Boudeville/us-main>`_, which are intensely commented and generally straightforward.
 
 The project repository is located `here <https://github.com/Olivier-Boudeville/us-main>`_.
 
@@ -79,34 +78,39 @@ The project repository is located `here <https://github.com/Olivier-Boudeville/u
 Layer Stack
 -----------
 
-From the highest level to the lowest, as summarised `here <https://github.com/Olivier-Boudeville/us-main>`_, a software stack involving the Universal Server usually is like:
+From the highest level to the lowest, as summarised `here <https://github.com/Olivier-Boudeville/us-main>`_, a (free software) stack involving the Universal Server usually is like:
 
 - the *Universal Server* services themselves (i.e. this `US-Main <http://us.esperide.org/>`_ layer)
-- [optional] the *Universal Webserver*, i.e. `US-Web <http://us-web.esperide.org/>`_ (for web interaction)
+- [optional] the *Universal Webserver*, i.e. `US-Web <http://us-web.esperide.org/>`_ (for any future web interaction)
 - `US-Common <http://us-common.esperide.org/>`_ (for US base facilities)
 - [optional] `Ceylan-Mobile <http://mobile.esperide.org>`_ (for 3G connectivity, notably SMS sending, relying on the Gammu library)
 - [optional] `Ceylan-Seaplus <http://seaplus.esperide.org>`_ (prerequisite of Ceylan-Mobile, for a bridge from Erlang to the C language)
-- `jsx <https://github.com/talentdeficit/jsx>`_ (to parse JSON sensor outputs)
 - `Ceylan-Oceanic <http://oceanic.esperide.org>`_ (for the support of home automation, through the integration of Enocean devices and actuators; relies on `our fork of erlang-serial <https://github.com/Olivier-Boudeville/erlang-serial>`_)
 - `Ceylan-Traces <http://traces.esperide.org>`_ (for advanced runtime traces)
 - `Ceylan-WOOPER <http://wooper.esperide.org>`_ (for OOP)
 - `Ceylan-Myriad <http://myriad.esperide.org>`_ (as an Erlang toolbox)
-- `Erlang <http://erlang.org>`_ (for the compiler and runtime)
+- `Erlang/OTP <http://erlang.org>`_ (for the compiler and runtime)
 - `GNU/Linux <https://en.wikipedia.org/wiki/Linux>`_
 
-The shorthand for ``Universal Server`` is ``us``.
+..
+ Obsolete: - `jsx <https://github.com/talentdeficit/jsx>`_ (to parse JSON sensor outputs)
+
+The shorthand for ``Universal Server`` (a.k.a. ``US-Main``) is ``um``.
 
 :raw-latex:`\pagebreak`
 
 
 
-
+.. _`facilities`:
 
 -----------------------------------------
 Facilities Provided by this US-Main Layer
 -----------------------------------------
 
-These are mainly administration services.
+These are mainly **administration-related services**.
+
+.. Note:: In the course of the presentation of these facilities, related configuration information is given; it is to be applied when `Configuring US-Main`_.
+
 
 
 Home Automation
@@ -315,8 +319,6 @@ It can be done with the following configuration entry:
 
 
 
-
-
 Other Related Technical Information
 ...................................
 
@@ -417,7 +419,6 @@ For that, the correspondance between a US role (e.g. ``administrator``) and actu
 
 
 
-
 .. _`network infrastructure tracker`:
 
 Network Support Monitoring
@@ -470,12 +471,72 @@ Configuring US-Main
 .. Note:: We discuss configuration before installation, as the settings of interest shall be defined prior to deployment, notably so that adequate permissions can be set on the installation, according to the user under which US-Main is intended to run.
 
 
+General US Configuration
+========================
+
+All US-related configuration files respect the `ETF file format <https://myriad.esperide.org/#etf>`_.
+
+
+Location of Configuration Files
+-------------------------------
+
+As explained in `start-us-main.sh <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/start-us-main.sh>`_ and in `class_USMainConfigServer.erl <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USMainConfigServer.erl>`_, the US configuration files will be searched through various locations.
+
+The main, overall US configuration file, ``us.config``, is found based on a series of directories that are gone through in an orderly manner; the first directory to host such a file becomes *the* (single) US configuration directory.
+
+The other US-related configuration files (e.g. any ``us-main.config``) are referenced directly from the main one (``us.config``), designated there through specific keys (e.g. ``us_main_config_filename``); they may be either absolutely defined, or relatively to the aforementioned US configuration directory.
+
+Let's name ``US_CFG_ROOT`` the actual directory in which they all lie; it is typically either ``~/.config/universal-server/`` (in development mode), or ``/etc/xdg/universal-server/`` (in production mode).
+
+
+
+Setting User and Group
+----------------------
+
+For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to the US-Main resources.
+
+For example, provided that a ``us-group`` group has already been created (otherwise, do it with ``groupadd us-group``), a ``us-main-user`` user can be defined, and made belonging to that group:
+
+.. code:: bash
+
+ # Only sftp allowed if relying on a rssh (package available on the AUR) shell,
+ # or prefer just /bin/false:
+ #
+ $ useradd --create-home --shell /bin/rssh -g us-group us-main-user
+ # (to change afterwards: 'chsh --shell /bin/false us-main-user')
+
+
+If having a regular user (e.g. named ``bond``) that shall be able to operate on US-Main deployments (e.g. to monitor its traces locally), it can be added to that group as well: ``usermod -a -G us-group bond`` (if this user is logged in, it will not be effective before the logout of this user or the user runs ``newgrp us-group``).
+
+Finally, the ``us.config`` US-Common configuration file and the US-Main one it references shall have the right user and group; for example:
+
+.. code:: bash
+
+ $ chown us-main-user:us-group /etc/xdg/universal-server/*.config
+
+
+
+Permissions of Configuration Files
+----------------------------------
+
+Note that, as these files might contain sensitive information (e.g. Erlang cookies), they shall be duly protected. Indeed, in terms of permissions, we should have ``640``, supposing that the ``us.config`` designates, in its ``us_main_config_filename`` entry, ``foobar-us-main-for-production.config`` as the name of the US-Main configuration file [#]_:
+
+.. code:: bash
+
+ -rw-r----- 1 us-user      us-group [...] us.config
+ -rw-r----- 1 us-main-user us-group [...] foobar-us-main-for-production.config
+
+.. [#] They shall be in the same ``US_CFG_ROOT`` directory (discussed above), and may be symbolic links.
+
+
+
+
 US-level Configuration
 ======================
 
 The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
 
-So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (possibly located in ``/etc/xdg/universal-server/`` or ``~/.config/universal-server/``), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
+So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (see ``US_CFG_ROOT`` above), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
 
 
 
@@ -493,9 +554,15 @@ In ``us.config`` , an ``us_main_config_filename`` entry can be specified in orde
 US-Main Configuration
 =====================
 
-This US-Main configuration file designated by ``us.config`` concentrates the settings of all the services presented below, and the ones of US-Main itself; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
+This US-Main configuration file designated by ``us.config`` concentrates the settings of all the `facilities`_ presented above; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
 
-Versions of these two configuration files may be used for testing purposes; as root:
+
+Test Configuration Files
+------------------------
+
+Versions of these two configuration files may be used for testing purposes.
+
+For example, as root:
 
 .. code:: bash
 
@@ -522,38 +589,16 @@ The user may specify an EPMD of their liking; this can be done by specifying in 
 
 
 
-Setting User and Group
-----------------------
-
-For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to the US-Main resources.
-
-For example, provided that a ``us-srv`` group has already been created (otherwise, do it with ``groupadd us-srv``), a ``main-srv`` user can be defined, and made belonging to that group:
-
-.. code:: bash
-
- # Only sftp allowed if relying on a rssh (package available on the AUR) shell,
- # or prefer just /bin/false:
- #
- $ useradd --create-home --shell /bin/rssh -g us-srv main-srv
- # (to change afterwards: 'chsh --shell /bin/false main-srv')
-
-If having a regular user (e.g. named ``bond``) that shall be able to operate on US-Main deployments (e.g. to monitor its traces locally), it can be added to that group as well: ``usermod -a -G us-srv bond`` (if this user is logged in, will not be effective before the logout of this user).
-
-Finally, the ``us.config`` US-Common configuration file and the US-Main one it references shall have the right user and group, for example:
-
-.. code:: bash
-
- $ chown main-srv:us-srv /etc/xdg/universal-server/*.config
-
-
 Communication Gateway
 ---------------------
 
 The `communication gateway`_ will rely on Ceylan-Mobile to send SMS. For that, a suitable 3G device (typically a USB key) will have to be used.
 
-As mentioned `in this section <https://mobile.esperide.org/#managing-dev-ttyusb-entries>`_, proper permissions must apply, so that the user (e.g. ``main-srv``) running US-Main is able to interact with the 3G device (e.g. ``/dev/ttyUSB-my-3G-key``).
+As mentioned `in this section <https://mobile.esperide.org/#managing-dev-ttyusb-entries>`_, proper permissions must apply, so that the user (e.g. ``us-main-user``) running US-Main is able to interact with the 3G device (e.g. ``/dev/ttyUSB-my-3G-key``).
 
-So ``gpasswd -a main-srv uucp`` can be executed as root (and possibly ``main-srv`` may run ``newgrp uucp``).
+So ``gpasswd -a us-main-user uucp`` can be executed as root (and possibly ``us-main-user`` may run ``newgrp uucp`` to update its group identification).
+
+
 
 
 
@@ -576,9 +621,9 @@ The Universal Server ``master`` branch is meant to stick to the latest stable ve
 Automated Installation & Native Deployment (recommended)
 ========================================================
 
-This procedure relies on our *native* build/run system, which is the only one that is officially supported in the context of US-Main, and involves only two steps, on the target host.
+This procedure relies on our *native* build/run system, which is the only one that is now officially supported in the context of US-Main, and involves only two steps (prepare/deploy), on the target host.
 
-**First step** is to:
+**Step #1**, preparation, is to:
 
 - create a ``/etc/xdg/universal-server`` directory in which a relevant US configuration file (``us.config``) is added, referencing a suitable US-Main configuration file (e.g. ``foobar-us-main.config``) located in the same directory; refer to the `Configuring US-Main`_ section
 
@@ -588,14 +633,16 @@ This procedure relies on our *native* build/run system, which is the only one th
 
 After deployment, the installation itself will be located by default in the ``/opt/universal-server/us_main-native-deployment-YYYYMMDD`` (timestamped) directory.
 
-**Step #2** exists in two versions, either based on a direct launching or, preferably, on one managed by Systemd (with ``systemctl``); refer to `Launching US-Main`_ for that.
+**Step #2**, deployment, just consists in executing the aforementioned ``deploy-us-main-native-build.sh`` script, as a normal user, and with any relevant option (list them with ``-h`` or ``-help``).
+
+If having specified the ``--no-launch`` option, then once deployed refer to `Launching US-Main`_ - otherwise a launch attempt has been done.
 
 
 
-Alternatively: Using Cutting-Edge Git
-=====================================
+Alternatively to step #2: Using Cutting-Edge Git
+================================================
 
-This is more or less a manual, more limited version of the previous deployment script.
+This is more or less a manual, more limited version of the US-Main deployment script.
 
 Once Erlang is available, it should be just a matter of executing:
 
@@ -657,12 +704,13 @@ Rebar3-based Build
 
 .. The rebar-based build broke one time too many, and we do not plan to restore it anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky). Our piece of advice is to stick to our perfectly suitable build instead.
 
-.. Note:: With rebar3 we encountered *a lot* of difficulties regarding build and release. So, at least for the moment, we dropped the use of rebar3 and focused instead on our native build/run system, which is perfectly suitable and fully sufficient. We do not plan to restore the rebar3 build anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky).
+.. Note:: With rebar3 we encountered *a lot* of difficulties regarding build and release. So, at least for the moment, we dropped the use of rebar3 and focused instead on our native build/run system, which is perfectly suitable and fully sufficient for our needs. We do not plan to restore the rebar3 build anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky).
 
 One may prefer relying on rebar3, even if it is by far the less frequent approach taken here.
 
 If wanting to be able to operate on the source code of the dependencies, appropriate symbolic links may be defined in a ``_checkouts`` directory created at the root of ``us-main``, these links pointing to relevant Git clones (typically sibling ones).
 
+We do not use anymore the rebar3 support, but left the elements that were used in that context, for further reference.
 
 
 :raw-html:`<a name="otp"></a>`
@@ -672,7 +720,7 @@ If wanting to be able to operate on the source code of the dependencies, appropr
 Using OTP-Related Build/Runtime Conventions
 ===========================================
 
-As discussed in these sections of `Myriad <http://myriad.esperide.org/myriad.html#otp>`_, `WOOPER <http://wooper.esperide.org/index.html#otp>`_, `Traces <http://traces.esperide.org/index.html#otp>`_ and `US-Common <http://us-common.esperide.org/index.html#otp>`_, we added the (optional) possibility of generating a Universal Server *OTP application* out of the build tree, ready to result directly in an *(OTP) release*. For that we rely on `rebar3 <https://www.rebar3.org/>`_, `relx <https://github.com/erlware/relx>`_ and `hex <https://hex.pm/>`_.
+As discussed in these sections of `Myriad <http://myriad.esperide.org/myriad.html#otp>`_, `WOOPER <http://wooper.esperide.org/index.html#otp>`_, `Traces <http://traces.esperide.org/index.html#otp>`_ and `US-Common <http://us-common.esperide.org/index.html#otp>`_, we added the (optional) possibility of generating a Universal Server *OTP application* out of the build tree, ready to result directly in an *(OTP) release*. For that we relied on `rebar3 <https://www.rebar3.org/>`_, `relx <https://github.com/erlware/relx>`_ and `hex <https://hex.pm/>`_.
 
 Then we benefit from a standalone, complete Universal Server.
 
@@ -681,7 +729,7 @@ Then we benefit from a standalone, complete Universal Server.
 For more details, one may have a look at:
 
 - `rebar.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar.config.template>`_, the general rebar configuration file used when generating the Universal Server OTP application and release (implying the automatic management of Myriad and WOOPER)
-- `rebar-for-hex.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar-for-hex.config.template>`_, to generate a corresponding Hex package for Universal Server (whose structure and conventions is quite different from the previous OTP elements)
+- `rebar-for-hex.config.template <https://github.com/Olivier-Boudeville/us-main/blob/master/conf/rebar-for-hex.config.template>`_, to generate a corresponding Hex package for Universal Server (whose structure and conventions are quite different from the previous OTP elements)
 
 
 
@@ -691,9 +739,9 @@ For more details, one may have a look at:
 Launching US-Main
 -----------------
 
-We suppose here that the US-Main configuration has already taken place (otherwise apply the guidelines in the `Configuring US-Main`_ section).
+We suppose here that the US-Main configuration has already taken place (otherwise the guidelines in the `Configuring US-Main`_ section shall be applied).
 
-The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root.
+The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root first.
 
 We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).
 
@@ -779,7 +827,11 @@ A common cause of failure, if the launch time-out triggered, is having already a
 Monitoring US-Main
 ------------------
 
-Basd on the US-Main EPMD port that was preferred, checking whether an instance is running is as simple as:
+
+Local Monitoring
+================
+
+Based on the US-Main EPMD port that was preferred, checking whether an instance is running is as simple as:
 
 .. code:: bash
 
@@ -787,8 +839,43 @@ Basd on the US-Main EPMD port that was preferred, checking whether an instance i
  epmd: up and running on port 4507 with data:
  name us_main at port 50002
 
-Then executing ``kill-us-main.sh`` will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).
+The various logs may also be looked at.
 
+Then, if needed, executing ``kill-us-main.sh`` will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).
+
+
+
+Remote Monitoring
+================
+
+The ``priv/bin/monitor-us-main.sh`` script shall be run for that.
+
+Of course it must be told the target host, EPMD port, cookie, etc.; this information shall be held by a configuration file, by default named ``us-main-remote-access.config``.
+
+As an example:
+
+.. code:: erlang
+
+ % This is a configuration file to enable the interaction with a remote US-Main
+ % instance (e.g. a production server to be reached from a client host),
+ % typically to monitor its traces.
+
+ % The hostname where the US-main instance of interest runs:
+ { us_main_hostname, "hurrivan" }.
+
+ { remote_vm_cookie, 'e08a-baa4-bcb5-6b44edbd603b-hurricane' }.
+
+ % If ever it was overridden for the server:
+ %{ us_main_config_server_registration_name, xxx_us_main_config_server }.
+
+
+ % A range of TCP ports that may be used for out-of-band inter-VM communication
+ % (not using the Erlang carrier; e.g. for send_file):
+ %
+ % (this range must be typically in-line with any one set at the level of
+ % firewalls)
+ %
+ { tcp_port_range, { 40000, 45000 } }.
 
 
 -------
