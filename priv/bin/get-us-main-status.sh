@@ -10,8 +10,11 @@
 
 # See also the {start,stop,kill,control,monitor}-us-main.sh scripts.
 
+# To debug such scripts, comment out the silencing redirections around the calls
+# to read_us_*config_file calls.
 
-usage="Usage: $(basename $0): returns the status of a supposedly locally-running US-Main release."
+
+usage="Usage: $(basename $0): returns the status of a supposedly locally-running US-Main (native) instance."
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
