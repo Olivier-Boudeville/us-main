@@ -474,28 +474,61 @@ Configuring US-Main
 General US Configuration
 ========================
 
+Even if these are just conventions, we consider that a US-Server can be deployed either in:
+
+- **development** mode: by a regular user, with no specific permissions, directly from the user account, and with direct process control
+- **production** mode: by dedicated US(-Main) user and group, with low privileges, in the system tree (``/etc``, ``/opt``, ``/var``), and controlled through systemd
+
 All US-related configuration files respect the `ETF file format <https://myriad.esperide.org/#etf>`_.
 
 
-Location of Configuration Files
--------------------------------
 
-As explained in `start-us-main.sh <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/start-us-main.sh>`_ and in `class_USMainConfigServer.erl <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USMainConfigServer.erl>`_, the US configuration files will be searched through various locations.
+US-Common-level Configuration
+=============================
 
-The main, overall US configuration file, ``us.config``, is found based on a series of directories that are gone through in an orderly manner; the first directory to host such a file becomes *the* (single) US configuration directory.
+The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
 
-The other US-related configuration files (e.g. any ``us-main.config``) are referenced directly from the main one (``us.config``), designated there through specific keys (e.g. ``us_main_config_filename``); they may be either absolutely defined, or relatively to the aforementioned US configuration directory.
+As the US-related configuration files are heavily commented, proceeding based on examples is the simplest approach [#]_.
 
-Let's name ``US_CFG_ROOT`` the actual directory in which they all lie; it is typically either ``~/.config/universal-server/`` (in development mode), or ``/etc/xdg/universal-server/`` (in production mode).
+.. [#] The second best approach being to have directly a look at the code reading them; for ``us.config``, see `class_USConfigServer.erl <https://github.com/Olivier-Boudeville/us-common/blob/master/src/class_USConfigServer.erl>`_.
+
+Refer for that at this `us.config example <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_.
+
+
+
+Location of the US Configuration Files
+--------------------------------------
+
+The US configuration files will be searched through various filesystem locations [#]_ in turn:
+
+- first in any directory designated by the ``XDG_CONFIG_HOME`` environment variable (default value: ``$HOME/.config``)
+- second in any of the directories listed in the ``XDG_CONFIG_DIRS`` environment variable (default: ``/etc/xdg``;, directories being separated by ``:``)
+
+.. [#] As explained notably in `class_USConfigServer.erl <https://github.com/Olivier-Boudeville/us-common/blob/master/src/class_USConfigServer.erl#L60>`_.
+
+So the main, overall US configuration file, ``us.config``, is found based on this series of directories that are gone through in an orderly manner; the first directory to host such a file becomes *the* (single) US configuration directory; let's name it ``US_CFG_ROOT``.
+
+This directory, in which generally all configuration files for a US-Main deployment lie is, with our conventions, typically either ``~/.config/universal-server/`` (in development mode), or ``/etc/xdg/universal-server/`` (in production mode).
+
+The other US-related configuration files (e.g. any ``us-main.config``) are then referenced directly from the main one (``us.config``), and are designated from there through specific keys, here ``us_main_config_filename``; the associate value may be either an absolute path, or one relative to the aforementioned US configuration directory (which is recommended).
+
+
+
+US-Common Configuration
+-----------------------
+
+So the general, user-specified configuration file for US servers is named ``us.config``, and the content of this `example us.config <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_ should be pretty self-explanatory.
+
+Note that, as US-Main supports an ``epmd_port`` entry in its own configuration file and has its own default port, such an entry should not be set in the general ``us.config`` file, as its value would not be taken into account anyway - it would just be misleading.
 
 
 
 Setting User and Group
 ----------------------
 
-For operational use, we recommend to create a US-Main specific user (to be set in the ``us_username`` entry of one's ``us.config`` file), in order to compartmentalise the accesses to the US-Main resources.
+For operational use, we recommend to create at least a US specific user (to be set in the ``us_username`` entry of one's ``us.config`` file) - and possibly additionally a US-Main specific one, in order to better compartmentalise the accesses to the US-Main resources.
 
-For example, provided that a ``us-group`` group has already been created (otherwise, do it with ``groupadd us-group``), a ``us-main-user`` user can be defined, and made belonging to that group:
+For example, provided that a US-specific group (named for instance ``us-group``) has already been created (otherwise, do it with ``groupadd us-group``), a ``us-main-user`` user can be defined, and made belonging to that group:
 
 .. code:: bash
 
@@ -503,10 +536,10 @@ For example, provided that a ``us-group`` group has already been created (otherw
  # or prefer just /bin/false:
  #
  $ useradd --create-home --shell /bin/rssh -g us-group us-main-user
- # (to change afterwards: 'chsh --shell /bin/false us-main-user')
+ # (if wanting to change afterwards: 'chsh --shell /bin/false us-main-user')
 
 
-If having a regular user (e.g. named ``bond``) that shall be able to operate on US-Main deployments (e.g. to monitor its traces locally), it can be added to that group as well: ``usermod -a -G us-group bond`` (if this user is logged in, it will not be effective before the logout of this user or the user runs ``newgrp us-group``).
+If having a regular user (e.g. named ``bond``) who shall be also able to operate on US-Main deployments (e.g. to monitor their traces locally), it can be added to that group as well: ``usermod -a -G us-group bond`` (if this user is logged in, this will not be effective before the logout of this user or the user runs ``newgrp us-group``).
 
 Finally, the ``us.config`` US-Common configuration file and the US-Main one it references shall have the right user and group; for example:
 
@@ -519,24 +552,22 @@ Finally, the ``us.config`` US-Common configuration file and the US-Main one it r
 Permissions of Configuration Files
 ----------------------------------
 
-Note that, as these files might contain sensitive information (e.g. Erlang cookies), they shall be duly protected. Indeed, in terms of permissions, we should have ``640``, supposing that the ``us.config`` designates, in its ``us_main_config_filename`` entry, ``foobar-us-main-for-production.config`` as the name of the US-Main configuration file [#]_:
+Note that, as these files might contain sensitive information (e.g. Erlang cookies), they shall be duly protected and, in terms of permissions, we should have ``640`` for them.
+
+So, supposing that the ``us.config`` designates, in its ``us_main_config_filename`` entry, ``foobar-us-main-for-production.config`` as the name of the US-Main configuration file [#]_, we could have:
 
 .. code:: bash
 
  -rw-r----- 1 us-user      us-group [...] us.config
  -rw-r----- 1 us-main-user us-group [...] foobar-us-main-for-production.config
 
-.. [#] They shall be in the same ``US_CFG_ROOT`` directory (discussed above), and may be symbolic links.
+.. [#] They should better be in the same ``US_CFG_ROOT`` directory (discussed above), and may be symbolic links.
 
+``chmod`` and ``chown`` shall thus be used accordingly.
 
+Finally, if being able to rely on multiple, different US configuration directories is necessary in order to be able to launch multiple US-Main instances (these configurations can then register the managers involved - typically the US-Main Configuration server - under different names), only a single *node* can be used per EPMD instance as, by default, such a node is named ``us_main`` (so two US-Main instances would then clash at this level).
 
-
-US-level Configuration
-======================
-
-The US-Main server is part of our "Universal Server" infrastructure, and as such relies on the `base US-Common configuration settings <https://us-common.esperide.org/#configuration>`_.
-
-So the base information of the user-specified ``us.config`` file, found in the US Configuration directory (see ``US_CFG_ROOT`` above), will apply (see `this example thereof <https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config>`_).
+As a consequence, in order to run multiple US-Main instances (e.g. one in production, one for testing) on a given host, they shall be multiplexed on different EPMD ports (see the ``epmd_port`` key of the US-Main configuration file; as a result, different ``universal-server`` configuration directories shall then be relied upon).
 
 
 
@@ -551,16 +582,23 @@ In ``us.config`` , an ``us_main_config_filename`` entry can be specified in orde
 
 
 
-US-Main Configuration
-=====================
 
-This US-Main configuration file designated by ``us.config`` concentrates the settings of all the `facilities`_ presented above; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, or monitor a designated US-Main server.
+US-Main-level Configuration
+===========================
+
+This US-Main configuration file designated by ``us.config`` concentrates the settings of all the `facilities`_ presented above; it is additionally used by the `US-Main scripts <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin>`_, notably in order to start, stop, kill, monitor, control a designated US-Main server.
+
+Here also, proceeding based on examples in the simplest approach [#]_, thanks to the comments they include.
+
+.. [#] The second best approach being to have directly a look at the code reading them, see, for the US-Main configuration, `class_USMainConfigServer.erl <https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USMainConfigServer.erl>`_.
+
+Refer for that at this `US-Main example <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/for-testing/us-main-for-tests.config>`_.
 
 
 Test Configuration Files
 ------------------------
 
-Versions of these two configuration files may be used for testing purposes.
+Versions of the US and US-Main configuration files may be used for testing purposes and/or for examples.
 
 For example, as root:
 
@@ -581,7 +619,9 @@ For US-Main, the default EPMD port is ``4507`` (preferred to the default, more g
 
 This helps compartmentalising the nodes, and then US-Main (possibly including its EPMD daemon) can be restarted without affecting the other Erlang applications that may be running concurrently.
 
-The user may specify an EPMD of their liking; this can be done by specifying in the US-Main configuration file (instead of in ``us.config``) an ``epmd_port`` entry, for example:
+The user may specify an EPMD of their liking, providing it neither clashes nor is filtered by the local firewall. This can be done by specifying in the US-Main configuration file (instead of in ``us.config``) an ``epmd_port`` entry.
+
+For example:
 
 .. code:: erlang
 
