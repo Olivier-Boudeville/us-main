@@ -32,7 +32,7 @@
 <tr class="field"><th class="field-name">Creation date:</th><td class="field-body"><p class="first">Saturday, May 2, 2020</p>
 </td>
 </tr>
-<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Tuesday, April 29, 2025</p>
+<tr class="field"><th class="field-name">Lastly updated:</th><td class="field-body"><p class="first">Wednesday, April 30, 2025</p>
 </td>
 </tr>
 <tr class="field"><th class="field-name">Version:</th><td class="field-body"><p class="first">0.0.20</p>
@@ -81,43 +81,42 @@
 </ul>
 </li>
 <li><a class="reference internal" href="#configuring-us-main" id="toc-entry-17">Configuring US-Main</a><ul>
-<li><a class="reference internal" href="#general-us-configuration" id="toc-entry-18">General US Configuration</a><ul>
-<li><a class="reference internal" href="#location-of-configuration-files" id="toc-entry-19">Location of Configuration Files</a></li>
-<li><a class="reference internal" href="#setting-user-and-group" id="toc-entry-20">Setting User and Group</a></li>
-<li><a class="reference internal" href="#permissions-of-configuration-files" id="toc-entry-21">Permissions of Configuration Files</a></li>
+<li><a class="reference internal" href="#general-us-configuration" id="toc-entry-18">General US Configuration</a></li>
+<li><a class="reference internal" href="#us-common-level-configuration" id="toc-entry-19">US-Common-level Configuration</a><ul>
+<li><a class="reference internal" href="#location-of-the-us-configuration-files" id="toc-entry-20">Location of the US Configuration Files</a></li>
+<li><a class="reference internal" href="#us-common-configuration" id="toc-entry-21">US-Common Configuration</a></li>
+<li><a class="reference internal" href="#setting-user-and-group" id="toc-entry-22">Setting User and Group</a></li>
+<li><a class="reference internal" href="#permissions-of-configuration-files" id="toc-entry-23">Permissions of Configuration Files</a></li>
+<li><a class="reference internal" href="#specifying-the-us-main-configuration-file" id="toc-entry-24">Specifying the US-Main Configuration File</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#us-level-configuration" id="toc-entry-22">US-level Configuration</a><ul>
-<li><a class="reference internal" href="#specifying-the-us-main-configuration-file" id="toc-entry-23">Specifying the US-Main Configuration File</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#us-main-configuration" id="toc-entry-24">US-Main Configuration</a><ul>
-<li><a class="reference internal" href="#test-configuration-files" id="toc-entry-25">Test Configuration Files</a></li>
-<li><a class="reference internal" href="#specifying-a-us-main-specific-epmd-port" id="toc-entry-26">Specifying a US-Main Specific EPMD Port</a></li>
-<li><a class="reference internal" href="#communication-gateway-2" id="toc-entry-27">Communication Gateway</a></li>
+<li><a class="reference internal" href="#us-main-level-configuration" id="toc-entry-25">US-Main-level Configuration</a><ul>
+<li><a class="reference internal" href="#test-configuration-files" id="toc-entry-26">Test Configuration Files</a></li>
+<li><a class="reference internal" href="#specifying-a-us-main-specific-epmd-port" id="toc-entry-27">Specifying a US-Main Specific EPMD Port</a></li>
+<li><a class="reference internal" href="#communication-gateway-2" id="toc-entry-28">Communication Gateway</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li><a class="reference internal" href="#installing-us-main-current-stable-version-download" id="toc-entry-28">Installing US-Main: Current Stable Version &amp; Download</a><ul>
-<li><a class="reference internal" href="#automated-installation-native-deployment-recommended" id="toc-entry-29">Automated Installation &amp; Native Deployment (recommended)</a></li>
-<li><a class="reference internal" href="#alternatively-to-step-2-using-cutting-edge-git" id="toc-entry-30">Alternatively to step #2: Using Cutting-Edge Git</a></li>
-<li><a class="reference internal" href="#rebar3-based-build" id="toc-entry-31">Rebar3-based Build</a></li>
-<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="toc-entry-32">Using OTP-Related Build/Runtime Conventions</a></li>
+<li><a class="reference internal" href="#installing-us-main-current-stable-version-download" id="toc-entry-29">Installing US-Main: Current Stable Version &amp; Download</a><ul>
+<li><a class="reference internal" href="#automated-installation-native-deployment-recommended" id="toc-entry-30">Automated Installation &amp; Native Deployment (recommended)</a></li>
+<li><a class="reference internal" href="#alternatively-to-step-2-using-cutting-edge-git" id="toc-entry-31">Alternatively to step #2: Using Cutting-Edge Git</a></li>
+<li><a class="reference internal" href="#rebar3-based-build" id="toc-entry-32">Rebar3-based Build</a></li>
+<li><a class="reference internal" href="#using-otp-related-build-runtime-conventions" id="toc-entry-33">Using OTP-Related Build/Runtime Conventions</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#launching-us-main" id="toc-entry-33">Launching US-Main</a></li>
-<li><a class="reference internal" href="#troubleshooting-us-main" id="toc-entry-34">Troubleshooting US-Main</a></li>
-<li><a class="reference internal" href="#monitoring-us-main" id="toc-entry-35">Monitoring US-Main</a><ul>
-<li><a class="reference internal" href="#local-monitoring" id="toc-entry-36">Local Monitoring</a></li>
-<li><a class="reference internal" href="#remote-monitoring" id="toc-entry-37">Remote Monitoring</a></li>
+<li><a class="reference internal" href="#launching-us-main" id="toc-entry-34">Launching US-Main</a></li>
+<li><a class="reference internal" href="#troubleshooting-us-main" id="toc-entry-35">Troubleshooting US-Main</a></li>
+<li><a class="reference internal" href="#monitoring-us-main" id="toc-entry-36">Monitoring US-Main</a><ul>
+<li><a class="reference internal" href="#local-monitoring" id="toc-entry-37">Local Monitoring</a></li>
+<li><a class="reference internal" href="#remote-monitoring" id="toc-entry-38">Remote Monitoring</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#support" id="toc-entry-38">Support</a></li>
-<li><a class="reference internal" href="#licence" id="toc-entry-39">Licence</a></li>
-<li><a class="reference internal" href="#credits" id="toc-entry-40">Credits</a></li>
-<li><a class="reference internal" href="#please-react" id="toc-entry-41">Please React!</a></li>
-<li><a class="reference internal" href="#ending-word" id="toc-entry-42">Ending Word</a></li>
+<li><a class="reference internal" href="#support" id="toc-entry-39">Support</a></li>
+<li><a class="reference internal" href="#licence" id="toc-entry-40">Licence</a></li>
+<li><a class="reference internal" href="#credits" id="toc-entry-41">Credits</a></li>
+<li><a class="reference internal" href="#please-react" id="toc-entry-42">Please React!</a></li>
+<li><a class="reference internal" href="#ending-word" id="toc-entry-43">Ending Word</a></li>
 </ul>
 </div>
 <p></p>
@@ -386,64 +385,103 @@ $<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>/sy
 </div>
 <div class="section" id="general-us-configuration">
 <h2><a class="toc-backref" href="#toc-entry-18">General US Configuration</a></h2>
+<p>Even if these are just conventions, we consider that a US-Server can be deployed either in:</p>
+<ul class="simple">
+<li><strong>development</strong> mode: by a regular user, with no specific permissions, directly from the user account, and with direct process control</li>
+<li><strong>production</strong> mode: by dedicated US(-Main) user and group, with low privileges, in the system tree (<tt class="docutils literal">/etc</tt>, <tt class="docutils literal">/opt</tt>, <tt class="docutils literal">/var</tt>), and controlled through systemd</li>
+</ul>
 <p>All US-related configuration files respect the <a class="reference external" href="https://myriad.esperide.org/#etf">ETF file format</a>.</p>
-<div class="section" id="location-of-configuration-files">
-<h3><a class="toc-backref" href="#toc-entry-19">Location of Configuration Files</a></h3>
-<p>As explained in <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/priv/bin/start-us-main.sh">start-us-main.sh</a> and in <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USMainConfigServer.erl">class_USMainConfigServer.erl</a>, the US configuration files will be searched through various locations.</p>
-<p>The main, overall US configuration file, <tt class="docutils literal">us.config</tt>, is found based on a series of directories that are gone through in an orderly manner; the first directory to host such a file becomes <em>the</em> (single) US configuration directory.</p>
-<p>The other US-related configuration files (e.g. any <tt class="docutils literal"><span class="pre">us-main.config</span></tt>) are referenced directly from the main one (<tt class="docutils literal">us.config</tt>), designated there through specific keys (e.g. <tt class="docutils literal">us_main_config_filename</tt>); they may be either absolutely defined, or relatively to the aforementioned US configuration directory.</p>
-<p>Let's name <tt class="docutils literal">US_CFG_ROOT</tt> the actual directory in which they all lie; it is typically either <tt class="docutils literal"><span class="pre">~/.config/universal-server/</span></tt> (in development mode), or <tt class="docutils literal"><span class="pre">/etc/xdg/universal-server/</span></tt> (in production mode).</p>
+</div>
+<div class="section" id="us-common-level-configuration">
+<h2><a class="toc-backref" href="#toc-entry-19">US-Common-level Configuration</a></h2>
+<p>The US-Main server is part of our &quot;Universal Server&quot; infrastructure, and as such relies on the <a class="reference external" href="https://us-common.esperide.org/#configuration">base US-Common configuration settings</a>.</p>
+<p>As the US-related configuration files are heavily commented, proceeding based on examples is the simplest approach <a class="footnote-reference" href="#footnote-2" id="footnote-reference-2">[2]</a>.</p>
+<table class="docutils footnote" frame="void" id="footnote-2" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#footnote-reference-2">[2]</a></td><td>The second best approach being to have directly a look at the code reading them; for <tt class="docutils literal">us.config</tt>, see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/src/class_USConfigServer.erl">class_USConfigServer.erl</a>.</td></tr>
+</tbody>
+</table>
+<p>Refer for that at this <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config">us.config example</a>.</p>
+<div class="section" id="location-of-the-us-configuration-files">
+<h3><a class="toc-backref" href="#toc-entry-20">Location of the US Configuration Files</a></h3>
+<p>The US configuration files will be searched through various filesystem locations <a class="footnote-reference" href="#footnote-3" id="footnote-reference-3">[3]</a> in turn:</p>
+<ul class="simple">
+<li>first in any directory designated by the <tt class="docutils literal">XDG_CONFIG_HOME</tt> environment variable (default value: <tt class="docutils literal"><span class="pre">$HOME/.config</span></tt>)</li>
+<li>second in any of the directories listed in the <tt class="docutils literal">XDG_CONFIG_DIRS</tt> environment variable (default: <tt class="docutils literal">/etc/xdg</tt>;, directories being separated by <tt class="docutils literal">:</tt>)</li>
+</ul>
+<table class="docutils footnote" frame="void" id="footnote-3" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#footnote-reference-3">[3]</a></td><td>As explained notably in <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/src/class_USConfigServer.erl#L60">class_USConfigServer.erl</a>.</td></tr>
+</tbody>
+</table>
+<p>So the main, overall US configuration file, <tt class="docutils literal">us.config</tt>, is found based on this series of directories that are gone through in an orderly manner; the first directory to host such a file becomes <em>the</em> (single) US configuration directory; let's name it <tt class="docutils literal">US_CFG_ROOT</tt>.</p>
+<p>This directory, in which generally all configuration files for a US-Main deployment lie is, with our conventions, typically either <tt class="docutils literal"><span class="pre">~/.config/universal-server/</span></tt> (in development mode), or <tt class="docutils literal"><span class="pre">/etc/xdg/universal-server/</span></tt> (in production mode).</p>
+<p>The other US-related configuration files (e.g. any <tt class="docutils literal"><span class="pre">us-main.config</span></tt>) are then referenced directly from the main one (<tt class="docutils literal">us.config</tt>), and are designated from there through specific keys, here <tt class="docutils literal">us_main_config_filename</tt>; the associate value may be either an absolute path, or one relative to the aforementioned US configuration directory (which is recommended).</p>
+</div>
+<div class="section" id="us-common-configuration">
+<h3><a class="toc-backref" href="#toc-entry-21">US-Common Configuration</a></h3>
+<p>So the general, user-specified configuration file for US servers is named <tt class="docutils literal">us.config</tt>, and the content of this <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config">example us.config</a> should be pretty self-explanatory.</p>
+<p>Note that, as US-Main supports an <tt class="docutils literal">epmd_port</tt> entry in its own configuration file and has its own default port, such an entry should not be set in the general <tt class="docutils literal">us.config</tt> file, as its value would not be taken into account anyway - it would just be misleading.</p>
 </div>
 <div class="section" id="setting-user-and-group">
-<h3><a class="toc-backref" href="#toc-entry-20">Setting User and Group</a></h3>
-<p>For operational use, we recommend to create a US-Main specific user (to be set in the <tt class="docutils literal">us_username</tt> entry of one's <tt class="docutils literal">us.config</tt> file), in order to compartmentalise the accesses to the US-Main resources.</p>
-<p>For example, provided that a <tt class="docutils literal"><span class="pre">us-group</span></tt> group has already been created (otherwise, do it with <tt class="docutils literal">groupadd <span class="pre">us-group</span></tt>), a <tt class="docutils literal"><span class="pre">us-main-user</span></tt> user can be defined, and made belonging to that group:</p>
+<h3><a class="toc-backref" href="#toc-entry-22">Setting User and Group</a></h3>
+<p>For operational use, we recommend to create at least a US specific user (to be set in the <tt class="docutils literal">us_username</tt> entry of one's <tt class="docutils literal">us.config</tt> file) - and possibly additionally a US-Main specific one, in order to better compartmentalise the accesses to the US-Main resources.</p>
+<p>For example, provided that a US-specific group (named for instance <tt class="docutils literal"><span class="pre">us-group</span></tt>) has already been created (otherwise, do it with <tt class="docutils literal">groupadd <span class="pre">us-group</span></tt>), a <tt class="docutils literal"><span class="pre">us-main-user</span></tt> user can be defined, and made belonging to that group:</p>
 <pre class="code bash literal-block">
 <span class="c1"># Only sftp allowed if relying on a rssh (package available on the AUR) shell,
 # or prefer just /bin/false:
 #
 </span>$<span class="w"> </span>useradd<span class="w"> </span>--create-home<span class="w"> </span>--shell<span class="w"> </span>/bin/rssh<span class="w"> </span>-g<span class="w"> </span>us-group<span class="w"> </span>us-main-user<span class="w">
-</span><span class="c1"># (to change afterwards: 'chsh --shell /bin/false us-main-user')</span>
+</span><span class="c1"># (if wanting to change afterwards: 'chsh --shell /bin/false us-main-user')</span>
 </pre>
-<p>If having a regular user (e.g. named <tt class="docutils literal">bond</tt>) that shall be able to operate on US-Main deployments (e.g. to monitor its traces locally), it can be added to that group as well: <tt class="docutils literal">usermod <span class="pre">-a</span> <span class="pre">-G</span> <span class="pre">us-group</span> bond</tt> (if this user is logged in, it will not be effective before the logout of this user or the user runs <tt class="docutils literal">newgrp <span class="pre">us-group</span></tt>).</p>
+<p>If having a regular user (e.g. named <tt class="docutils literal">bond</tt>) who shall be also able to operate on US-Main deployments (e.g. to monitor their traces locally), it can be added to that group as well: <tt class="docutils literal">usermod <span class="pre">-a</span> <span class="pre">-G</span> <span class="pre">us-group</span> bond</tt> (if this user is logged in, this will not be effective before the logout of this user or the user runs <tt class="docutils literal">newgrp <span class="pre">us-group</span></tt>).</p>
 <p>Finally, the <tt class="docutils literal">us.config</tt> US-Common configuration file and the US-Main one it references shall have the right user and group; for example:</p>
 <pre class="code bash literal-block">
 $<span class="w"> </span>chown<span class="w"> </span>us-main-user:us-group<span class="w"> </span>/etc/xdg/universal-server/*.config
 </pre>
 </div>
 <div class="section" id="permissions-of-configuration-files">
-<h3><a class="toc-backref" href="#toc-entry-21">Permissions of Configuration Files</a></h3>
-<p>Note that, as these files might contain sensitive information (e.g. Erlang cookies), they shall be duly protected. Indeed, in terms of permissions, we should have <tt class="docutils literal">640</tt>, supposing that the <tt class="docutils literal">us.config</tt> designates, in its <tt class="docutils literal">us_main_config_filename</tt> entry, <tt class="docutils literal"><span class="pre">foobar-us-main-for-production.config</span></tt> as the name of the US-Main configuration file <a class="footnote-reference" href="#footnote-2" id="footnote-reference-2">[2]</a>:</p>
+<h3><a class="toc-backref" href="#toc-entry-23">Permissions of Configuration Files</a></h3>
+<p>Note that, as these files might contain sensitive information (e.g. Erlang cookies), they shall be duly protected and, in terms of permissions, we should have <tt class="docutils literal">640</tt> for them.</p>
+<p>So, supposing that the <tt class="docutils literal">us.config</tt> designates, in its <tt class="docutils literal">us_main_config_filename</tt> entry, <tt class="docutils literal"><span class="pre">foobar-us-main-for-production.config</span></tt> as the name of the US-Main configuration file <a class="footnote-reference" href="#footnote-4" id="footnote-reference-4">[4]</a>, we could have:</p>
 <pre class="code bash literal-block">
 -rw-r-----<span class="w"> </span><span class="m">1</span><span class="w"> </span>us-user<span class="w">      </span>us-group<span class="w"> </span><span class="o">[</span>...<span class="o">]</span><span class="w"> </span>us.config<span class="w">
 </span>-rw-r-----<span class="w"> </span><span class="m">1</span><span class="w"> </span>us-main-user<span class="w"> </span>us-group<span class="w"> </span><span class="o">[</span>...<span class="o">]</span><span class="w"> </span>foobar-us-main-for-production.config
 </pre>
-<table class="docutils footnote" frame="void" id="footnote-2" rules="none">
+<table class="docutils footnote" frame="void" id="footnote-4" rules="none">
 <colgroup><col class="label" /><col /></colgroup>
 <tbody valign="top">
-<tr><td class="label"><a class="fn-backref" href="#footnote-reference-2">[2]</a></td><td>They shall be in the same <tt class="docutils literal">US_CFG_ROOT</tt> directory (discussed above), and may be symbolic links.</td></tr>
+<tr><td class="label"><a class="fn-backref" href="#footnote-reference-4">[4]</a></td><td>They should better be in the same <tt class="docutils literal">US_CFG_ROOT</tt> directory (discussed above), and may be symbolic links.</td></tr>
 </tbody>
 </table>
+<p><tt class="docutils literal">chmod</tt> and <tt class="docutils literal">chown</tt> shall thus be used accordingly.</p>
+<p>Finally, if being able to rely on multiple, different US configuration directories is necessary in order to be able to launch multiple US-Main instances (these configurations can then register the managers involved - typically the US-Main Configuration server - under different names), only a single <em>node</em> can be used per EPMD instance as, by default, such a node is named <tt class="docutils literal">us_main</tt> (so two US-Main instances would then clash at this level).</p>
+<p>As a consequence, in order to run multiple US-Main instances (e.g. one in production, one for testing) on a given host, they shall be multiplexed on different EPMD ports (see the <tt class="docutils literal">epmd_port</tt> key of the US-Main configuration file; as a result, different <tt class="docutils literal"><span class="pre">universal-server</span></tt> configuration directories shall then be relied upon).</p>
 </div>
-</div>
-<div class="section" id="us-level-configuration">
-<h2><a class="toc-backref" href="#toc-entry-22">US-level Configuration</a></h2>
-<p>The US-Main server is part of our &quot;Universal Server&quot; infrastructure, and as such relies on the <a class="reference external" href="https://us-common.esperide.org/#configuration">base US-Common configuration settings</a>.</p>
-<p>So the base information of the user-specified <tt class="docutils literal">us.config</tt> file, found in the US Configuration directory (see <tt class="docutils literal">US_CFG_ROOT</tt> above), will apply (see <a class="reference external" href="https://github.com/Olivier-Boudeville/us-common/blob/master/priv/for-testing/us.config">this example thereof</a>).</p>
 <div class="section" id="specifying-the-us-main-configuration-file">
-<h3><a class="toc-backref" href="#toc-entry-23">Specifying the US-Main Configuration File</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-24">Specifying the US-Main Configuration File</a></h3>
 <p>In <tt class="docutils literal">us.config</tt> , an <tt class="docutils literal">us_main_config_filename</tt> entry can be specified in order to designate the US-Main configuration file that shall be used; for example:</p>
 <pre class="code erlang literal-block">
 <span class="p">{</span><span class="n">us_main_config_filename</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;us-main-for-tests.config&quot;</span><span class="p">}.</span>
 </pre>
 </div>
 </div>
-<div class="section" id="us-main-configuration">
-<h2><a class="toc-backref" href="#toc-entry-24">US-Main Configuration</a></h2>
-<p>This US-Main configuration file designated by <tt class="docutils literal">us.config</tt> concentrates the settings of all the <a class="reference internal" href="#facilities">facilities</a> presented above; it is additionally used by the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main scripts</a>, notably in order to start, stop, or monitor a designated US-Main server.</p>
+<div class="section" id="us-main-level-configuration">
+<h2><a class="toc-backref" href="#toc-entry-25">US-Main-level Configuration</a></h2>
+<p>This US-Main configuration file designated by <tt class="docutils literal">us.config</tt> concentrates the settings of all the <a class="reference internal" href="#facilities">facilities</a> presented above; it is additionally used by the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin">US-Main scripts</a>, notably in order to start, stop, kill, monitor, control a designated US-Main server.</p>
+<p>Here also, proceeding based on examples in the simplest approach <a class="footnote-reference" href="#footnote-5" id="footnote-reference-5">[5]</a>, thanks to the comments they include.</p>
+<table class="docutils footnote" frame="void" id="footnote-5" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#footnote-reference-5">[5]</a></td><td>The second best approach being to have directly a look at the code reading them, see, for the US-Main configuration, <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/src/class_USMainConfigServer.erl">class_USMainConfigServer.erl</a>.</td></tr>
+</tbody>
+</table>
+<p>Refer for that at this <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/blob/master/priv/for-testing/us-main-for-tests.config">US-Main example</a>.</p>
 <div class="section" id="test-configuration-files">
-<h3><a class="toc-backref" href="#toc-entry-25">Test Configuration Files</a></h3>
-<p>Versions of these two configuration files may be used for testing purposes.</p>
+<h3><a class="toc-backref" href="#toc-entry-26">Test Configuration Files</a></h3>
+<p>Versions of the US and US-Main configuration files may be used for testing purposes and/or for examples.</p>
 <p>For example, as root:</p>
 <pre class="code bash literal-block">
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/etc/xdg/universal-server/<span class="w">
@@ -453,16 +491,17 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/etc/
 <p>Of course in the general case one will devise one's configuration files according to one's context and needs.</p>
 </div>
 <div class="section" id="specifying-a-us-main-specific-epmd-port">
-<h3><a class="toc-backref" href="#toc-entry-26">Specifying a US-Main Specific EPMD Port</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-27">Specifying a US-Main Specific EPMD Port</a></h3>
 <p>For US-Main, the default EPMD port is <tt class="docutils literal">4507</tt> (preferred to the default, more general US-level EPMD port, <tt class="docutils literal">4506</tt>).</p>
 <p>This helps compartmentalising the nodes, and then US-Main (possibly including its EPMD daemon) can be restarted without affecting the other Erlang applications that may be running concurrently.</p>
-<p>The user may specify an EPMD of their liking; this can be done by specifying in the US-Main configuration file (instead of in <tt class="docutils literal">us.config</tt>) an <tt class="docutils literal">epmd_port</tt> entry, for example:</p>
+<p>The user may specify an EPMD of their liking, providing it neither clashes nor is filtered by the local firewall. This can be done by specifying in the US-Main configuration file (instead of in <tt class="docutils literal">us.config</tt>) an <tt class="docutils literal">epmd_port</tt> entry.</p>
+<p>For example:</p>
 <pre class="code erlang literal-block">
 <span class="p">{</span><span class="n">epmd_port</span><span class="p">,</span><span class="w"> </span><span class="mi">4666</span><span class="p">}.</span>
 </pre>
 </div>
 <div class="section" id="communication-gateway-2">
-<h3><a class="toc-backref" href="#toc-entry-27">Communication Gateway</a></h3>
+<h3><a class="toc-backref" href="#toc-entry-28">Communication Gateway</a></h3>
 <p>The <a class="reference internal" href="#communication-gateway">communication gateway</a> will rely on Ceylan-Mobile to send SMS. For that, a suitable 3G device (typically a USB key) will have to be used.</p>
 <p>As mentioned <a class="reference external" href="https://mobile.esperide.org/#managing-dev-ttyusb-entries">in this section</a>, proper permissions must apply, so that the user (e.g. <tt class="docutils literal"><span class="pre">us-main-user</span></tt>) running US-Main is able to interact with the 3G device (e.g. <tt class="docutils literal"><span class="pre">/dev/ttyUSB-my-3G-key</span></tt>).</p>
 <p>So <tt class="docutils literal">gpasswd <span class="pre">-a</span> <span class="pre">us-main-user</span> uucp</tt> can be executed as root (and possibly <tt class="docutils literal"><span class="pre">us-main-user</span></tt> may run <tt class="docutils literal">newgrp uucp</tt> to update its group identification).</p>
@@ -470,18 +509,18 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/etc/
 </div>
 </div>
 <div class="section" id="installing-us-main-current-stable-version-download">
-<span id="installation"></span><h1><a class="toc-backref" href="#toc-entry-28">Installing US-Main: Current Stable Version &amp; Download</a></h1>
+<span id="installation"></span><h1><a class="toc-backref" href="#toc-entry-29">Installing US-Main: Current Stable Version &amp; Download</a></h1>
 <p>As mentioned, the single mandatory prerequisite of the <a class="reference external" href="https://github.com/Olivier-Boudeville/UniversalServer">Universal Server</a> is <a class="reference external" href="http://us-common.esperide.org/">US-Common</a>, which relies on <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Traces">Ceylan-Traces</a>, which implies in turn <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-WOOPER">Ceylan-WOOPER</a>, then <a class="reference external" href="https://github.com/Olivier-Boudeville/Ceylan-Myriad">Ceylan-Myriad</a> and <a class="reference external" href="http://erlang.org">Erlang</a>.</p>
-<p>We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding <a class="reference external" href="http://myriad.esperide.org#prerequisites">Myriad prerequisite section</a>  for more precise guidelines <a class="footnote-reference" href="#footnote-3" id="footnote-reference-3">[3]</a>), and building the Universal Server from sources, thanks to GNU <tt class="docutils literal">make</tt>.</p>
-<table class="docutils footnote" frame="void" id="footnote-3" rules="none">
+<p>We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding <a class="reference external" href="http://myriad.esperide.org#prerequisites">Myriad prerequisite section</a>  for more precise guidelines <a class="footnote-reference" href="#footnote-6" id="footnote-reference-6">[6]</a>), and building the Universal Server from sources, thanks to GNU <tt class="docutils literal">make</tt>.</p>
+<table class="docutils footnote" frame="void" id="footnote-6" rules="none">
 <colgroup><col class="label" /><col /></colgroup>
 <tbody valign="top">
-<tr><td class="label"><a class="fn-backref" href="#footnote-reference-3">[3]</a></td><td>Note that servers like US-Main have a machinery meant to be executed as root before switching to an application-specific user. As a result, Erlang is best available system-wide (as opposed to only a regular, non-privileged user).</td></tr>
+<tr><td class="label"><a class="fn-backref" href="#footnote-reference-6">[6]</a></td><td>Note that servers like US-Main have a machinery meant to be executed as root before switching to an application-specific user. As a result, Erlang is best available system-wide (as opposed to only a regular, non-privileged user).</td></tr>
 </tbody>
 </table>
 <p>The Universal Server <tt class="docutils literal">master</tt> branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.</p>
 <div class="section" id="automated-installation-native-deployment-recommended">
-<h2><a class="toc-backref" href="#toc-entry-29">Automated Installation &amp; Native Deployment (recommended)</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-30">Automated Installation &amp; Native Deployment (recommended)</a></h2>
 <p>This procedure relies on our <em>native</em> build/run system, which is the only one that is now officially supported in the context of US-Main, and involves only two steps (prepare/deploy), on the target host.</p>
 <p><strong>Step #1</strong>, preparation, is to:</p>
 <ul class="simple">
@@ -494,7 +533,7 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/etc/
 <p>If having specified the <tt class="docutils literal"><span class="pre">--no-launch</span></tt> option, then once deployed refer to <a class="reference internal" href="#launching-us-main">Launching US-Main</a> - otherwise a launch attempt has been done.</p>
 </div>
 <div class="section" id="alternatively-to-step-2-using-cutting-edge-git">
-<h2><a class="toc-backref" href="#toc-entry-30">Alternatively to step #2: Using Cutting-Edge Git</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-31">Alternatively to step #2: Using Cutting-Edge Git</a></h2>
 <p>This is more or less a manual, more limited version of the US-Main deployment script.</p>
 <p>Once Erlang is available, it should be just a matter of executing:</p>
 <pre class="code bash literal-block">
@@ -532,7 +571,7 @@ $<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span
 </pre>
 </div>
 <div class="section" id="rebar3-based-build">
-<h2><a class="toc-backref" href="#toc-entry-31">Rebar3-based Build</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-32">Rebar3-based Build</a></h2>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">With rebar3 we encountered <em>a lot</em> of difficulties regarding build and release. So, at least for the moment, we dropped the use of rebar3 and focused instead on our native build/run system, which is perfectly suitable and fully sufficient for our needs. We do not plan to restore the rebar3 build anymore (contributions are welcome though - but be aware that the dependency management is bound to be tricky).</p>
@@ -543,7 +582,7 @@ $<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span
 <p><span class="raw-html"><a name="otp"></a></span></p>
 </div>
 <div class="section" id="using-otp-related-build-runtime-conventions">
-<span id="otp-build"></span><h2><a class="toc-backref" href="#toc-entry-32">Using OTP-Related Build/Runtime Conventions</a></h2>
+<span id="otp-build"></span><h2><a class="toc-backref" href="#toc-entry-33">Using OTP-Related Build/Runtime Conventions</a></h2>
 <p>As discussed in these sections of <a class="reference external" href="http://myriad.esperide.org/myriad.html#otp">Myriad</a>, <a class="reference external" href="http://wooper.esperide.org/index.html#otp">WOOPER</a>, <a class="reference external" href="http://traces.esperide.org/index.html#otp">Traces</a> and <a class="reference external" href="http://us-common.esperide.org/index.html#otp">US-Common</a>, we added the (optional) possibility of generating a Universal Server <em>OTP application</em> out of the build tree, ready to result directly in an <em>(OTP) release</em>. For that we relied on <a class="reference external" href="https://www.rebar3.org/">rebar3</a>, <a class="reference external" href="https://github.com/erlware/relx">relx</a> and <a class="reference external" href="https://hex.pm/">hex</a>.</p>
 <p>Then we benefit from a standalone, complete Universal Server.</p>
 <p>For more details, one may have a look at:</p>
@@ -554,7 +593,7 @@ $<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span
 </div>
 </div>
 <div class="section" id="launching-us-main">
-<span id="execution"></span><h1><a class="toc-backref" href="#toc-entry-33">Launching US-Main</a></h1>
+<span id="execution"></span><h1><a class="toc-backref" href="#toc-entry-34">Launching US-Main</a></h1>
 <p>We suppose here that the US-Main configuration has already taken place (otherwise the guidelines in the <a class="reference internal" href="#configuring-us-main">Configuring US-Main</a> section shall be applied).</p>
 <p>The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root first.</p>
 <p>We recommend running US-Main thanks to a native build (rather than as a release), and using for that the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh">start-us-main-native-build.sh</a> script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).</p>
@@ -592,7 +631,7 @@ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-
 <p>In this case, the best solution is to kill that lingering EPMD (e.g. <tt class="docutils literal">epmd <span class="pre">-port</span> 4507 <span class="pre">-kill</span></tt>) or, more brutally, to run the <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.</p>
 </div>
 <div class="section" id="troubleshooting-us-main">
-<h1><a class="toc-backref" href="#toc-entry-34">Troubleshooting US-Main</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-35">Troubleshooting US-Main</a></h1>
 <p>The recommended procedure is to inspect:</p>
 <ul class="simple">
 <li>to run first the <tt class="docutils literal"><span class="pre">monitor-us-main.sh</span></tt> for any (possibly remote) host of interest</li>
@@ -618,9 +657,9 @@ Write pipe '/tmp/launch-erl-1103261.w' found, waiting 2 seconds to ensure start-
 <p>A common cause of failure, if the launch time-out triggered, is having already an instance of US-Main running, thus preventing any new launch thereof. This may be checked for example thanks to <tt class="docutils literal">ps <span class="pre">-edf</span> | grep beam.smp | grep us_main</tt>.</p>
 </div>
 <div class="section" id="monitoring-us-main">
-<h1><a class="toc-backref" href="#toc-entry-35">Monitoring US-Main</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-36">Monitoring US-Main</a></h1>
 <div class="section" id="local-monitoring">
-<h2><a class="toc-backref" href="#toc-entry-36">Local Monitoring</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-37">Local Monitoring</a></h2>
 <p>Based on the US-Main EPMD port that was preferred, checking whether an instance is running is as simple as:</p>
 <pre class="code bash literal-block">
 $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">ERL_EPMD_PORT</span><span class="o">=</span><span class="m">4507</span><span class="w"> </span><span class="p">;</span><span class="w"> </span>epmd<span class="w"> </span>-names<span class="w">
@@ -631,7 +670,7 @@ $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><
 <p>Then, if needed, executing <tt class="docutils literal"><span class="pre">kill-us-main.sh</span></tt> will kill any live US-Main instance and unregister it from its EPMD (without killing any EPMD daemon).</p>
 </div>
 <div class="section" id="remote-monitoring">
-<h2><a class="toc-backref" href="#toc-entry-37">Remote Monitoring</a></h2>
+<h2><a class="toc-backref" href="#toc-entry-38">Remote Monitoring</a></h2>
 <p>The <tt class="docutils literal"><span class="pre">priv/bin/monitor-us-main.sh</span></tt> script shall be run for that.</p>
 <p>Of course it must be told the target host, EPMD port, cookie, etc.; this information shall be held by a configuration file, by default named <tt class="docutils literal"><span class="pre">us-main-remote-access.config</span></tt>.</p>
 <p>As an example:</p>
@@ -660,25 +699,25 @@ $<span class="w"> </span><span class="nb">export</span><span class="w"> </span><
 </div>
 </div>
 <div class="section" id="support">
-<h1><a class="toc-backref" href="#toc-entry-38">Support</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-39">Support</a></h1>
 <p>Bugs, questions, remarks, patches, requests for enhancements, etc. are to be reported to the <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main">project interface</a> (typically <a class="reference external" href="https://github.com/Olivier-Boudeville/us-main/issues">issues</a>) or directly at the email address mentioned at the beginning of this document.</p>
 </div>
 <div class="section" id="licence">
-<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-39">Licence</a></h1>
+<span id="free-software"></span><h1><a class="toc-backref" href="#toc-entry-40">Licence</a></h1>
 <p>The <tt class="docutils literal">Universal Server</tt> is licensed by its author (Olivier Boudeville) under the <a class="reference external" href="https://www.gnu.org/licenses/agpl-3.0.en.html">GNU Affero General Public License</a> as published by the Free Software Foundation, either version 3 of this license, or (at your option) any later version.</p>
 <p>This allows the use of the Universal Server code in a wide a variety of software projects, while still maintaining copyleft on this code, ensuring improvements are shared.</p>
 <p>We hope indeed that enhancements will be back-contributed (e.g. thanks to merge requests), so that everyone will be able to benefit from them.</p>
 </div>
 <div class="section" id="credits">
-<h1><a class="toc-backref" href="#toc-entry-40">Credits</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-41">Credits</a></h1>
 <p>Many thanks to David Alberto for <a class="reference external" href="https://www.astrolabe-science.fr/duree-du-jour-et-latitude/">his kind sharing in terms of computation of latitude-based daylight durations</a> (in French).</p>
 </div>
 <div class="section" id="please-react">
-<h1><a class="toc-backref" href="#toc-entry-41">Please React!</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-42">Please React!</a></h1>
 <p>If you have information more detailed or more recent than those presented in this document, if you noticed errors, neglects or points insufficiently discussed, drop us a line! (for that, follow the <a class="reference internal" href="#support">Support</a> guidelines).</p>
 </div>
 <div class="section" id="ending-word">
-<h1><a class="toc-backref" href="#toc-entry-42">Ending Word</a></h1>
+<h1><a class="toc-backref" href="#toc-entry-43">Ending Word</a></h1>
 <p>Have fun with the Universal Server!</p>
 <p><span class="raw-html"><center><img src="us-main-title.png" id="responsive-image-small"></img></center></span>
 </p>
