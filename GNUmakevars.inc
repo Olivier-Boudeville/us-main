@@ -180,10 +180,10 @@ USE_JSON = true
 
 
 
-# This is the US-Main specific EPMD port, different from the default Myriad one
-# and from the one of our other applications, so that we can act upon the
-# US-Main EPMD without interfering with others (see also the 'launch-epmd' make
-# target):
+# This is the US-Main specific default EPMD port, different from the default
+# Myriad one and from the one of the other US applications, so that we can act
+# upon the US-Main EPMD without interfering with others (see also the
+# 'launch-epmd' make target):
 #
 EPMD_PORT := 4507
 
@@ -199,11 +199,19 @@ endif
 # The default path where a US-Main native build is to be deployed on a server:
 # (useful to synchronise sources)
 #
-US_NATIVE_DEPLOY_ROOT := /opt/universal-server/$(PROJECT_SHORT_NAME)-native
+US_NATIVE_DEPLOY_ROOT := /opt/universal-server/$(PROJECT_SHORT_NAME)-native-deployment
 
 # For Myriad' sync-all-to-server target, if used:
 CEYLAN_SYNC_TARGET_ROOT := $(US_NATIVE_DEPLOY_ROOT)
 
+
+# Set in one's environment, typically to the US group of interest, so that the
+# group of the target (remote) filesystem content is not overridden by the main
+# group of the local user:
+#
+ifdef US_GROUP
+    SYNC_BASE_OPT += --chown=:$(US_GROUP)
+endif
 
 
 # For later reuse in the next layer of the software stack:
@@ -249,8 +257,8 @@ ifndef JIFFY_TOP
 	endif
 endif
 
-
-US_MAIN_EXTRA_DEPS = $(JSX_TOP) $(JIFFY_TOP)
+# Superseded by built-in 'json':
+#US_MAIN_EXTRA_DEPS = $(JSX_TOP) $(JIFFY_TOP)
 
 # $(SIBLING_ROOT) and $(PREREQ_ROOT) are added, as most includes are expected to
 # be done with include_lib, hence as, for example, "foobar/include/foobar.hrl":
