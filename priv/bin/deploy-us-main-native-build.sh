@@ -32,6 +32,11 @@ do_clone=0
 #do_clone=1
 
 # Tells whether dependencies shall be built (if not done already):
+#
+# (best left enabled, as this step is almost immediately gone through if builds
+# have already been done, and it has for side effect to read the US
+# configuration files, which is needed for deployment afterwards)
+#
 do_build=0
 #do_build=1
 
@@ -694,8 +699,8 @@ if [ ${do_build} -eq 0 ]; then
 	# Rare option needed, otherwise apparently mistook for a directory resulting
 	# in an incorrect link:
 	#
-	sudo /bin/ln -sf --no-target-directory "${native_install_dir}" us_main-native
-	sudo /bin/ln -sf --no-target-directory us_main-native us_main-latest
+	sudo /bin/ln -sf --no-target-directory "${native_install_dir}" us_main-native-deployment
+	sudo /bin/ln -sf --no-target-directory us_main-native-deployment us_main-latest
 
 	display_and_log
 	display_and_log "Native US-Main built and ready in ${abs_native_install_dir}."

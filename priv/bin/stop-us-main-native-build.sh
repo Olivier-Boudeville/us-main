@@ -80,7 +80,7 @@ if [ -d "${local_us_main_install_root}/priv" ]; then
 else
 
 	# The location enforced by deploy-us-main-native-build.sh:
-	us_main_install_root="/opt/universal-server/us_main-native/us_main"
+	us_main_install_root="/opt/universal-server/us_main-native-deployment/us_main"
 	echo "Selecting US-Main native build in standard server location '${us_main_install_root}'."
 
 	if [ ! -d "${us_main_install_root}/priv" ]; then
@@ -258,7 +258,7 @@ if [ $res -eq 0 ]; then
 	echo
 
 	# If wanting to check or have more details:
-	#inspect_us_main_log
+	#inspect_us_main_launch_outcome
 
 	exit 0
 
@@ -270,7 +270,7 @@ else
 	echo "  Error: stop failure reported (code '$res')" 1>&2
 	echo
 
-	#inspect_us_main_log
+	#inspect_us_main_launch_outcome
 
 	# Finally wanting pseudo-failure to propagate:
 	res=0

@@ -1,12 +1,20 @@
 #!/bin/sh
 
 # A script to kill for sure a local US-Main instance.
-
+#
 # See also the {start,stop,control,monitor}-us-main.sh and get-us-main-status.sh
 # scripts.
 
 
-usage="Usage: $(basename $0): kills any running US-Main instance(s), and ensures none is registered in the specifically-associated EPMD."
+usage="Usage: $(basename $0) [US_CONF_DIR]: kills any running US-Main instance(s), and ensures that none is registered in the specifically-associated EPMD.
+
+Determines which US-Main instance is to kill based on any specified US configuration directory, otherwise on the standard locations of US configuration files.
+
+Examples of use:
+ $ kill-us-main.sh
+ $ sudo kill-us-main.sh $HOME/.config/universal-server
+"
+
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
@@ -15,15 +23,18 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
 fi
 
+if [ $# -gt 1 ]; then
 
-if [ ! $# -eq 0 ]; then
-
-	echo "  Error, no argument expected.
+	echo "  Error, no extra argument expected.
 ${usage}" 1>&2
 
 	exit 10
 
 fi
+
+# If an argument is set, it will be interpreted as US_CONF_DIR by
+# read_us_config_file.
+
 
 
 epmd="$(which epmd 2>/dev/null)"
@@ -168,7 +179,7 @@ echo "Using, for US-Main EPMD port, ${us_main_epmd_port}."
 export ERL_EPMD_PORT="${us_main_epmd_port}"
 
 # Not always working:
-if ! ${epmd} -stop us_main; then
+if ! ${epmd} -stop us_main 1>/dev/null; then
 
 	echo "  Error while unregistering the US-Main server from the EPMD daemon at port ${ERL_EPMD_PORT}." 1>&2
 

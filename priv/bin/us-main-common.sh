@@ -605,11 +605,12 @@ prepare_us_main_launch()
 }
 
 
-# Inspects the VM logs of US-Main (beware of ancient entries being displayed).
+# Inspects the VM logs of US-Main (beware of ancient entries being displayed),
+# and possibly the related EPMD port.
 #
 # read_us_main_config_file must have been run beforehand.
 #
-inspect_us_main_log()
+inspect_us_main_launch_outcome()
 {
 
 	# (run_erl.log not that useful)
@@ -651,16 +652,8 @@ inspect_us_main_log()
 
 	if [ -f "${us_main_vm_log_file}" ]; then
 
-		if [ -n "${erl_epmd_port}" ]; then
-			echo "EPMD names output (on port ${erl_epmd_port}):"
-			epmd_port_opt="-port ${erl_epmd_port}"
-		else
-			echo "EPMD names output (on default US-Main port ${erl_epmd_port}):"
-			epmd_port_opt="-port ${default_us_main_epmd_port}"
-		fi
-
-		${epmd} ${epmd_port_opt} -names
-
+		echo "US-Main EPMD names output:"
+		${epmd} -port ${us_main_epmd_port} -names
 
 		echo
 		echo "Displaying the end of '${us_main_vm_log_file}':"

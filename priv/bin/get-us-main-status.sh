@@ -127,4 +127,4 @@ echo " -- corresponding US-Main applicative logs:"
 # If not finding a us-main log file, might be the sign that US-Main is actually
 # not running:
 #
-inspect_us_main_log
+inspect_us_main_launch_outcome

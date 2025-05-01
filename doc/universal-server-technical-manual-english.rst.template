@@ -648,13 +648,14 @@ So ``gpasswd -a us-main-user uucp`` can be executed as root (and possibly ``us-m
 Installing US-Main: Current Stable Version & Download
 -----------------------------------------------------
 
-As mentioned, the single mandatory prerequisite of the `Universal Server <https://github.com/Olivier-Boudeville/Universal Server>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
+As `mentioned <#layer-stack>`_, the single mandatory prerequisite of `US-Main <https://github.com/Olivier-Boudeville/us-main>`_ is `US-Common <http://us-common.esperide.org/>`_, which relies on `Ceylan-Traces <https://github.com/Olivier-Boudeville/Ceylan-Traces>`_, which implies in turn `Ceylan-WOOPER <https://github.com/Olivier-Boudeville/Ceylan-WOOPER>`_, then `Ceylan-Myriad <https://github.com/Olivier-Boudeville/Ceylan-Myriad>`_ and `Erlang <http://erlang.org>`_.
 
-We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines [#]_), and building the Universal Server from sources, thanks to GNU ``make``.
+We prefer using GNU/Linux, sticking to the latest stable release of Erlang (refer to the corresponding `Myriad prerequisite section <http://myriad.esperide.org#prerequisites>`_  for more precise guidelines [#]_), and building the US-Main from sources, thanks to GNU ``make``.
 
 .. [#] Note that servers like US-Main have a machinery meant to be executed as root before switching to an application-specific user. As a result, Erlang is best available system-wide (as opposed to only a regular, non-privileged user).
 
-The Universal Server ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
+The US-Main ``master`` branch is meant to stick to the latest stable version: we try to ensure that this main line always stays functional (sorry for the pun). Evolutions are to take place in feature branches and to be merged only when ready.
+
 
 
 
@@ -781,6 +782,10 @@ Launching US-Main
 
 We suppose here that the US-Main configuration has already taken place (otherwise the guidelines in the `Configuring US-Main`_ section shall be applied).
 
+
+.. Note:: Please ensure that no prior instance of US-Main is already running, otherwise the new one will not be able to auto-launch, with an error message like: ``Protocol 'inet_tcp': the name us_main@YOUR_SERVER seems to be in use by another Erlang node``. Refer to the Troubleshooting_ section for further guidance.
+
+
 The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root first.
 
 We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).
@@ -826,6 +831,7 @@ Apparently, in some cases (not always), stopping the US-Main server (typically w
 In this case, the best solution is to kill that lingering EPMD (e.g. ``epmd -port 4507 -kill``) or, more brutally, to run the ``kill-us-main.sh`` script (it will kill both any US-Main and its EPMD) - and then to restart US-Main.
 
 
+.. _`troubleshooting`:
 
 -----------------------
 Troubleshooting US-Main

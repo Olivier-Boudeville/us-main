@@ -107,7 +107,7 @@ if [ $res -eq 0 ]; then
 	echo
 
 	# If wanting to check or have more details:
-	inspect_us_main_log
+	inspect_us_main_launch_outcome
 
 	exit 0
 
@@ -119,7 +119,7 @@ else
 	echo "  Error: authbind failure reported (code '$res')" 1>&2
 	echo
 
-	inspect_us_main_log
+	inspect_us_main_launch_outcome
 
 	# Finally wanting pseudo-failure to propagate:
 	res=0
