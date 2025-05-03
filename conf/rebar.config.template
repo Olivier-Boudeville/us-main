@@ -47,14 +47,16 @@
 					{branch, "master"}}},
 
 	% Implies our fork of erlang-serial:
-	{oceanic,    {git, "https://github.com/Olivier-Boudeville/Ceylan-Oceanic.git",
+	{oceanic,   {git, "https://github.com/Olivier-Boudeville/Ceylan-Oceanic.git",
 					{branch, "main"}}},
 
 	{us_common, {git, "https://github.com/Olivier-Boudeville/us-common.git",
-					{branch, "master"}}},
+					{branch, "master"}}}
 
-	% One of these two JSON parsers is needed for US-Sensor:
-	{jsx, "3.0.0"}
+	% Neither of these two JSON parsers is needed for US-Main sensors now, as
+    % built-in 'json' is used:
+	%
+	%{jsx, "3.0.0"}
 	%{jiffy , "1.0.8"}
 
 ]}.
