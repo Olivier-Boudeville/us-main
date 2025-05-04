@@ -148,17 +148,19 @@ teardown() ->
 	% We thought that the actual reason was actually that the client host had a
 	% firewall that blocked incoming EPMD (on a specific port) connections from
 	% the US server host, yet after fixing that the "overlapping partitions"
-	% problem remained.
+	% problem remained. DNS names, EPMD ports, node names, cookies, TCP ranges
+	% seem to be legit, though.
 	%
-	% Finally we had to resort to disabling this prevent_overlapping_partitions
-	% options (see DIST_OPTS in Myriad's GNUmakevars.inc).
+	% Finally the only solution left would be to resort to disabling this
+	% prevent_overlapping_partitions options (see DIST_OPTS in Myriad's
+	% GNUmakevars.inc).
 
 
 	% ?app_stop should not be used here as its wait_for_any_trace_supervisor
 	% macro would wait for a non-launched supervisor.
 	%
 	% ?app_stop_without_waiting_for_trace_supervisor() is not used either, as
-	% no aggregator was started from that test.
+	% no aggregator was started from that client.
 	%
 	app_facilities:finished().
 
