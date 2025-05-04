@@ -44,11 +44,6 @@ exec() ->
 
 	{ ActualTargetNodeName, _Cfg, ArgTable } = us_main_client:setup(),
 
-	TestNode = 'us_main_monitor_exec-wondersye@mini',
-
-	trace_utils:debug_fmt( "Testing node '~ts': ~ts.",
-						   [ TestNode, net_adm:ping( TestNode ) ] ),
-
 	{ AllArgs, FinalArgTable } =
 		cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
 
@@ -111,7 +106,7 @@ exec() ->
 
 	end,
 
-	timer:sleep( 2000 ),
+	%timer:sleep( 2000 ),
 
 	us_main_client:teardown().
 
