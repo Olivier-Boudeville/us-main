@@ -23,6 +23,17 @@
 # (standalone script)
 
 
+# We notably want to ensure that from now the created directories allow users of
+# the US group to write, so that a regular user can be added to the US group and
+# operate on a deployed tree (for example to update it with rsync); however the
+# group of the content on the remote end will be the main group of the user
+# there, which may not be the US one.
+#
+# For security, 'others' are deprived of all rights.
+#
+umask u=rwx,g=rwx,o=
+
+
 # Note: unless specified, relying on the master branch for all clones.
 
 # Deactivations useful for testing:
@@ -169,11 +180,12 @@ ceylan_opts="EXECUTION_TARGET=${execution_target}"
 # $0 may already be absolute:
 case "$0" in
 
-   /*)
-	   log_dir="$(dirname $0)";;
+    /*)
+		log_dir="$(dirname $0)";;
 
-   *)
-	   log_dir="$(pwd)";;
+    *)
+		log_dir="$(pwd)";;
+
 esac
 
 log_file="${log_dir}/$(basename $0).log"
