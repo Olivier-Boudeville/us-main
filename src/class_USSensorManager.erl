@@ -1207,7 +1207,7 @@ initialise_json_support( State ) ->
 
 	CheckedParserState = json_utils:check_parser_operational( ParserState ),
 
-	?info_fmt( "JSON parser successfully started (based on a ~ts back-end), "
+	?info_fmt( "JSON parser successfully started (based on the '~ts' backend), "
 			   "and tested.", [ BackendName ] ),
 
 	CheckedParserState.
