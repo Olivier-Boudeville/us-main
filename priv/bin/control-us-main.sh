@@ -69,7 +69,7 @@ Example of use: './$(basename $0) us-main-remote-access-for-development.config s
 parse_arguments()
 {
 
-	echo "Examining argument '${cmd}' (received args: '$*')."
+	#echo "Examining argument '${cmd}' (received args: '$*')."
 
 	case ${cmd} in
 
@@ -216,7 +216,7 @@ echo "Using the US-Main remote access configuration file resolved as '${located_
 
 
 # Sets: um_cfg_base_content, um_erl_epmd_port, epmd_opt, remote_vm_cookie:
-read_us_main_config_file "${located_um_cfg_file}"
+read_us_main_config_file "${located_um_cfg_file}" 1>/dev/null
 
 
 script_dir="$(dirname $0)"
