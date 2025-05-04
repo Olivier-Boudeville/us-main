@@ -205,15 +205,6 @@ US_NATIVE_DEPLOY_ROOT := /opt/universal-server/$(PROJECT_SHORT_NAME)-native-depl
 CEYLAN_SYNC_TARGET_ROOT := $(US_NATIVE_DEPLOY_ROOT)
 
 
-# Set in one's environment, typically to the US group of interest, so that the
-# group of the target (remote) filesystem content is not overridden by the main
-# group of the local user:
-#
-ifdef US_GROUP
-    SYNC_BASE_OPT += --chown=:$(US_GROUP)
-endif
-
-
 # For later reuse in the next layer of the software stack:
 US_MAIN_PLT_FILE := $(US_MAIN_TOP)/US-Main.plt
 
