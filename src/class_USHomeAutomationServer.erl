@@ -910,7 +910,7 @@ performed, specified as a complete list of presence user settings; as usual, the
 source used for the sent telegrams will be the base identifier of the gateway.
 """.
 -spec construct( wooper:state(), device_path(),
-				 option( presence_simulation_user_settings() ) ) -> wooper:state().
+		option( presence_simulation_user_settings() ) ) -> wooper:state().
 construct( State, TtyPath, MaybePscSimUserSettings ) ->
 	construct( State, TtyPath, MaybePscSimUserSettings,
 			   _MaybeSourceEuridStr=undefined ).
@@ -929,8 +929,8 @@ the base identifier of the gateway, which is the default).
 (most complete constructor)
 """.
 -spec construct( wooper:state(), device_path(),
-				 option( presence_simulation_user_settings() ), option( eurid_string() ) ) ->
-					 wooper:state().
+		option( presence_simulation_user_settings() ),
+                 option( eurid_string() ) ) -> wooper:state().
 construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	ServerTraceName = "Home automation server",
@@ -949,7 +949,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 			% Wanting that the traces emitted by Oceanic are collected in our
 			% Ceylan-Traces system, rather than being buried just in, typically,
-			% /opt/universal-server/us_main-latest/us_main/log/erlang.log.* files:
+			% /opt/universal-server/us_main-latest/us_main/log/erlang.log.*
+			% files:
 			%
 			OCBridgeSpec = trace_bridge:get_bridge_spec(
 				_TraceEmitterName="Oceanic", _TraceCategory="Server",
@@ -1019,7 +1020,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 				[] ->
 					send_psc_trace( info, "Neither construction-level nor "
 						"configuration-level presence simulation settings "
-						"defined, no presence simulation will be done.", AlarmState );
+						"defined, no presence simulation will be done.",
+                                    AlarmState );
 
 				ConfPscSimUSettings->
 					send_psc_trace_fmt( info, "Configuration-level presence "
@@ -1044,8 +1046,9 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 				ConfPscSimUSettings ->
 					send_psc_trace_fmt( info, "The construction-specified "
-						"presence simulation settings (~p) will take precedence "
-						"over the configuration-specified ones (~p).",
+						"presence simulation settings (~p) will take "
+                        "precedence over the configuration-specified "
+                        "ones (~p).",
 						[ PscSimUserSettings, ConfPscSimUSettings ], AlarmState )
 
 			end,
@@ -1576,8 +1579,8 @@ randomise_program( _PscProgram=constant_presence,
 	randomise_program( SingleSlots, MeanLightDuration, MeanNoLightDuration,
 					   State );
 
-randomise_program( PscProgram=constant_absence,
-				   _MeanLightDuration, _MeanNoLightDuration, _State ) ->
+randomise_program( PscProgram=constant_absence, _MeanLightDuration,
+                   _MeanNoLightDuration, _State ) ->
 	PscProgram;
 
 randomise_program( Slots, MeanLightDuration, MeanNoLightDuration, State ) ->
@@ -1587,14 +1590,18 @@ randomise_program( Slots, MeanLightDuration, MeanNoLightDuration, State ) ->
 	% No less than 8 seconds:
 	MinNoLightDur = max( 8, MeanNoLightDuration div 2 ),
 
-	% Max symetrical of Min around Mean:
+	% Max symmetric of Min around Mean:
 	MaxNoLightDur = MeanNoLightDuration + 2*(MeanNoLightDuration-MinNoLightDur),
 
 	send_psc_trace_fmt( info, "Randomising presence slots, with, for lighting, "
-		"a Gaussian law of mean ~w seconds and standard deviation ~w seconds "
-		"and, for non-lighting, a uniform law in [~w,~w] seconds.",
-		[ MeanLightDuration, StdDevLightDur, MinNoLightDur, MaxNoLightDur ],
-		State ),
+		"a Gaussian law of mean ~w seconds (~ts) and "
+        "standard deviation ~w seconds (~ts) and, for non-lighting, "
+        "a uniform law in [~w,~w] seconds.",
+		[ MeanLightDuration,
+          time_utils:duration_to_string( 1000 * MeanLightDuration ),
+          StdDevLightDur,
+          time_utils:duration_to_string( 1000 * StdDevLightDur ),
+          MinNoLightDur, MaxNoLightDur ], State ),
 
 	% Sanity checks:
 
@@ -2225,10 +2232,10 @@ ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 	% DevState = table:get_value( TargetEurid, DeviceTable ),
 
 	% NewDevState = declare_waited_ack( TargetEurid,
-	%	{ smart_plug_status_report_event, power_on }, DevState ),
+	%   { smart_plug_status_report_event, power_on }, DevState ),
 
 	% NewDeviceTable = table:add_entry( _K=TargetEurid, _V=NewDevState,
-	%								  DeviceTable ),
+	%                                   DeviceTable ),
 
 	% NewState = setAttribute( State, device_table, DeviceTable ),
 
@@ -3457,14 +3464,16 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
 	% Check:
 	OcSrvPid = ?getAttr(oc_srv_pid),
 
-	% Verbose:
-	cond_utils:if_defined( us_main_debug_home_automation,
-		begin
-			Msg = oceanic:device_event_to_short_string( DeviceEvent ),
-			BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
-			class_TraceEmitter:send_named_emitter( info, State, Msg,
-				get_trace_emitter_name_from( BinDevName ) )
-		end),
+	% Verbose yet needed so that this event is reported in the traces at least
+	% once:
+    %
+	%cond_utils:if_defined( us_main_debug_home_automation,
+	%   begin
+	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
+	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+	class_TraceEmitter:send_named_emitter( info, State, Msg,
+		get_trace_emitter_name_from( BinDevName ) ),
+	%   end),
 
 	ProcessedState = process_device_event( DeviceEvent, State ),
 
@@ -3851,11 +3860,12 @@ activate_alarm( State ) ->
 			OcSrvPid = ?getAttr(oc_srv_pid),
 
 			send_alarm_trace_fmt( warning, "Activating alarm immediately, "
-				"triggering the corresponding actuators, with ~ts.",
+				"triggering the corresponding actuators: ~ts.",
 				[ oceanic:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
-			oceanic:trigger_actuators( CanonEmittedEvSpecs, OcSrvPid )
+			oceanic:trigger_actuators( CanonEmittedEvSpecs,
+                _ExpectedReportedEventInfo=power_on, OcSrvPid )
 
 	end,
 
@@ -3875,7 +3885,7 @@ deactivate_alarm( State ) ->
 		CanonEmittedEvSpecs ->
 			OcSrvPid = ?getAttr(oc_srv_pid),
 			send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
-				"triggering the corresponding actuators, with ~ts.",
+				"triggering the corresponding actuators: ~ts.",
 				[ oceanic:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
@@ -3884,7 +3894,8 @@ deactivate_alarm( State ) ->
 				[ get_reciprocal_device_event_spec( CEES )
 					|| CEES <- CanonEmittedEvSpecs ],
 
-			oceanic:trigger_actuators( ReciprocalCanonEmittedEvSpecs, OcSrvPid )
+			oceanic:trigger_actuators( ReciprocalCanonEmittedEvSpecs,
+                _ExpectedReportedEventInfo=power_off, OcSrvPid )
 
 	end,
 
@@ -4018,13 +4029,15 @@ Indeed, if using an (emergency) button, we want to be able to switch on/off an
 alarm in all cases, whereas, if the alarm is inhibited (typically if being at
 home), we do not want the opening of a door to trigger an alarm then.
 """.
--spec manage_alarm_switching( device_event(), wooper:state() ) -> wooper:state().
+-spec manage_alarm_switching( device_event(), wooper:state() ) ->
+                                        wooper:state().
 manage_alarm_switching( DevEvent, State ) ->
 
 	% Too verbose:
 	%cond_utils:if_defined( us_main_debug_home_automation,
 	%   ?debug_fmt( "Examining whether the following event relates to alarm "
-	%		"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+	%       "switching: ~ts",
+    %       [ oceanic:device_event_to_string( DevEvent ) ] ) ),
 
 	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(alarm_trigger_specs),
@@ -4353,8 +4366,8 @@ get_licit_config_keys() ->
 
 
 -doc """
-Handles the home automation-related entries in the user settings specified in US-Main
-configuration files.
+Handles the home automation-related entries in the user settings specified in
+US-Main configuration files.
 
 Note that the specified state is the one of a US-Main configuration server.
 """.
@@ -4395,7 +4408,7 @@ manage_configuration( ConfigTable, State ) ->
 			CanALESs = oceanic:canonicalise_listened_event_specs( ALESs ),
 			send_alarm_trace_fmt( info, "The following ~B configured alarm "
 				"trigger listening specifications will be used: ~ts.",
-				[ length( CanALESs ), text_utils:strings_to_listed_string(
+				[ length( CanALESs ), text_utils:strings_to_string(
 					[ oceanic:canon_listened_event_spec_to_string(
 						CanALES ) || CanALES <- CanALESs ] ) ], State ),
 
@@ -4420,7 +4433,7 @@ manage_configuration( ConfigTable, State ) ->
 
 			send_alarm_trace_fmt( info, "The following ~B configured alarm "
 				"actuator emitting specifications will be used: ~ts.",
-				[ length( CanAEESs ), text_utils:strings_to_listed_string(
+				[ length( CanAEESs ), text_utils:strings_to_string(
 					[ oceanic:canon_emitted_event_spec_to_string(
 						CanAEES ) || CanAEES <- CanAEESs ] ) ], State ),
 
@@ -4446,7 +4459,7 @@ manage_configuration( ConfigTable, State ) ->
 
 			send_psc_trace_fmt( info, "The following ~B configured presence "
 				"trigger listening specifications will be used: ~ts.",
-				[ length( CanPLESs ), text_utils:strings_to_listed_string(
+				[ length( CanPLESs ), text_utils:strings_to_string(
 					[ oceanic:canon_listened_event_spec_to_string(
 						CanPLES ) || CanPLES <- CanPLESs ] ) ], State ),
 
@@ -4473,7 +4486,7 @@ manage_configuration( ConfigTable, State ) ->
 	%
 	%		send_psc_trace_fmt( info, "The following ~B configured presence "
 	%           actuator emitting specifications will be used: ~ts.",
-	%           [ length( CanPEESs ), text_utils:strings_to_listed_string(
+	%           [ length( CanPEESs ), text_utils:strings_to_string(
 	%				[ oceanic:canon_emitted_event_spec_to_string(
 	%					CanPEES ) || CanPEES <- CanPEESs ] ) ], State ),
 	%
@@ -4649,30 +4662,30 @@ to_string( State ) ->
 
 		++ case ?getAttr(alarm_triggered) of
 
-			   true ->
-				   "";
+			true ->
+				"";
 
-			   false ->
-				   "not "
+			false ->
+				"not "
 
-		   end ++ "triggered; for its control, "
+		   end ++ "triggered; for its control: "
 			   ++ case MaybeOcSrvPid of
-					  undefined ->
-						  oceanic:canon_listened_event_specs_to_string(
+					undefined ->
+						oceanic:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs) );
 
-					  FirstOcSrvPid ->
-						  oceanic:canon_listened_event_specs_to_string(
+					FirstOcSrvPid ->
+						oceanic:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs), FirstOcSrvPid )
 
-				  end ++ "in terms of alarm actuators, "
+				  end ++ "in terms of alarm actuators: "
 			   ++ case MaybeOcSrvPid of
-					  undefined ->
-						  oceanic:canon_emitted_event_specs_to_string(
+					undefined ->
+						oceanic:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs) );
 
-					  SecondOcSrvPid ->
-						  oceanic:canon_emitted_event_specs_to_string(
+					SecondOcSrvPid ->
+						oceanic:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs), SecondOcSrvPid )
 
 				  end,
