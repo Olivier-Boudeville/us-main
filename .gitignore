@@ -12,6 +12,14 @@ doc/index.html
 doc/mathjax
 doc/universal-server-technical-manual-english.html
 doc/universal-server-technical-manual-english.rst
+doc/api-doc/
+doc/overview.edoc
+doc/universal-server-technical-manual-english.aux
+doc/universal-server-technical-manual-english.pdf
+doc/universal-server-technical-manual-english.tex
+doc/universal-server-technical-manual-english.toc
+
+priv/for-testing/
 
 # For Emacs temporary files:
 *.#*
