@@ -1,6 +1,6 @@
 US_MAIN_TOP = ../..
 
-.PHONY: all monitor monitor-dev monitor-prod debug
+.PHONY: all monitor monitor-dev monitor-prod monitor-local debug
 
 
 all:
@@ -15,6 +15,8 @@ monitor-dev:
 monitor-prod:
 	@./monitor-us-main.sh us-monitor-for-production.config
 
+monitor-local:
+	@./monitor-us-main.sh us-main-on-$$(hostname -s)-remote-access.config
 
 debug:
 	@kill-us-main.sh; start-us-main-native-build.sh; ./monitor-us-main.sh
