@@ -357,7 +357,9 @@ UserMutedMeasurements = [
 % ```
 % """.
 -type user_muted_sensor_measurements() ::
-	[ { user_muted_sensor_spec(), user_muted_points() } ].
+	% Previously was [{user_muted_sensor_spec(), user_muted_points()}], yet the
+	% user may have specified a sensor spec more than once, so:
+    table( user_muted_sensor_spec(), user_muted_points() ).
 
 
 
@@ -1316,14 +1318,14 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 
 	end,
 
-	MutedMeasurements =
+	MutedMeasurementTable =
 		vet_muted_sensor_points( ReadMutedMeasurements, CfgState ),
 
 	cond_utils:if_defined( us_main_debug_sensors,
 		?debug_fmt( "Muted measurements:~n ~p.", [ MutedMeasurements ] ) ),
 
 	parse_initial_sensors( map_hashtable:enumerate( DecodedMap ),
-		_SensorTable=table:new(), MutedMeasurements, CfgState ).
+		_SensorTable=table:new(), MutedMeasurementTable, CfgState ).
 
 
 
@@ -1331,15 +1333,16 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 -spec vet_muted_sensor_points( user_muted_sensor_points(),
 							   wooper:state() ) -> muted_sensor_measurements().
 vet_muted_sensor_points( ReadMutedMeasurements, State ) ->
-	vet_muted_sensor_points( ReadMutedMeasurements, _Acc=[], State ).
+	vet_muted_sensor_points( ReadMutedMeasurements, _AccTable=table:new(),
+                             State ).
 
-vet_muted_sensor_points( _ReadMutedMeasurements=[], Acc, _State ) ->
+vet_muted_sensor_points( _ReadMutedMeasurements=[], AccTable, _State ) ->
 	% No order matters:
-	Acc;
+	AccTable;
 
 vet_muted_sensor_points( _ReadMutedMeasurements=[
 		{ ReadSensorId={ SensorType, SensorInterface, SensorNumber },
-		  UserPoints } | T ] , Acc, State ) ->
+		  UserPoints } | T ] , AccTable, State ) ->
 
 	is_atom( SensorType ) orelse
 		begin
@@ -1379,12 +1382,13 @@ vet_muted_sensor_points( _ReadMutedMeasurements=[
 
 	SensorId = { SensorType, SensorInterface, BinSensorNumber },
 
-	NewAcc = [ { SensorId, Points } | Acc ],
+	NewAccTable = table:append_list_to_entry( _K=SensorId, _Elems=Points,
+                                              AccTable ),
 
-	vet_muted_sensor_points( T, NewAcc, State );
+	vet_muted_sensor_points( T, NewAccTable, State );
 
 
-vet_muted_sensor_points( _ReadMutedMeasurements=[ Other | _T ] , _Acc,
+vet_muted_sensor_points( _ReadMutedMeasurements=[ Other | _T ] , _AccTable,
 						 State ) ->
 
 	?error_fmt( "Invalid user-specified sensor measurements to be muted "
@@ -1412,22 +1416,28 @@ vet_user_points( Other, State ) ->
 
 
 -doc "Parses in turn the specified initial sensor JSON entries.".
-parse_initial_sensors( _SensorPairs=[], SensorTable, _MutedMeasurements=[],
-					   State ) ->
-	setAttributes( State, [ { sensor_table, SensorTable },
-							{ sensor_monitoring, true } ] );
+parse_initial_sensors( _SensorPairs=[], SensorTable, MutedMeasurementTable,
+                       State ) ->
 
-parse_initial_sensors( _SensorPairs=[], _SensorTable, MutedMeasurements,
-					   State ) ->
+    case table:is_empty( MutedMeasurementTable ) of
 
-	?error_fmt( "Not all muted sensor points were found during the initial "
-		"sensor look-up; remaining: ~p.", [ MutedMeasurements ] ),
+        true ->
+            setAttributes( State, [ { sensor_table, SensorTable },
+                                    { sensor_monitoring, true } ] );
 
-	throw( { unknown_muted_sensor_points, MutedMeasurements } );
+        false ->
+            MutedEntries = table:enumerate( MutedMeasurementTable ),
 
+            ?error_fmt( "Not all muted sensor points were found during "
+                "the initial sensor look-up; remaining:~n ~p.",
+                [ MutedEntries ] ),
+
+            throw( { unknown_muted_sensor_points, MutedEntries } )
+
+    end;
 
 parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
-					   SensorTable, MutedMeasurements, State ) ->
+					   SensorTable, MutedMeasurementTable, State ) ->
 
 	% Having for example "nct6779-isa-0a00":
 	RawSensorIdStr = text_utils:binary_to_string( RawSensorIdBinStr ),
@@ -1467,9 +1477,9 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 			% Get any muted points (e.g. ["AUXTIN1"] or 'all_points') for this
 			% sensor:
 			%
-			{ MutedPoints, ShrunkMutedMeasurements } =
-				list_table:extract_entry_with_default( _K=SensorId,
-					_DefaultValue=[], MutedMeasurements ),
+			{ MutedPoints, ShrunkMutedMeasTable } =
+				table:extract_entry_with_default( _K=SensorId,
+					_DefaultValue=[], MutedMeasurementTable ),
 
 			MaybeSensorData = parse_initial_sensor_data( SensorJSON,
 				SensorCategory, SensorId, MutedPoints, State ),
@@ -1482,12 +1492,12 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 			?debug_fmt( "For sensor ~ts, we have following information:~n  ~p",
 						[ RawSensorIdBinStr, SensorInfo ] ),
 
-			% Ensures of uniqueness of key:
+			% Ensures uniqueness of keys:
 			NewSensorTable = table:add_new_entry( RawSensorIdBinStr, SensorInfo,
 												  SensorTable ),
 
-			parse_initial_sensors( T, NewSensorTable, ShrunkMutedMeasurements,
-								   State );
+			parse_initial_sensors( T, NewSensorTable, ShrunkMutedMeasTable,
+                                   State );
 
 
 		_Other ->
@@ -1495,7 +1505,8 @@ parse_initial_sensors( _SensorPairs=[ { RawSensorIdBinStr, SensorJSON } | T ],
 				"ignoring this sensor as a whole from now.",
 				[ RawSensorIdStr ] ),
 
-			parse_initial_sensors( T, SensorTable, MutedMeasurements, State  )
+			parse_initial_sensors( T, SensorTable, MutedMeasurementTable,
+                                   State  )
 
 	end.
 
@@ -1783,7 +1794,7 @@ parse_initial_sensor_data( SensorJSON, SensorCateg, SensorId,
 Registers the specified temperature points in the specified data table, for the
 initialisation of the specified sensor, from the specified JSON content.
 
-Only point triples that are already filtered for temperature are expected, thus
+Only point triplets that are already filtered for temperature are expected, thus
 no need to accumulate unexpected points.
 """.
 -spec register_temperature_points( [ json_triple() ], points_data_table(),
@@ -1804,8 +1815,9 @@ register_temperature_points( _PointTriples=[], DataTable, SensorId,
 	% This is not an error at all, as non-temperature points (e.g. intrusion
 	% ones) may have to be muted as well:
 	%
-	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
-		[ sensor_id_to_string( SensorId ),
+	?debug_fmt( "For ~ts, following ~B muted measurements were not retained "
+        "in terms of temperature: ~ts.",
+		[ sensor_id_to_string( SensorId ), length( MutedPoints ),
 		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
 
 	DataTable;
@@ -2225,8 +2237,8 @@ init_for_crit( AttrValue, TempData, Suffix, BinPointName, SensorId, State ) ->
 Registers the specified fan points in the specified data table, for the
 initialisation of the specified sensor, from the specified JSON content.
 
-Only point triples that are already filtered for fans are expected, thus no need
-to accumulate unexpected points.
+Only point triplets that are already filtered for fans are expected, thus no
+need to accumulate unexpected points.
 """.
 -spec register_fan_points( [ json_triple() ], points_data_table(),
 	sensor_id(), muted_points(), wooper:state() ) -> points_data_table().
@@ -2246,8 +2258,9 @@ register_fan_points( _PointTriples=[], DataTable, SensorId, MutedPoints,
 	% This is not an error at all, as non-fan points (e.g. intrusion ones) may
 	% have to be muted as well:
 	%
-	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
-		[ sensor_id_to_string( SensorId ),
+	?debug_fmt( "For ~ts, following ~B muted measurements were not retained "
+        "in terms of fans: ~ts.",
+		[ sensor_id_to_string( SensorId ), length( MutedPoints ),
 		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
 
 	DataTable;
@@ -2546,8 +2559,9 @@ register_intrusion_points( _PointTriples=[], DataTable, SensorId, MutedPoints,
 	% This is not an error at all, as non-intrusion points (e.g. temperature
 	% ones) may have to be muted as well:
 	%
-	?debug_fmt( "For ~ts, following muted measurements were not matched: ~ts",
-		[ sensor_id_to_string( SensorId ),
+	?debug_fmt( "For ~ts, following ~B muted measurements were not retained "
+        "in terms of intrusion: ~ts.",
+		[ sensor_id_to_string( SensorId ), length( MutedPoints ),
 		  text_utils:binaries_to_listed_string( MutedPoints ) ] ),
 
 	DataTable;
@@ -4556,8 +4570,8 @@ sensor_info_to_string( #sensor_info{ raw_id=RawIdBinStr,
 -doc "Returns a textual description of the specified JSON triple.".
 -spec json_triple_to_string( json_triple() ) -> ustring().
 json_triple_to_string( { BinPointName, BinDesc, PointValueMap } ) ->
-	text_utils:format( "measurement point '~ts' (~ts) whose value map is ~p",
-					   [ BinPointName, BinDesc, PointValueMap ] ).
+	text_utils:format( "measurement point '~ts' (~ts) "
+        "whose value map is:~n  ~p", [ BinPointName, BinDesc, PointValueMap ] ).
 
 
 
