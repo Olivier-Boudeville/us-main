@@ -539,7 +539,7 @@ of a sensor.
 
 
 -doc "The detected type of a given fan.".
--type fan_type() :: 'fixed_speed' % Fans are rotated at a fixed speed,
+-type fan_type() :: 'fixed_speed' % Fans are rotating at a fixed speed,
 								  % regardless of temperature
 				  | 'pwm' % Pulse-Width modulation (controlled fan speed)
 				  | 'unknown'.
@@ -3773,6 +3773,7 @@ filter_motherboard_json( _BasicTriples=[
 	filter_motherboard_json( T, [ JSONTriple | TempAcc ], FanAcc, IntrusionAcc,
 							 OtherAcc );
 
+
 % Fans known of the motherboard:
 filter_motherboard_json( _BasicTriples=[
 		{ _Name="fan" ++ Num, BinPointName, V } | T ], TempAcc,
@@ -3784,6 +3785,21 @@ filter_motherboard_json( _BasicTriples=[
 
 	filter_motherboard_json( T, TempAcc, [ JSONTriple | FanAcc ], IntrusionAcc,
 							 OtherAcc );
+
+% PWM fans are dropped, as these entries just correspond to commands (inputs set
+% by motherboard), not measurements (outputs).
+%
+% Entry example:
+%    "pwm3": {
+%      "pwm3": 76.500000,
+%      "pwm3_enable": 5.000000,
+%      "pwm3_mode": 1.000000
+%    },
+%
+filter_motherboard_json( _BasicTriples=[
+		{ _Name="pwm" ++ _Num, _BinPointName, _V } | T ], TempAcc,
+						 FanAcc, IntrusionAcc, OtherAcc ) ->
+	filter_motherboard_json( T, TempAcc, FanAcc, IntrusionAcc, OtherAcc );
 
 
 % Motherboard-level GPU temperature index (typically for a laptop):
