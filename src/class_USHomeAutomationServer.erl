@@ -1655,8 +1655,9 @@ randomise_slots( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
 draw_subslots( Start, Duration, MeanLightDuration, StdDevLightDur,
 			   MinNoLightDur, MaxNoLightDur, AccSlots ) ->
 
+    % Incremented to be strictly positive:
 	LightDur = random_utils:get_positive_integer_gaussian_value(
-		MeanLightDuration, StdDevLightDur ),
+		MeanLightDuration, StdDevLightDur ) + 1,
 
 	NoLightDur = random_utils:get_uniform_value( MinNoLightDur,
 												 MaxNoLightDur ),
@@ -3681,6 +3682,10 @@ getPresenceStatus( State ) ->
 
 	?debug_fmt( "Presence status requested, returning ~ts.", [ Status ] ),
 
+    % For testing:
+    %trace_utils:error( "getPresenceStatus: waiting (for overlap)." ),
+    %timer:sleep( 1000 ),
+
 	wooper:const_return_result( Status ).
 
 
@@ -3824,6 +3829,8 @@ Note presence programs may afterwards apply other operations.
 """.
 -spec startLighting( wooper:state() ) -> oneway_return().
 startLighting( State ) ->
+
+    ?info( "Requested to start all possible lighting." ),
 	NewState = ensure_all_lighting( State ),
 	wooper:return_state( NewState ).
 
@@ -3836,6 +3843,8 @@ Note presence programs may afterwards apply other operations.
 """.
 -spec stopLighting( wooper:state() ) -> oneway_return().
 stopLighting( State ) ->
+
+    ?info( "Requested to stop all possible lighting." ),
 	NewState = ensure_not_any_lighting( State ),
 	wooper:return_state( NewState ).
 
