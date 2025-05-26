@@ -425,7 +425,14 @@ temperature reported by a sensor should just be read from any last event).
 	last_event :: option( device_event() ),
 
 	% The currently known status for this device:
-	current_status :: device_status()
+	current_status :: device_status(),
+
+    % Tells whether this device (e.g. a smart plug) has been taught to this
+    % gateway, i.e. if a teach-in procedure apparently succeeded with no further
+    % teach-out (therefore this gateway is expected to be registered to this
+    % device)
+    %
+    taught = false :: boolean()
 
 	% Any pre-forged telegram(s) of interest:
 	%telegram_info :: option( telegram_info() ),
@@ -968,7 +975,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 				% emitted:
 				%
 				SourceEuridStr ->
-					oceanic:string_to_eurid( SourceEuridStr )
+					oceanic_text:string_to_eurid( SourceEuridStr )
 
 			end,
 
@@ -1049,7 +1056,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 						"presence simulation settings (~p) will take "
                         "precedence over the configuration-specified "
                         "ones (~p).",
-						[ PscSimUserSettings, ConfPscSimUSettings ], AlarmState )
+						[ PscSimUserSettings, ConfPscSimUSettings ],
+                        AlarmState )
 
 			end,
 
@@ -1099,13 +1107,13 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 				undefined ->
 					text_utils:bin_format( "Regarding the presence-switching "
 						"devices defined, ~ts", [
-							oceanic:canon_listened_event_specs_to_string(
+							oceanic_text:canon_listened_event_specs_to_string(
 								PscTriggerListenEvSpecs ) ] );
 
 				OcSrvPid ->
 					text_utils:bin_format( "~B presence-switching devices "
 						"defined: ~ts", [ length( PscTriggerListenEvSpecs ),
-							oceanic:canon_listened_event_specs_to_string(
+							oceanic_text:canon_listened_event_specs_to_string(
 								PscTriggerListenEvSpecs, OcSrvPid ) ] )
 
 			end
@@ -3338,7 +3346,7 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	Msg = text_utils:format( "The device '~ts', declared in the configuration, "
 		"has been detected for the first time, based on the following "
 		"event: ~ts.~n~nFull device information: ~ts.",
-		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
+		[ BinDevName, oceanic_text:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
@@ -3381,7 +3389,7 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	Msg = text_utils:format( "The device '~ts' has been discovered "
 		"(detected yet not declared in the configuration), based on "
 		"the following event: ~ts.~n~nFull device information: ~ts.",
-		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
+		[ BinDevName, oceanic_text:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( warning, State, Msg,
@@ -3470,7 +3478,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
     %
 	%cond_utils:if_defined( us_main_debug_home_automation,
 	%   begin
-	Msg = oceanic:device_event_to_short_string( DeviceEvent ),
+	Msg = oceanic_text:device_event_to_short_string( DeviceEvent ),
 	BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
 	class_TraceEmitter:send_named_emitter( info, State, Msg,
 		get_trace_emitter_name_from( BinDevName ) ),
@@ -3495,7 +3503,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
 
 	Msg = text_utils:format( "The device '~ts', which was considered lost, "
 		"is back online: ~ts.~n~nFull device information: ~ts.",
-		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
+		[ BinDevName, oceanic_text:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
@@ -3537,8 +3545,8 @@ process_device_event( DeviceEvent, State ) ->
 		key_not_found ->
 			?error_fmt( "No device found for ~ts, after event ~ts, "
 						"which is therefore ignored.", [
-					oceanic:eurid_to_string( DevEurid ),
-					oceanic:device_event_to_string( DeviceEvent ) ] ),
+					oceanic_text:eurid_to_string( DevEurid ),
+					oceanic_text:device_event_to_string( DeviceEvent ) ] ),
 			State;
 
 		% No state change:
@@ -3584,7 +3592,7 @@ onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
 	% Longer description at this teach-in time:
 	Msg = text_utils:format( "The device '~ts' has emitted the following "
 		"teach-in event: ~ts.~n~nFull device information: ~ts.",
-		[ BinDevName, oceanic:device_event_to_string( DeviceEvent ),
+		[ BinDevName, oceanic_text:device_event_to_string( DeviceEvent ),
 		  BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( notice, State, Msg,
@@ -3617,7 +3625,7 @@ onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
 	Msg = text_utils:format( "The device '~ts' (EURID: ~ts) is just considered "
 		"lost (last seen on ~ts, after a waiting of ~ts) "
 		"by the Oceanic server ~w.~n~nFull device information: ~ts.",
-		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
+		[ BinDeviceName, oceanic_text:eurid_to_string( DeviceEurid ),
 		  time_utils:timestamp_to_string( LastSeenTimestamp ),
 		  time_utils:duration_to_string( TimeOutMs ),
 		  OcSrvPid, BinDevDesc ] ),
@@ -3633,7 +3641,7 @@ onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
 	Msg = text_utils:format( "Device '~ts' (EURID: ~ts) still considered lost "
 		"(last seen on ~ts, after a waiting of ~ts) "
 		"by Oceanic server ~w.~n~nFull device information: ~ts.",
-		[ BinDeviceName, oceanic:eurid_to_string( DeviceEurid ),
+		[ BinDeviceName, oceanic_text:eurid_to_string( DeviceEurid ),
 		  time_utils:timestamp_to_string( LastSeenTimestamp ),
 		  time_utils:duration_to_string( TimeOutMs ),
 		  OcSrvPid, BinDevDesc ] ),
@@ -3870,7 +3878,7 @@ activate_alarm( State ) ->
 
 			send_alarm_trace_fmt( warning, "Activating alarm immediately, "
 				"triggering the corresponding actuators: ~ts.",
-				[ oceanic:canon_emitted_event_specs_to_string(
+				[ oceanic_text:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
 			oceanic:trigger_actuators( CanonEmittedEvSpecs,
@@ -3895,7 +3903,7 @@ deactivate_alarm( State ) ->
 			OcSrvPid = ?getAttr(oc_srv_pid),
 			send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
 				"triggering the corresponding actuators: ~ts.",
-				[ oceanic:canon_emitted_event_specs_to_string(
+				[ oceanic_text:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
 			% The switching off is derived from the base switching on:
@@ -3931,8 +3939,9 @@ manage_presence_switching( DevEvent, State ) ->
 
 	% Too verbose:
 	%cond_utils:if_defined( us_main_debug_home_automation,
-	%	?debug_fmt( "Examining whether the following event relates to presence "
-	%		"switching: ~ts", [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+	%   ?debug_fmt( "Examining whether the following event relates to presence "
+	%      "switching: ~ts",
+    %   [ oceanic_text:device_event_to_string( DevEvent ) ] ) ),
 
 	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(presence_switching_trigger_specs),
@@ -3944,8 +3953,9 @@ manage_presence_switching( DevEvent, State ) ->
 				send_psc_trace_fmt( debug, "The following event does not "
 					"match any of the presence switching ones "
 					"(which are ~ts): ~ts",
-					[ oceanic:canon_listened_event_specs_to_string( CLESs ),
-					  oceanic:device_event_to_string( DevEvent ) ],
+					[ oceanic_text:canon_listened_event_specs_to_string(
+                        CLESs ),
+					  oceanic_text:device_event_to_string( DevEvent ) ],
 									State ) ),
 			State;
 
@@ -3955,9 +3965,8 @@ manage_presence_switching( DevEvent, State ) ->
 			BaseMsg = text_utils:format( "Presence switched on (declaring "
 				"that someone is at home) by ~ts "
 				"(due to the following event: ~ts)",
-				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ),
-				  oceanic:device_event_to_string( DevEvent ) ] ),
+				[ oceanic_text:get_device_description( EmitterEurid ),
+				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
 
@@ -3980,9 +3989,8 @@ manage_presence_switching( DevEvent, State ) ->
 			BaseMsg = text_utils:format( "Presence switched off (declaring "
 				"that nobody is at home) by ~ts "
 				"(due to the following event: ~ts)",
-				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ),
-				  oceanic:device_event_to_string( DevEvent ) ] ),
+				[ oceanic_text:get_device_description( EmitterEurid ),
+				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
 
@@ -4004,9 +4012,8 @@ manage_presence_switching( DevEvent, State ) ->
 
 			BaseMsg = text_utils:format( "Presence status inverted by ~ts "
 				"(due to the following event: ~ts): switching to presence ",
-				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ),
-				  oceanic:device_event_to_string( DevEvent ) ] ),
+				[ oceanic_text:get_device_description( EmitterEurid ),
+				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 
 			case ?getAttr(actual_presence) of
@@ -4046,7 +4053,7 @@ manage_alarm_switching( DevEvent, State ) ->
 	%cond_utils:if_defined( us_main_debug_home_automation,
 	%   ?debug_fmt( "Examining whether the following event relates to alarm "
 	%       "switching: ~ts",
-    %       [ oceanic:device_event_to_string( DevEvent ) ] ) ),
+    %       [ oceanic_text:device_event_to_string( DevEvent ) ] ) ),
 
 	% [canon_listened_event_spec()]:
 	CLESs = ?getAttr(alarm_trigger_specs),
@@ -4061,8 +4068,9 @@ manage_alarm_switching( DevEvent, State ) ->
 				send_alarm_trace_fmt( debug, "The following event does not "
 					"match any of the alarm switching ones "
 					"(which are ~ts): ~ts",
-					[ oceanic:canon_listened_event_specs_to_string( CLESs ),
-					  oceanic:device_event_to_string( DevEvent ) ],
+					[ oceanic_text:canon_listened_event_specs_to_string(
+                        CLESs ),
+					  oceanic_text:device_event_to_string( DevEvent ) ],
 									State ) ),
 			State;
 
@@ -4071,9 +4079,8 @@ manage_alarm_switching( DevEvent, State ) ->
 
 			BaseMsg = text_utils:format( "Alarm switched on (intrusion "
 				"detected) by ~ts, (due to the following event: ~ts)",
-				[ oceanic:get_device_description( EmitterEurid,
-												  ?getAttr(oc_srv_pid) ),
-				  oceanic:device_event_to_string( DevEvent ) ] ),
+				[ oceanic_text:get_device_description( EmitterEurid ),
+				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			% We could rely on the alarm_triggered attribute not to trigger it
 			% again, yet for such a critical message we prefer triggering it
@@ -4126,7 +4133,7 @@ manage_alarm_switching( DevEvent, State ) ->
 			% alarm:
 
 			EndMsg = text_utils:format( "the following event: ~ts",
-				[ oceanic:device_event_to_string( DevEvent ) ] ),
+				[ oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			EvType = oceanic:get_event_type( DevEvent ),
 
@@ -4136,8 +4143,8 @@ manage_alarm_switching( DevEvent, State ) ->
 					send_alarm_trace_fmt( info,
 						"Alarm switched off (end of intrusion) by ~ts "
 						"(unconditionally, as of type ~ts), due to ~ts",
-						[ oceanic:get_device_description( EmitterEurid,
-								?getAttr(oc_srv_pid) ), EvType, EndMsg ],
+						[ oceanic:get_device_description( EmitterEurid ),
+                          EvType, EndMsg ],
 						State ),
 
 					apply_alarm_status( _NewAlarmStatus=false, State );
@@ -4146,8 +4153,8 @@ manage_alarm_switching( DevEvent, State ) ->
 					send_alarm_trace_fmt( debug,
 						"Not switching alarm off after event from ~ts "
 						"of (non-passthrough) type ~ts: ignoring ~ts.",
-						[ EvType, oceanic:get_device_description( EmitterEurid,
-							?getAttr(oc_srv_pid) ), EndMsg ], State ),
+						[ EvType, oceanic:get_device_description(
+                            EmitterEurid ), EndMsg ], State ),
 
 					State
 
@@ -4418,7 +4425,7 @@ manage_configuration( ConfigTable, State ) ->
 			send_alarm_trace_fmt( info, "The following ~B configured alarm "
 				"trigger listening specifications will be used: ~ts.",
 				[ length( CanALESs ), text_utils:strings_to_string(
-					[ oceanic:canon_listened_event_spec_to_string(
+					[ oceanic_text:canon_listened_event_spec_to_string(
 						CanALES ) || CanALES <- CanALESs ] ) ], State ),
 
 			CanALESs;
@@ -4443,7 +4450,7 @@ manage_configuration( ConfigTable, State ) ->
 			send_alarm_trace_fmt( info, "The following ~B configured alarm "
 				"actuator emitting specifications will be used: ~ts.",
 				[ length( CanAEESs ), text_utils:strings_to_string(
-					[ oceanic:canon_emitted_event_spec_to_string(
+					[ oceanic_text:canon_emitted_event_spec_to_string(
 						CanAEES ) || CanAEES <- CanAEESs ] ) ], State ),
 
 			CanAEESs;
@@ -4469,7 +4476,7 @@ manage_configuration( ConfigTable, State ) ->
 			send_psc_trace_fmt( info, "The following ~B configured presence "
 				"trigger listening specifications will be used: ~ts.",
 				[ length( CanPLESs ), text_utils:strings_to_string(
-					[ oceanic:canon_listened_event_spec_to_string(
+					[ oceanic_text:canon_listened_event_spec_to_string(
 						CanPLES ) || CanPLES <- CanPLESs ] ) ], State ),
 
 			CanPLESs;
@@ -4496,7 +4503,7 @@ manage_configuration( ConfigTable, State ) ->
 	%		send_psc_trace_fmt( info, "The following ~B configured presence "
 	%           actuator emitting specifications will be used: ~ts.",
 	%           [ length( CanPEESs ), text_utils:strings_to_string(
-	%				[ oceanic:canon_emitted_event_spec_to_string(
+	%				[ oceanic_text:canon_emitted_event_spec_to_string(
 	%					CanPEES ) || CanPEES <- CanPEESs ] ) ], State ),
 	%
 	%		CanPEESs;
@@ -4629,7 +4636,7 @@ to_string( State ) ->
 			text_utils:format( "relying on its Oceanic server ~w "
 				"(source identifier being EURID ~ts; "
 				"periodic restarts enabled: ~ts)",
-				[ OcSrvPid, oceanic:eurid_to_string( ?getAttr(oc_src_eurid) ),
+				[ OcSrvPid, oceanic_text:eurid_to_string( ?getAttr(oc_src_eurid) ),
 				  ?getAttr(oc_periodic_restart) ] )
 
 	end,
@@ -4680,21 +4687,21 @@ to_string( State ) ->
 		   end ++ "triggered; for its control: "
 			   ++ case MaybeOcSrvPid of
 					undefined ->
-						oceanic:canon_listened_event_specs_to_string(
+						oceanic_text:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs) );
 
 					FirstOcSrvPid ->
-						oceanic:canon_listened_event_specs_to_string(
+						oceanic_text:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs), FirstOcSrvPid )
 
 				  end ++ "in terms of alarm actuators: "
 			   ++ case MaybeOcSrvPid of
 					undefined ->
-						oceanic:canon_emitted_event_specs_to_string(
+						oceanic_text:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs) );
 
 					SecondOcSrvPid ->
-						oceanic:canon_emitted_event_specs_to_string(
+						oceanic_text:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs), SecondOcSrvPid )
 
 				  end,
@@ -4825,10 +4832,10 @@ presence_simulation_to_string( #presence_simulation{
 			SingleStr = case MaybeOcSrvPid of
 
 				undefined ->
-					oceanic:canon_emitted_event_spec_to_string( SingleAct );
+					oceanic_text:canon_emitted_event_spec_to_string( SingleAct );
 
 				OcSrvPid ->
-					oceanic:canon_emitted_event_spec_to_string( SingleAct,
+					oceanic_text:canon_emitted_event_spec_to_string( SingleAct,
 																OcSrvPid )
 
 			end,
@@ -4838,10 +4845,10 @@ presence_simulation_to_string( #presence_simulation{
 			Strs = case MaybeOcSrvPid of
 
 				undefined ->
-					oceanic:canon_emitted_event_specs_to_string( Acts );
+					oceanic_text:canon_emitted_event_specs_to_string( Acts );
 
 				OcSrvPid ->
-					oceanic:canon_emitted_event_specs_to_string( Acts,
+					oceanic_text:canon_emitted_event_specs_to_string( Acts,
 																 OcSrvPid )
 
 			end,
@@ -4962,7 +4969,7 @@ device_state_to_string( #device_state{
 		current_status=Status } ) ->
 	text_utils:format( "device '~ts' (EURID: ~ts) implementing EEP ~ts, "
 		"whose current status is ~ts",
-		[ BinName, oceanic:eurid_to_string( Eurid ), EEPId, Status ] ).
+		[ BinName, oceanic_text:eurid_to_string( Eurid ), EEPId, Status ] ).
 
 
 
