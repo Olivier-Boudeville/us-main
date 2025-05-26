@@ -38,9 +38,9 @@ Type=forking
 # To inspect the outputs, use:
 # journalctl --pager-end --unit=us-main-native-build.service
 #
-ExecStart=/usr/local/bin/start-us-main-native-build.sh
+ExecStart=/usr/local/bin/start-us-main-native-build.sh --kill-prior-instance
 
-ExecStop=/usr/local/bin/stop-us-main-native-build.sh
+ExecStop=/usr/local/bin/stop-us-main-native-build.sh --kill-epmd
 
 [Install]
 WantedBy=multi-user.target
