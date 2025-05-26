@@ -477,7 +477,7 @@ General US Configuration
 Even if these are just conventions, we consider that a US-Server can be deployed either in:
 
 - **development** mode: by a regular user, with no specific permissions, directly from the user account, and with direct process control
-- **production** mode: by dedicated US(-Main) user and group, with low privileges, in the system tree (``/etc``, ``/opt``, ``/var``), and controlled through systemd
+- **production** mode: by dedicated US(-Main) user and group, with low privileges, in the system tree (``/etc``, ``/opt``, ``/var``), and possibly controlled through systemd
 
 All US-related configuration files respect the `ETF file format <https://myriad.esperide.org/#etf>`_.
 
@@ -788,7 +788,7 @@ We suppose here that the US-Main configuration has already taken place (otherwis
 
 The US-Main management procedure relies on switching to a configured (UNIX) user (meant to have the lowest privileges, and generally created for the sole purpose of running a given US server), which requires the corresponding US-Main scripts to be executed as root first.
 
-We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (for testing) or through systemd (for actual use; the preferred stable solution).
+We recommend running US-Main thanks to a native build (rather than as a release), and using for that the `start-us-main-native-build.sh <https://github.com/Olivier-Boudeville/us-main/tree/master/priv/bin/start-us-main-native-build.sh>`_ script, either directly (at least for testing) or possibly through ``systemd`` (for actual use), even if we found such an integration unnecessarily complex and fragile (refer to `this section <https://us-common.esperide.org/#relying-on-systemd>`_ for more details).
 
 In this last case, first a symbolic link pointing to this script shall be typically created in the ``/usr/local/bin`` directory of the host of interest. Then the server is to be triggered based on ``/etc/systemd/system/us-main-as-native-build.service`` (see `us-main-as-native-build.service <https://github.com/Olivier-Boudeville/us-main/blob/master/priv/conf/us-main-as-native-build.service>`_).
 
