@@ -323,8 +323,8 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 	activated = false :: boolean(),
 
 
-	% Specifies the target actuators to be reached for emulate an actual
-	% presence (typically a smart plug controlling a lamp):
+	% Specifies the target actuators to be reached in order to simulate an
+	% actual presence (typically a smart plug controlling a lamp):
 	%
 	% (possibly using a broadcast address, typically if no EURID is known for
 	% it)
@@ -510,8 +510,8 @@ Full settings gathered regarding the home automation server.
 
 
 % The specification of events that are to be emitted to by this server in order
-% to actually switch alarms on/off (one may refer to
-% oceanic:emitted_event_spec()).
+% to actually trigger alarm actuators, typically to switch alarms on/off (one
+% may refer to oceanic:emitted_event_spec()).
 %
 % In practice, typically targets smart plugs that power sirens, and describes
 % actions from pseudo-devices (emulated by this server), typically push buttons
@@ -668,9 +668,9 @@ Full settings gathered regarding the home automation server.
 	  "switch on/off the alarm" },
 
 	{ alarm_actuator_specs, [ canon_emitted_event_spec() ],
-	  "the specifications of the events that can be emitted to trigger "
+	  "the specifications of the events that can be emitted to "
 	  "actuators (typically smart plugs powering sirens) that shall be "
-	  "triggered when an actual alarm is triggered" },
+	  "triggered when an actual alarm is activated" },
 
 
 	{ alarm_duration, seconds(),
@@ -937,7 +937,7 @@ the base identifier of the gateway, which is the default).
 """.
 -spec construct( wooper:state(), device_path(),
 		option( presence_simulation_user_settings() ),
-                 option( eurid_string() ) ) -> wooper:state().
+                        option( eurid_string() ) ) -> wooper:state().
 construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	ServerTraceName = "Home automation server",
@@ -2210,7 +2210,11 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 
 
 
--doc "Ensures that the lighting is on for this presence simulation.".
+-doc """
+Ensures that the lighting is on for this presence simulation.
+
+Trusts the internal state: switches the lights on only conditionally.
+""".
 -spec ensure_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
 ensure_lighting( PscSim, _IsActivated=true, State ) ->
@@ -2233,8 +2237,7 @@ ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 		send_psc_trace_fmt( debug, "Activating presence simulation #~B.",
 			[ PscSim#presence_simulation.id ], State ) ),
 
-	oceanic:trigger_actuators( ActEvSpecs,
-		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	% DeviceTable = ?getAttr(device_table),
 
@@ -2254,6 +2257,8 @@ ensure_lighting( PscSim=#presence_simulation{ actuator_event_specs=ActEvSpecs },
 
 -doc """
 Ensures that the lighting is off for this presence simulation.
+
+Trusts the internal state: switches the lights off only conditionally.
 """.
 -spec ensure_not_lighting( presence_simulation(), boolean(), wooper:state() ) ->
 			presence_simulation().
@@ -2266,12 +2271,7 @@ ensure_not_lighting( PscSim=#presence_simulation{
 			"Deactivating presence simulation #~B, as it was registered "
 			"as activated.", [ PscSim#presence_simulation.id ], State ) ),
 
-	% The switching off is derived from the base switching on:
-	ReciprocalActEvSpecs =
-		[ get_reciprocal_device_event_spec( AES ) || AES <- ActEvSpecs ],
-
-	oceanic:trigger_actuators( ReciprocalActEvSpecs,
-		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators_reciprocal( ActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	PscSim#presence_simulation{ activated=false };
 
@@ -2286,21 +2286,6 @@ ensure_not_lighting( PscSim, _IsActivated=false, State ) ->
 
 	PscSim.
 
-
-
--doc """
-Returns the reciprocal device event spec (e.g. opposite command) to the
-specified one.
-""".
--spec get_reciprocal_device_event_spec( canon_emitted_event_spec() ) ->
-											canon_emitted_event_spec().
-get_reciprocal_device_event_spec(
-		_CEES={ _COTS={ DeviceType, VirtEmitInfo, CSCS },
-				ActInfo } ) ->
-
-	InvCSCS = oceanic:get_reciprocal_state_change_spec( DeviceType, CSCS ),
-	InvCOTS = { DeviceType, VirtEmitInfo, InvCSCS },
-	{ InvCOTS, ActInfo }.
 
 
 
@@ -2782,8 +2767,7 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 						actuator_event_specs=ActEvSpecs } | T ],
 					 PscTable, State ) ->
 
-	oceanic:trigger_actuators( ActEvSpecs,
-		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
+	oceanic:trigger_actuators( ActEvSpecs, ?getAttr(oc_srv_pid) ),
 
 	NewPscSim = PscSim#presence_simulation{ activated=true },
 
@@ -3818,7 +3802,7 @@ setAlarmStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 
 -doc """
 Returns the types of events that bypass any inhibition of an alarm and that are
-unconditionally taken into account
+unconditionally taken into account.
 """.
 -spec get_passthrough_event_types() -> [ device_event_type() ].
 get_passthrough_event_types() ->
@@ -3881,8 +3865,7 @@ activate_alarm( State ) ->
 				[ oceanic_text:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
-			oceanic:trigger_actuators( CanonEmittedEvSpecs,
-                _ExpectedReportedEventInfo=power_on, OcSrvPid )
+			oceanic:trigger_actuators( CanonEmittedEvSpecs, OcSrvPid )
 
 	end,
 
@@ -3902,17 +3885,15 @@ deactivate_alarm( State ) ->
 		CanonEmittedEvSpecs ->
 			OcSrvPid = ?getAttr(oc_srv_pid),
 			send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
-				"triggering the corresponding actuators: ~ts.",
+				"reciprocal triggering of the corresponding actuators: ~ts.",
 				[ oceanic_text:canon_emitted_event_specs_to_string(
 					CanonEmittedEvSpecs, OcSrvPid ) ], State ),
 
-			% The switching off is derived from the base switching on:
-			ReciprocalCanonEmittedEvSpecs =
-				[ get_reciprocal_device_event_spec( CEES )
-					|| CEES <- CanonEmittedEvSpecs ],
-
-			oceanic:trigger_actuators( ReciprocalCanonEmittedEvSpecs,
-                _ExpectedReportedEventInfo=power_off, OcSrvPid )
+			% The switching off is derived from the base switching on by
+			% Oceanic, as based on the EURID it knows the actual device types:
+            %
+			oceanic:trigger_actuators_reciprocal( CanonEmittedEvSpecs,
+                                                  OcSrvPid )
 
 	end,
 
@@ -4179,7 +4160,7 @@ apply_alarm_status( NewStatus=true, State ) ->
 
 	% First priority:
 	oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
-		_ExpectedReportedEventInfo=power_on, ?getAttr(oc_srv_pid) ),
+                               ?getAttr(oc_srv_pid) ),
 
 	SchedPid = ?getAttr(scheduler_pid),
 
@@ -4254,13 +4235,8 @@ apply_alarm_status( NewStatus=false, State ) ->
 		"Switching now the alarm off (trigger status was ~ts).",
 		[ ?getAttr(alarm_triggered) ], State ),
 
-	% The switching off is derived from the base switching on:
-	ReciprocalActEvSpecs = [ get_reciprocal_device_event_spec( AES )
-								|| AES <- ?getAttr(alarm_actuator_specs) ],
-
-	oceanic:trigger_actuators( ReciprocalActEvSpecs,
-		_ExpectedReportedEventInfo=power_off, ?getAttr(oc_srv_pid) ),
-
+	oceanic:trigger_actuators_reciprocal( ?getAttr(alarm_actuator_specs),
+                                          ?getAttr(oc_srv_pid) ),
 
 	SetState = setAttributes( State, [ { alarm_triggered, NewStatus },
 									   % Anticipating next actions:
@@ -4519,7 +4495,7 @@ manage_configuration( ConfigTable, State ) ->
 
 		key_not_found ->
 			send_psc_trace( info,
-				"No presence-simulation settings configured.", State ),
+				"No presence simulation settings configured.", State ),
 			[];
 
 		% Expecting a list of psc_simu_user_setting() (checked later directly by
@@ -4527,7 +4503,7 @@ manage_configuration( ConfigTable, State ) ->
 		%
 		{ value, PscUSimSettings } when is_list( PscUSimSettings ) ->
 			send_psc_trace_fmt( info, "The following ~B user-configured "
-				"presence-simulation settings will be used:~n ~p",
+				"presence simulation settings will be used:~n ~p",
 				[ length( PscUSimSettings ), PscUSimSettings ], State ),
 			PscUSimSettings;
 
