@@ -134,7 +134,7 @@ fi
 if [ $# -gt 1 ]; then
 
 	shift
-	echo "  Error, extra argument expected ($*).
+	echo "  Error, extra argument specified (at least $*).
 ${usage}" 1>&2
 
 	exit 10
@@ -308,7 +308,7 @@ if [ $res -eq 0 ]; then
 	# and, most probably because of that, systemd considers that the stop
 	# failed.
 	#
-	# Best solution: getting rid of this systemd non-sense.
+	# Best solution could be getting rid of this systemd non-sense.
 
 	#exit 0
 	res=0
@@ -374,7 +374,6 @@ if [ $kill_empd -eq 0 ]; then
 	else
 
 		#echo "  Warning: currently never killing EPMD (even on port ${us_main_epmd_port}). We recommend executing kill-us-main.sh prior to any start thereof." 1>&2
-
 
 		echo "(requesting EPMD kill)"
 

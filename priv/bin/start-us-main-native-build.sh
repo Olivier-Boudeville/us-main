@@ -108,7 +108,7 @@ fi
 if [ $# -gt 1 ]; then
 
 	shift
-	echo "  Error, extra parameters specified ($*).
+	echo "  Error, extra parameters specified (at least $*).
 ${usage}" 1>&2
 
 	exit 3
