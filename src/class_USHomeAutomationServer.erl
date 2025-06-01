@@ -958,7 +958,6 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 			% Ceylan-Traces system, rather than being buried just in, typically,
 			% /opt/universal-server/us_main-latest/us_main/log/erlang.log.*
 			% files:
-			%
 			OCBridgeSpec = trace_bridge:get_bridge_spec(
 				_TraceEmitterName="Oceanic", _TraceCategory="Server",
 				_BridgePid=class_TraceAggregator:get_aggregator() ),
@@ -2745,6 +2744,9 @@ ensure_light_from( StartTime, _CurrentTime, _DawnTime, DuskTime, PscSim,
 
 -doc """
 Ensures that all possible lighting is activated, for all presence simulations.
+
+Trusted their internal activation status, now, for easier direct testing, done
+unconditionally.
 """.
 -spec ensure_all_lighting( wooper:state() ) -> wooper:state().
 ensure_all_lighting( State ) ->
@@ -2763,7 +2765,7 @@ ensure_all_lighting( _PscSims=[], PscTable, State ) ->
 % If not activated, must be switched on:
 ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 						id=Id,
-						activated=false,
+						% Unconditional now: activated=false,
 						actuator_event_specs=ActEvSpecs } | T ],
 					 PscTable, State ) ->
 
@@ -2773,16 +2775,17 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 
 	NewPscTable = table:add_new_entry( _K=Id, _V=NewPscSim, PscTable ),
 
-	ensure_all_lighting( T, NewPscTable, State );
-
-
-% Nothing to do:
-ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
-					 PscTable, State ) ->
-
-	NewPscTable = table:add_new_entry( _K=Id, _V=PscSim, PscTable ),
-
 	ensure_all_lighting( T, NewPscTable, State ).
+
+% (clause used when was conditional)
+%
+% Nothing to do:
+% ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
+%                    PscTable, State ) ->
+
+%   NewPscTable = table:add_new_entry( _K=Id, _V=PscSim, PscTable ),
+
+%   ensure_all_lighting( T, NewPscTable, State ).
 
 
 
@@ -2790,7 +2793,8 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
 -doc """
 Ensures that there is no more lighting at all, for all presence simulations.
 
-Trusts their internal activation status.
+Trusted their internal activation status, now, for easier direct testing, done
+unconditionally.
 """.
 -spec ensure_not_any_lighting( wooper:state() ) -> wooper:state().
 ensure_not_any_lighting( State ) ->
@@ -2807,30 +2811,33 @@ ensure_not_any_lighting( _PscSims=[], PscTable, State ) ->
 
 % If activated, must be switched off:
 ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
-		id=PscId,
-		activated=true } | T ],
+		id=PscId
+		% Unconditional now: activated=true
+                                                               } | T ],
 						 PscTable, State ) ->
 
 	NewPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
 
 	NewPscTable = table:add_new_entry( _K=PscId, _V=NewPscSim, PscTable ),
 
-	ensure_not_any_lighting( T, NewPscTable, State );
-
-
-% Not activated, nothing to do:
-ensure_not_any_lighting(
-		_PscSims=[ PscSim=#presence_simulation{ id=PscId } | T ],
-		PscTable, State ) ->
-
-	cond_utils:if_defined( us_main_debug_presence_simulation,
-		send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
-			"presence simulation #~B was already not activated.",
-			[ PscId ], State ) ),
-
-	NewPscTable = table:add_new_entry( _K=PscId, _V=PscSim, PscTable ),
-
 	ensure_not_any_lighting( T, NewPscTable, State ).
+
+
+% (clause used when was conditional)
+%
+% Not activated, nothing to do:
+% ensure_not_any_lighting(
+%       _PscSims=[ PscSim=#presence_simulation{ id=PscId } | T ],
+%       PscTable, State ) ->
+
+%   cond_utils:if_defined( us_main_debug_presence_simulation,
+%       send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
+%           "presence simulation #~B was already not activated.",
+%           [ PscId ], State ) ),
+
+%   NewPscTable = table:add_new_entry( _K=PscId, _V=PscSim, PscTable ),
+
+%   ensure_not_any_lighting( T, NewPscTable, State ).
 
 
 
@@ -3822,7 +3829,7 @@ Note presence programs may afterwards apply other operations.
 -spec startLighting( wooper:state() ) -> oneway_return().
 startLighting( State ) ->
 
-    ?info( "Requested to start all possible lighting." ),
+    ?info( "Requested to start all possible presence-related lighting." ),
 	NewState = ensure_all_lighting( State ),
 	wooper:return_state( NewState ).
 
@@ -3836,7 +3843,7 @@ Note presence programs may afterwards apply other operations.
 -spec stopLighting( wooper:state() ) -> oneway_return().
 stopLighting( State ) ->
 
-    ?info( "Requested to stop all possible lighting." ),
+    ?info( "Requested to stop all possible presence-related lighting." ),
 	NewState = ensure_not_any_lighting( State ),
 	wooper:return_state( NewState ).
 
@@ -4612,7 +4619,8 @@ to_string( State ) ->
 			text_utils:format( "relying on its Oceanic server ~w "
 				"(source identifier being EURID ~ts; "
 				"periodic restarts enabled: ~ts)",
-				[ OcSrvPid, oceanic_text:eurid_to_string( ?getAttr(oc_src_eurid) ),
+				[ OcSrvPid,
+                  oceanic_text:eurid_to_string( ?getAttr(oc_src_eurid) ),
 				  ?getAttr(oc_periodic_restart) ] )
 
 	end,
@@ -4805,31 +4813,31 @@ presence_simulation_to_string( #presence_simulation{
 			"no actuator";
 
 		[ SingleAct ] ->
-			SingleStr = case MaybeOcSrvPid of
+			Str = case MaybeOcSrvPid of
 
 				undefined ->
-					oceanic_text:canon_emitted_event_spec_to_string( SingleAct );
+					oceanic_text:canon_emitted_event_spec_to_string(
+                        SingleAct );
 
 				OcSrvPid ->
 					oceanic_text:canon_emitted_event_spec_to_string( SingleAct,
 																OcSrvPid )
 
 			end,
-			text_utils:format( "a single ~ts", [ SingleStr ] );
+			text_utils:format( "a single ~ts", [ Str ] );
 
 		Acts ->
-			Strs = case MaybeOcSrvPid of
+			Str = case MaybeOcSrvPid of
 
 				undefined ->
 					oceanic_text:canon_emitted_event_specs_to_string( Acts );
 
 				OcSrvPid ->
 					oceanic_text:canon_emitted_event_specs_to_string( Acts,
-																 OcSrvPid )
+                        OcSrvPid )
 
 			end,
-			text_utils:format( "~B actuators: ~ts", [ length( Acts ),
-				text_utils:strings_to_string( Strs ) ] )
+			text_utils:format( "~B actuators: ~ts", [ length( Acts ), Str ] )
 
 	end,
 
