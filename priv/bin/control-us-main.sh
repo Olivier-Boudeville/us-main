@@ -18,6 +18,11 @@ declare_absence_opt="declare_not_present"
 get_presence_opt="is_present"
 
 
+# Lighting-related options:
+
+start_lighting_opt="start_lighting"
+stop_lighting_opt="stop_lighting"
+
 
 # Alarm-related options:
 
@@ -29,10 +34,6 @@ get_alarm_opt="is_alarm_active"
 
 
 
-# Lighting-related options:
-
-start_lighting_opt="start_lighting"
-stop_lighting_opt="stop_lighting"
 
 
 
@@ -40,19 +41,19 @@ usage="Usage: $(basename $0) [-h|--help] [US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME]
 
 Supported commands:
 
- - regarding presence:
-	* ${declare_presence_opt}: declares that somebody is at home (hence for example deactivate alarm)
-	* ${declare_absence_opt}: declares that nobody is at home (hence for example activate alarm)
-	* ${get_presence_opt}: tells whether US-Main considers that somebody is at home
-
  - regarding alarm:
 	* ${start_alarm_opt}: starts the alarm (siren)
 	* ${stop_alarm_opt}: stops the alarm
 	* ${get_alarm_opt}: tells whether the alarm is currently activated (hence wit a roaring siren)
 
- - regarding lighting:
-	* ${start_lighting_opt}: starts all registered lighting
-	* ${stop_lighting_opt}: stops all registered lighting
+ - regarding presence:
+	* ${declare_presence_opt}: declares that somebody is at home (hence for example deactivate alarm)
+	* ${declare_absence_opt}: declares that nobody is at home (hence for example activate alarm)
+	* ${get_presence_opt}: tells whether US-Main considers that somebody is at home
+
+ - regarding (presence-related) lighting:
+	* ${start_lighting_opt}: starts all registered presence lighting
+	* ${stop_lighting_opt}: stops all registered presence lighting
 
 Example of use: './$(basename $0) us-main-remote-access-for-development.config stop_alarm ', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 

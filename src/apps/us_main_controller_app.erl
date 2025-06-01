@@ -77,15 +77,6 @@ exec() ->
 
 	case Cmd of
 
-		"is_present" ->
-			handle_is_present( CmdArgs, HomeAutoSrvPid );
-
-		"declare_present" ->
-			handle_declare_present( CmdArgs, HomeAutoSrvPid );
-
-		"declare_not_present" ->
-			handle_declare_not_present( CmdArgs, HomeAutoSrvPid );
-
 		"start_alarm" ->
 			handle_start_alarm( CmdArgs, HomeAutoSrvPid );
 
@@ -94,6 +85,15 @@ exec() ->
 
 		"is_alarm_active" ->
 			handle_is_alarm_active( CmdArgs, HomeAutoSrvPid );
+
+		"is_present" ->
+			handle_is_present( CmdArgs, HomeAutoSrvPid );
+
+		"declare_present" ->
+			handle_declare_present( CmdArgs, HomeAutoSrvPid );
+
+		"declare_not_present" ->
+			handle_declare_not_present( CmdArgs, HomeAutoSrvPid );
 
 		"start_lighting" ->
 			handle_start_lighting( CmdArgs, HomeAutoSrvPid );
