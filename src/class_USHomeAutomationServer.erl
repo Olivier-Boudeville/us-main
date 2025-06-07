@@ -3950,10 +3950,12 @@ manage_presence_switching( DevEvent, State ) ->
 		% Presence declared:
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
 			BaseMsg = text_utils:format( "Presence switched on (declaring "
 				"that someone is at home) by ~ts "
 				"(due to the following event: ~ts)",
-				[ oceanic_text:get_device_description( EmitterEurid ),
+				[ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
 				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
@@ -3974,10 +3976,12 @@ manage_presence_switching( DevEvent, State ) ->
 		% Absence declared:
 		{ true, EmitterEurid, _NewDevStatus=off } ->
 
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
 			BaseMsg = text_utils:format( "Presence switched off (declaring "
 				"that nobody is at home) by ~ts "
 				"(due to the following event: ~ts)",
-				[ oceanic_text:get_device_description( EmitterEurid ),
+				[ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
 				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			case ?getAttr(actual_presence) of
@@ -3998,9 +4002,11 @@ manage_presence_switching( DevEvent, State ) ->
 		% Presence status inverted:
 		{ true, EmitterEurid, _NewDevStatus=inverted } ->
 
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
 			BaseMsg = text_utils:format( "Presence status inverted by ~ts "
 				"(due to the following event: ~ts): switching to presence ",
-				[ oceanic_text:get_device_description( EmitterEurid ),
+				[ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
 				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 
@@ -4065,9 +4071,11 @@ manage_alarm_switching( DevEvent, State ) ->
 		% Alart start requested:
 		{ true, EmitterEurid, _NewDevStatus=on } ->
 
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
 			BaseMsg = text_utils:format( "Alarm switched on (intrusion "
 				"detected) by ~ts, (due to the following event: ~ts)",
-				[ oceanic_text:get_device_description( EmitterEurid ),
+				[ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
 				  oceanic_text:device_event_to_string( DevEvent ) ] ),
 
 			% We could rely on the alarm_triggered attribute not to trigger it
@@ -4123,6 +4131,8 @@ manage_alarm_switching( DevEvent, State ) ->
 			EndMsg = text_utils:format( "the following event: ~ts",
 				[ oceanic_text:device_event_to_string( DevEvent ) ] ),
 
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
 			EvType = oceanic:get_event_type( DevEvent ),
 
 			case lists:member( EvType, get_passthrough_event_types() ) of
@@ -4131,7 +4141,8 @@ manage_alarm_switching( DevEvent, State ) ->
 					send_alarm_trace_fmt( info,
 						"Alarm switched off (end of intrusion) by ~ts "
 						"(unconditionally, as of type ~ts), due to ~ts",
-						[ oceanic:get_device_description( EmitterEurid ),
+						[ oceanic:get_device_description( EmitterEurid,
+                                                          OcSrvPid ),
                           EvType, EndMsg ],
 						State ),
 
@@ -4142,7 +4153,7 @@ manage_alarm_switching( DevEvent, State ) ->
 						"Not switching alarm off after event from ~ts "
 						"of (non-passthrough) type ~ts: ignoring ~ts.",
 						[ EvType, oceanic:get_device_description(
-                            EmitterEurid ), EndMsg ], State ),
+                            EmitterEurid, OcSrvPid ), EndMsg ], State ),
 
 					State
 
@@ -4698,7 +4709,7 @@ to_string( State ) ->
 			"enabled, with " ++ case PscSims of
 
 				[] ->
-					"no presence defined";
+					"no presence defined ";
 
 				[ PscSim ] ->
 					"a single presence defined: "
@@ -4710,7 +4721,7 @@ to_string( State ) ->
 							[ presence_simulation_to_string( PS )
 								|| PS <- PscSims ] ) ] )
 
-			end ++ "and " ++ case ?getAttr(time_equation_table) of
+			end ++ "; " ++ case ?getAttr(time_equation_table) of
 
 				undefined ->
 					"no time equation table used";
@@ -4733,8 +4744,7 @@ to_string( State ) ->
 			"no presence-switching device has been defined";
 
 		BinPscSwitchDesc ->
-			text_utils:format( "presence-switching devices have been "
-				"defined, ~ts", [ BinPscSwitchDesc ] )
+            BinPscSwitchDesc
 
 	end,
 
@@ -4751,8 +4761,8 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts, and that the alarm has ~ts; it is ~ts; "
-		"the presence simulator is currently ~ts, and ~ts; ~ts",
+		"gateway ~w, ~ts, ~ts, and that the alarm has ~ts.~nIt is ~ts; "
+		"the presence simulator is currently ~ts; ~ts; ~ts",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
 		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, AlarmStr,
 		  device_table_to_string( ?getAttr(device_table) ),
