@@ -1097,21 +1097,21 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 	PscSwitchBinDesc = case PscTriggerListenEvSpecs of
 
 		[] ->
-			<<"(no presence-switching device defined)">>;
+			<<"no presence-switching device is defined">>;
 
 		_ ->
 			case MaybeOcSrvPid of
 
 				% Suspect:
 				undefined ->
-					text_utils:bin_format( "Regarding the presence-switching "
-						"devices defined, ~ts", [
+					text_utils:bin_format( "the presence-switching "
+						"devices defined are: ~ts", [
 							oceanic_text:canon_listened_event_specs_to_string(
 								PscTriggerListenEvSpecs ) ] );
 
 				OcSrvPid ->
 					text_utils:bin_format( "~B presence-switching devices "
-						"defined: ~ts", [ length( PscTriggerListenEvSpecs ),
+						"are defined: ~ts", [ length( PscTriggerListenEvSpecs ),
 							oceanic_text:canon_listened_event_specs_to_string(
 								PscTriggerListenEvSpecs, OcSrvPid ) ] )
 
@@ -1163,7 +1163,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	ApplyState = apply_presence_simulation( SetState ),
 
-	?send_notice_fmt( ApplyState, "Constructed: ~ts.",
+	?send_notice_fmt( ApplyState, "Constructed: ~ts",
 					  [ to_string( ApplyState ) ] ),
 
 	ApplyState.
@@ -1195,8 +1195,8 @@ init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
 init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 			State ) ->
 
-	% Second, if alarm trigger buttons ares set, their references shall be
-	% stored as such:
+	% Second, if alarm trigger buttons are set, their references shall be stored
+	% as such:
 	%
 	setAttributes( State, [
 		{ alarm_inhibited, true },
@@ -1322,7 +1322,7 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
 
 		true ->
 			send_psc_trace( warning, "Presence simulation enabled, yet "
-							"no specific one requested.", State ),
+				"no specific one requested.", State ),
 			undefined;
 
 		false ->
@@ -1417,7 +1417,7 @@ init_presence_simulation( _PresenceSimSettings=[
 				[ program_to_string( PscProg ),
 				  program_to_string( RandProgram ) ], State ),
 
-			% Extra safety, to ensure generated programs are legit:
+			% Extra safety, to ensure that generated programs are legit:
 			%RandProgram;
 			{ vet_program( RandProgram ), RA };
 
@@ -1445,13 +1445,19 @@ init_presence_simulation( _PresenceSimSettings=[
 		smart_lighting=DoSmartLighting,
 		random_activity=RandActivity },
 
-	% Start from no light in all cases (regardless of initial state):
-	UnlitPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
+	% We sued to start from no light in all cases (regardless of initial state),
+	% yet this is a natural byproduct of the initial applying of presence
+	% simulations, hence the following is commented out:
+    %
+    %send_psc_trace( info, "Ensuring that initially no lighting is done.",
+    %                State ),
+    %
+	%UnlitPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
 
-	NewPscTable = table:add_new_entry( _K=NextPscId, UnlitPscSim, PscTable ),
+	NewPscTable = table:add_new_entry( _K=NextPscId, PscSim, PscTable ),
 
 	send_psc_trace_fmt( info, "Registered a new presence simulation: ~ts",
-		[ presence_simulation_to_string( UnlitPscSim ) ], State ),
+		[ presence_simulation_to_string( PscSim ) ], State ),
 
 	NewTimeEqTableNeeded = DoSmartLighting orelse TimeEqTableNeeded,
 
@@ -4679,8 +4685,8 @@ to_string( State ) ->
 			false ->
 				"not "
 
-		   end ++ "triggered; for its control: "
-			   ++ case MaybeOcSrvPid of
+		   end ++ text_utils:format( "triggered.~nFor the alarm control: ~ts",
+               [ case MaybeOcSrvPid of
 					undefined ->
 						oceanic_text:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs) );
@@ -4689,8 +4695,9 @@ to_string( State ) ->
 						oceanic_text:canon_listened_event_specs_to_string(
 							?getAttr(alarm_trigger_specs), FirstOcSrvPid )
 
-				  end ++ "in terms of alarm actuators: "
-			   ++ case MaybeOcSrvPid of
+				  end ] )
+        ++ text_utils:format( "~nIn terms of alarm actuators: ~ts",
+               [ case MaybeOcSrvPid of
 					undefined ->
 						oceanic_text:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs) );
@@ -4699,7 +4706,7 @@ to_string( State ) ->
 						oceanic_text:canon_emitted_event_specs_to_string(
 							?getAttr(alarm_actuator_specs), SecondOcSrvPid )
 
-				  end,
+				  end] ),
 
 
 	PscStr = case ?getAttr(presence_simulation_enabled) of
@@ -4716,21 +4723,23 @@ to_string( State ) ->
 						++ presence_simulation_to_string( PscSim );
 
 				PscSims ->
-					text_utils:format( "~B presences defined: ~ts",
+					text_utils:format( "~B presences defined: ~ts~n",
 						[ length( PscSims ), text_utils:strings_to_string(
 							[ presence_simulation_to_string( PS )
 								|| PS <- PscSims ] ) ] )
 
-			end ++ "; " ++ case ?getAttr(time_equation_table) of
+			end ++ text_utils:format( "~n~ts",
+                [ case ?getAttr(time_equation_table) of
 
-				undefined ->
-					"no time equation table used";
+                    undefined ->
+                        "No time equation table used";
 
-				TimeEqTable ->
-					text_utils:format( "using a time equation table "
-						"comprising ~B entries", [ table:size( TimeEqTable ) ] )
+                    TimeEqTable ->
+                        text_utils:format( "Using a time equation table "
+                            "comprising ~B entries",
+                            [ table:size( TimeEqTable ) ] )
 
-							 end;
+                  end ] );
 
 		false ->
 			"disabled"
@@ -4751,18 +4760,19 @@ to_string( State ) ->
 	MidTaskStr = case ?getAttr(midnight_task_id) of
 
 		undefined ->
-			"no midnight update task defined";
+			"No midnight update task defined";
 
 		MidTaskId ->
-			text_utils:format( "midnight update task #~B defined",
+			text_utils:format( "Midnight update task #~B defined",
 							   [ MidTaskId ] )
 
 	end,
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts, and that the alarm has ~ts.~nIt is ~ts; "
-		"the presence simulator is currently ~ts; ~ts; ~ts",
+		"gateway ~w, ~ts, ~ts, and that the alarm ~ts~nThis server is "
+        "currently ~ts.~n~n"
+        "The presence simulator is currently ~ts, knowing that ~ts~n~ts.",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
 		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, AlarmStr,
 		  device_table_to_string( ?getAttr(device_table) ),
@@ -4852,9 +4862,8 @@ presence_simulation_to_string( #presence_simulation{
 	end,
 
 	text_utils:format( "presence simulation of id #~B, ~ts, "
-		"~tsusing smart lighting, based on ~ts, "
-		"whose presence program ~ts~n"
-		"It relies on ~ts; ~ts",
+		"~tsusing smart lighting, based on ~ts, whose presence program ~ts~n"
+		"The switching of this presence relies on ~ts(~ts)",
 		[ Id, case IsEnabled of
 					true ->  "enabled";
 					false -> "disabled"
