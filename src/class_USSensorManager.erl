@@ -1322,7 +1322,7 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 		vet_muted_sensor_points( ReadMutedMeasurements, CfgState ),
 
 	cond_utils:if_defined( us_main_debug_sensors,
-		?debug_fmt( "Muted measurements:~n ~p.", [ MutedMeasurements ] ) ),
+		?debug_fmt( "Muted measurements:~n ~p.", [ ReadMutedMeasurements ] ) ),
 
 	parse_initial_sensors( map_hashtable:enumerate( DecodedMap ),
 		_SensorTable=table:new(), MutedMeasurementTable, CfgState ).
