@@ -4770,13 +4770,13 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts, and that the alarm ~ts~nThis server is "
-        "currently ~ts.~n~n"
-        "The presence simulator is currently ~ts, knowing that ~ts~n~ts.",
+		"gateway ~w, ~ts, ~ts, and that the alarm ~ts~n"
+        "The presence simulator is currently ~ts, knowing that ~ts~n~ts.~n~n"
+        "This server is currently ~ts~n~n",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
 		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, AlarmStr,
-		  device_table_to_string( ?getAttr(device_table) ),
-		  PscStr, PscSwitchStr, MidTaskStr ] ).
+		  PscStr, PscSwitchStr, MidTaskStr,
+          device_table_to_string( ?getAttr(device_table) ) ] ).
 
 
 
