@@ -1123,7 +1123,7 @@ get_sensor_manager() ->
 
 	ManagerPid = naming_utils:wait_for_registration_of(
 		?us_main_sensor_server_registration_name,
-		naming_utils:registration_to_look_up_scope(
+		naming_utils:registration_to_lookup_scope(
 			?us_main_sensor_server_registration_scope ) ),
 
 	wooper:return_static( ManagerPid ).

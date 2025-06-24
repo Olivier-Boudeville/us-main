@@ -24,7 +24,7 @@
 -moduledoc """
 Actual US-Main client-side **controlling logic**, as a (Myriad) application.
 
-Typically called through the us_main/priv/bin/control-us-main.sh script.
+Typically called through the `us_main/priv/bin/control-us-main.sh` script.
 
 Designed to control a US-Main instance typically from any remote host able to
 connect to the VM hosting that instance.
@@ -42,158 +42,44 @@ connect to the VM hosting that instance.
 -spec exec() -> no_return().
 exec() ->
 
-	{ ActualTargetNodeName, _Cfg, ArgTable } = us_main_client:setup(),
+	% No app_start here, hence we need the following (see
+	% traces_for_apps:app_start/2 for a detailed explanation):
+	%
+	erlang:process_flag( trap_exit, false ),
+
+	{ ActualTargetNodeName, CfgTable, ArgTable } =
+        us_client:setup( _ServerPrefix=us_main ),
+
+    UMLookupInfo = us_client:get_config_server_info( CfgTable ),
 
 	{ AllArgs, FinalArgTable } =
 		cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
-
-	{ Cmd, CmdArgs } = case AllArgs of
-
-		[ SingleCmd ] ->
-			{ SingleCmd, [] };
-
-		[ SomeCmd | Args ] ->
-			{ SomeCmd, Args }
-
-	end,
 
 	list_table:is_empty( FinalArgTable ) orelse
 		throw( { unexpected_arguments,
 				 list_table:enumerate( FinalArgTable ) } ),
 
-	trace_utils:debug_fmt( "Execution command '~ts' with arguments ~p.",
-						   [ Cmd, CmdArgs ] ),
+	% The US-Main configuration server is expected to run on the target node:
+    MainSrvPid = naming_utils:get_registered_pid_from( UMLookupInfo,
+                                                       ActualTargetNodeName ),
 
-	% The home automation server is expected to run on the target node, but to
-	% be registered there only locally, to avoid clashing with any other
-	% home automation server:
-	%
-	HomeAutoSrvPid = naming_utils:get_locally_registered_pid_for(
-		?us_main_home_automation_server_registration_name,
-		ActualTargetNodeName ),
+	app_facilities:display( "Will interact with the US-Main configuration ~w.",
+							[ MainSrvPid ] ),
 
-	app_facilities:display( "Will interact with the home automation server ~w.",
-							[ HomeAutoSrvPid ] ),
+	trace_utils:debug_fmt( "Executing action from tokens '~p'.", [ AllArgs ] ),
 
-	case Cmd of
+    % Now actions are managed on the US-Main side, notably as they may originate
+    % from various means (e.g. SMS).
 
-		"start_alarm" ->
-			handle_start_alarm( CmdArgs, HomeAutoSrvPid );
+    MainSrvPid ! { performActionFromTokens, [ AllArgs ], self() },
 
-		"stop_alarm" ->
-			handle_stop_alarm( CmdArgs, HomeAutoSrvPid );
+    receive
 
-		"is_alarm_active" ->
-			handle_is_alarm_active( CmdArgs, HomeAutoSrvPid );
+        { action_outcome, Outcome } ->
+            trace_utils:info_fmt( "Outcome of action: ~p", [ Outcome ] )
 
-		"is_present" ->
-			handle_is_present( CmdArgs, HomeAutoSrvPid );
-
-		"declare_present" ->
-			handle_declare_present( CmdArgs, HomeAutoSrvPid );
-
-		"declare_not_present" ->
-			handle_declare_not_present( CmdArgs, HomeAutoSrvPid );
-
-		"start_lighting" ->
-			handle_start_lighting( CmdArgs, HomeAutoSrvPid );
-
-		"stop_lighting" ->
-			handle_stop_lighting( CmdArgs, HomeAutoSrvPid );
-
-		Other ->
-			throw( { unsupported_command, Other, CmdArgs } )
-
-	end,
+    end,
 
 	%timer:sleep( 2000 ),
 
-	us_main_client:teardown().
-
-
-
-
-% Section for command implementations.
-
-
-%% Presence-related subsection.
-
-handle_is_present( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { getPresenceStatus, [], self() },
-
-	receive
-
-		{ wooper_result, IsPresent } ->
-			app_facilities:display( "Presence at home: ~ts.", [ IsPresent ] )
-
-	end;
-
-handle_is_present( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-handle_declare_present( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { setPresenceStatus, true };
-
-handle_declare_present( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-handle_declare_not_present( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { setPresenceStatus, false };
-
-handle_declare_not_present( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-
-%% Alarm-related subsection.
-
-handle_is_alarm_active( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { getAlarmStatus, [], self() },
-
-	receive
-
-		{ wooper_result, IsAlarmActive } ->
-			app_facilities:display( "Is alarm active: ~ts.", [ IsAlarmActive ] )
-
-	end;
-
-handle_is_alarm_active( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-handle_start_alarm( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { setAlarmStatus, true };
-
-handle_start_alarm( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-handle_stop_alarm( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! { setAlarmStatus, false };
-
-handle_stop_alarm( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-
-%% Lighting-related subsection.
-
-handle_start_lighting( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! startLighting;
-
-handle_start_lighting( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
-
-
-handle_stop_lighting( _CmdArgs=[], HomeAutoSrvPid ) ->
-	HomeAutoSrvPid ! stopLighting;
-
-handle_stop_lighting( CmdArgs, _HomeAutoSrvPid ) ->
-	throw( { unexpected_arguments, CmdArgs } ).
+	us_client:teardown().

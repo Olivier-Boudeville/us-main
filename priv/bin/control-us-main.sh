@@ -1,168 +1,21 @@
 #!/bin/sh
 
-# A script to control a remote US-Main instance.
+# A script to control a (possibly remote) US-Main instance.
 
-# The default US-Main configuration file *for remote access*:
-um_cfg_filename="us-main-remote-access.config"
+usage="Usage: $(basename $0) [-h|--help] US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME ACTION [ACTION_ARGS]: controls the target US-Main instance (possibly running on a remote host), based on the specified configuration filename, looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified action (possibly with arguments).
 
+Use the 'help' action to list all available ones.
 
-
-# Presence-related options:
-
-# If at home:
-declare_presence_opt="declare_present"
-
-# If away:
-declare_absence_opt="declare_not_present"
-
-get_presence_opt="is_present"
-
-
-# Lighting-related options:
-
-start_lighting_opt="start_lighting"
-stop_lighting_opt="stop_lighting"
-
-
-# Alarm-related options:
-
-# Activate it (beware!):
-start_alarm_opt="start_alarm"
-stop_alarm_opt="stop_alarm"
-
-get_alarm_opt="is_alarm_active"
-
-
-
-
-
-
-usage="Usage: $(basename $0) [-h|--help] [US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME] COMMAND [CMD_ARGS]: controls the target US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified command (possibly with arguments).
-
-Supported commands:
-
- - regarding alarm:
-	* ${start_alarm_opt}: starts the alarm (siren)
-	* ${stop_alarm_opt}: stops the alarm
-	* ${get_alarm_opt}: tells whether the alarm is currently activated (hence wit a roaring siren)
-
- - regarding presence:
-	* ${declare_presence_opt}: declares that somebody is at home (hence for example deactivate alarm)
-	* ${declare_absence_opt}: declares that nobody is at home (hence for example activate alarm)
-	* ${get_presence_opt}: tells whether US-Main considers that somebody is at home
-
- - regarding (presence-related) lighting:
-	* ${start_lighting_opt}: starts all registered presence lighting
-	* ${stop_lighting_opt}: stops all registered presence lighting
-
-Example of use: './$(basename $0) us-main-remote-access-for-development.config stop_alarm ', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
+Example of use: './$(basename $0) us-main-remote-access-for-development.config switch_on tv_plug', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
 
 # So we are not looking up configuration files such as us.config (that regards
-# US applications to be hosted locally), but ones for the remote access to such
-# applications.
+# US applications to be launched locally), but ones for the remote access to
+# such applications.
 
-
-
-# Function needed for recursion.
-#
-# First argument expected to be set in the 'cmd' variable and shifted.
-parse_arguments()
-{
-
-	#echo "Examining argument '${cmd}' (received args: '$*')."
-
-	case ${cmd} in
-
-		${declare_presence_opt}) #echo "Declare presence"
-								 args="$*"
-								 if [ -n "${args}" ]; then
-									 echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-									 exit 50
-								 fi
-								 ;;
-
-		${declare_absence_opt}) args="$*"
-								if [ -n "${args}" ]; then
-									echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-									exit 51
-								fi
-								;;
-
-		${get_presence_opt}) args="$*"
-							 if [ -n "${args}" ]; then
-								 echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-								 exit 52
-							 fi
-							 ;;
-
-
-		${start_alarm_opt}) args="$*"
-							if [ -n "${args}" ]; then
-								echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-								exit 53
-							fi
-							;;
-
-
-		${stop_alarm_opt}) args="$*"
-						   if [ -n "${args}" ]; then
-							   echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-							   exit 54
-						   fi
-						   ;;
-
-
-		${get_alarm_opt}) args="$*"
-						  if [ -n "${args}" ]; then
-							  echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-							  exit 55
-						  fi
-						  ;;
-
-		${start_lighting_opt}) args="$*"
-							if [ -n "${args}" ]; then
-								echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-								exit 56
-							fi
-							;;
-
-
-		${stop_lighting_opt}) args="$*"
-						   if [ -n "${args}" ]; then
-							   echo "  Error, the '${cmd}' command does not expect arguments.
-${usage}" 1>&2
-							   exit 57
-						   fi
-						   ;;
-
-		# Unknown command, supposedly a configuration file path:
-		*) um_cfg_filename="${cmd}"
-		   echo "US-Main Configuration file path set to '${um_cfg_filename}'."
-
-		   cmd="$1"
-
-		   if [ -n "${cmd}" ]; then
-			   shift
-		   fi
-
-		   #sleep 1
-		   all_args="$*"
-		   if [ -n "${all_args}" ]; then
-				parse_arguments ${all_args}
-		   fi
-		   ;;
-
-	esac
-
-}
+# A previous version checked the actions from this script; now that they have
+# been generically implemented in US-Common, this script just forwards the
+# action tokens as they are to the corresponding US server.
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -174,12 +27,11 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 
-# Unless it is a config path:
-cmd="$1"
+um_cfg_filename="$1"
 
-if [ -z "${cmd}" ]; then
+if [ -z "${um_cfg_filename}" ]; then
 
-	echo "  Error, no command specified.
+	echo "  Error, no US-Main configuration file specified.
 ${usage}" 1>&2
 
 	exit 5
@@ -188,11 +40,20 @@ fi
 
 shift
 
-parse_arguments $*
+
+full_action="$*"
+
+if [ -z "${full_action}" ]; then
+
+	echo "  Error, no action specified.
+${usage}" 1>&2
+
+	exit 10
+
+fi
 
 
-echo "Using command '${cmd}', with arguments '${args}' and configuration file '${um_cfg_filename}'."
-
+echo "Read configuration file '${um_cfg_filename}' and full action tokens '${full_action}'."
 
 
 # In priv/bin:
@@ -227,9 +88,10 @@ app_dir="${script_dir}/../../src/apps/"
 cd "${app_dir}"
 
 
-# Any argument(s) specified to this script shall be interpreted as a plain,
-# extra one:
-#
-#echo make -s us_main_monitor_exec CMD_LINE_OPT="${cmd} ${args} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
+# The (full) action shall be interpreted as a plain, extra one:
 
-make -s us_main_controller_exec CMD_LINE_OPT="${cmd} ${args} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
+echo make -s us_main_controller_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
+
+
+
+make -s us_main_controller_exec ${epmd_opt} CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie ${remote_vm_cookie}"

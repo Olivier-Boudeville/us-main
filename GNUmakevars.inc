@@ -51,14 +51,16 @@ endif
 #  - sensors: help the debugging of sensor management
 #  - home_automation: all information about the home automation service
 #  - presence_simulation: about specifically the presence simulation service
+#  - actions: about the actions that may be externally triggered on server
 #
 # Defining debug flags (at least the most verbose are by default commented-out):
 ifeq ($(ENABLE_DEBUG),true)
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
-	#US_MAIN_DEBUG_FLAGS += -Dus_main_debug_alarm
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_execution
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_sensors
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_home_automation
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_presence_simulation
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_alarm
+	US_MAIN_DEBUG_FLAGS += -Dus_main_debug_actions
 endif
 
 # Defining check flags:

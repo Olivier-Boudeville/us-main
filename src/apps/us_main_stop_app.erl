@@ -113,7 +113,7 @@ exec() ->
 	% ?app_stop_without_waiting_for_trace_supervisor() is not used either, as
 	% no aggregator was started from that test.
 
-	us_main_client:teardown().
+	us_client:teardown().
 
 
 

@@ -25,7 +25,7 @@
 Actual US-Main client-side **trace monitoring logic**, as a (Myriad)
 application.
 
-Typically called through the us_main/priv/bin/monitor-us-main.sh script.
+Typically called through the `us_main/priv/bin/monitor-us-main.sh` script.
 
 Designed to monitor a US-Main instance typically from any remote host able to
 connect to the VM hosting that instance.
@@ -52,8 +52,8 @@ exec() ->
 	%
 	erlang:process_flag( trap_exit, false ),
 
-
-	{ ActualTargetNodeName, Cfg, FinalArgTable } = us_main_client:setup(),
+	{ ActualTargetNodeName, CfgTable, FinalArgTable } =
+        us_client:setup( _ServerPrefix=us_main ),
 
 	list_table:is_empty( FinalArgTable ) orelse
 		throw( { unexpected_arguments,
@@ -73,7 +73,7 @@ exec() ->
 
 	%app_facilities:display( "Creating now a local trace listener." ),
 
-	TraceListenerPid = case us_main_client:get_tcp_port_range( Cfg ) of
+	TraceListenerPid = case us_client:get_tcp_port_range( CfgTable ) of
 
 		undefined ->
 			class_TraceListener:synchronous_new_link( AggregatorPid,
@@ -97,7 +97,7 @@ exec() ->
 
 	end,
 
-	us_main_client:teardown().
+	us_client:teardown().
 
 
 

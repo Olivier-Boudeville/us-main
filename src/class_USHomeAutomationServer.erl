@@ -120,7 +120,7 @@ Corresponds to chronologically-ordered intra-day (from midnight to midnight)
 time slots, or a constant policy, during which a presence shall be simulated.
 
 If slots are used, at least one shall be defined (otherwise one of the
-constant_* atoms shall be used).
+`constant_*` atoms shall be used).
 """.
 -type presence_program() :: [ presence_slot() ] % User-specified
 						  | 'default_program'
@@ -161,7 +161,6 @@ of simulated presence.
 
 
 
-
 -doc """
 User-specified settings regarding the presence simulations to run.
 """.
@@ -197,13 +196,6 @@ is obtained by pushing the other button of the rocker.
 
 	% Smart lighting and random activity enabled, with default settings:
   | { presence_program(), TargetedPscActuators :: [ emitted_event_spec() ] }.
-
-
-%-type canon_psc_simu_user_settings() ::
-%	{ presence_program(),
-%	  TargetedPscActuators :: [ canon_emitted_event_spec() ],
-%	  SmartLighting :: boolean(),
-%	  random_activity_settings() }.
 
 
 
@@ -278,7 +270,7 @@ Time equation table, to correct sunrise/sunset times based on day rank.
 
 A simpler indexed list would have been sufficient.
 
-See also <https://en.wikipedia.org/wiki/Equation_of_time>.
+See also [https://en.wikipedia.org/wiki/Equation_of_time].
 """.
 -type time_equation_table() :: table( day_in_the_year(), decimal_hour() ).
 
@@ -368,7 +360,7 @@ See also <https://en.wikipedia.org/wiki/Equation_of_time>.
 -doc """
 Internal information regarding an instance of presence simulation.
 
-Counterpart of the user-level psc_sim_setting().
+Counterpart of the user-level `psc_sim_setting/0`.
 """.
 -type presence_simulation() :: #presence_simulation{}.
 
@@ -468,6 +460,7 @@ events.
 	AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
 	PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
 	presence_simulation_user_settings(),
+    HAActionSpecs :: [ user_action_spec() ],
 	oceanic_settings() }.
 
 
@@ -480,11 +473,12 @@ Full settings gathered regarding the home automation server.
 	ServerLocation :: option( user_server_location() ),
 	BinAppBaseDirectoryPath :: bin_directory_path(),
 
-	% Like home_automation_core_settings():
+	% Same as home_automation_core_settings():
 	AlarmTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
 	AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
 	PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
 	presence_simulation_user_settings(),
+    HAActionSpecs :: [ user_action_spec() ],
 	oceanic_settings() }.
 
 
@@ -556,6 +550,11 @@ Full settings gathered regarding the home automation server.
 -define( us_main_presence_settings_key, presence_simulation_settings ).
 
 
+% The settings of the automated actions that shall be supported for home
+% automation:
+%
+-define( us_main_home_automation_actions_key, home_automation_action_settings ).
+
 % All known, licit (top-level) keys for the Oceanic configuration information
 % (preferred to be read directly from the US-Main configuration file rather than
 % from a separate Myriad preferences file):
@@ -586,8 +585,8 @@ Full settings gathered regarding the home automation server.
 -type second_duration() :: time_utils:second_duration().
 -type day_in_the_year() :: time_utils:day_in_the_year().
 
+-type extended_timestamp() :: unit_utils:extended_timestamp().
 -type milliseconds() :: unit_utils:milliseconds().
-
 
 -type trace_severity() :: trace_utils:trace_severity().
 -type trace_message() :: trace_utils: trace_message().
@@ -596,6 +595,8 @@ Full settings gathered regarding the home automation server.
 -type trace_values() :: text_utils:trace_values().
 
 -type scheduler_pid() :: class_USScheduler:scheduler_pid().
+-type user_periodicity() :: class_USScheduler:user_periodicity().
+-type schedule_count() ::  class_USScheduler:schedule_count().
 -type task_id() :: class_USScheduler:task_id().
 
 -type position() :: unit_utils:position().
@@ -604,17 +605,17 @@ Full settings gathered regarding the home automation server.
 
 -type oceanic_server_pid() :: oceanic:oceanic_server_pid().
 -type device_name() :: oceanic:device_name().
+-type user_device_designator()  :: oceanic:user_device_designator().
 -type device_description() :: oceanic:device_description().
 -type device_event() :: oceanic:device_event().
--type device_event_type() :: oceanic: device_event_type().
-
+-type device_event_type() :: oceanic:device_event_type().
+-type device_operation() :: oceanic:device_operation().
 -type back_online_info() :: oceanic:back_online_info().
 -type eurid_string() :: oceanic:eurid_string().
 -type eurid() :: oceanic:eurid().
 -type telegram() :: oceanic:telegram().
 -type eep_id() :: oceanic:eep_id().
-%-type trigger_track_spec() :: oceanic:trigger_track_spec().
-%-type canon_incoming_trigger_spec() :: oceanic:canon_incoming_trigger_spec().
+
 -type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
 -type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
 -type emitted_event_spec() :: oceanic:emitted_event_spec().
@@ -623,6 +624,8 @@ Full settings gathered regarding the home automation server.
 -type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
 -type user_server_location() :: class_USMainConfigServer:user_server_location().
 
+-type user_action_spec() :: us_action:user_action_spec().
+-type action_outcome() :: us_action:action_outcome().
 
 
 % The class-specific attributes:
@@ -825,7 +828,7 @@ Full settings gathered regarding the home automation server.
 Starts and links a supervision bridge for the home automation system.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
 -spec start_link() -> term().
@@ -843,7 +846,7 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 above being executed.
+`start_link/0` above being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() } | 'ignore'
 					  | { 'error', Error :: term() }.
@@ -1004,7 +1007,8 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 	%
 	{ MaybeUserSrvLoc, BinAppBaseDirectoryPath,
 	  AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
-	  PscTriggerListenEvSpecs, ConfPscSimUSettings, OcSettings } = receive
+	  PscTriggerListenEvSpecs, ConfPscSimUSettings, _HAActionSettings,
+      OcSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
 			HomeAutoMatSettings
@@ -1068,8 +1072,10 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
+    % FIXME already done
+    %ActionState = init_automated_actions( HAActionSettings, AlarmState ),
 
-	% Sooner:
+    % To read all oceanic_* configuration keys:
 	MaybeOcSrvPid =:= undefined orelse
 		oceanic:add_configuration_settings( OcSettings, MaybeOcSrvPid ),
 
@@ -1170,11 +1176,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 
 
--doc """
-Initialises the alarm system.
-
-(helper)
-""".
+-doc "Initialises the alarm system.".
 -spec init_alarm( [ canon_listened_event_spec() ],
 		[ canon_emitted_event_spec() ], option( oceanic_server_pid() ),
 		wooper:state() ) -> wooper:state().
@@ -2214,6 +2216,22 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 	end.
 
 
+%% -doc "Initialises the automated actions for home automation.".
+%% -spec init_automated_actions( [ user_action_spec() ], wooper:state() ) ->
+%%                                                 wooper:state().
+%% init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
+
+%%     RegActTable = us_action:register_action_specs( UserActSpecs,
+%%                                                    ?getAttr(action_table) ),
+
+%%     setAttribute( State, action_table, RegActTable );
+
+%% init_automated_actions( Other, State ) ->
+%%     ?error_fmt( "Invalid automated actions for home automation "
+%%                 "(not a list): ~p.", [ Other ] ),
+
+%%     throw( { invalid_home_automation_actions, Other, not_list } ).
+
 
 -doc """
 Ensures that the lighting is on for this presence simulation.
@@ -2851,7 +2869,7 @@ ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
 Returns the relevent celestial times, once computed if necessary.
 
 If defined, celestial times are expected to be correct (deprecated times shall
-have been set to 'undefined').
+have been set to `undefined`).
 """.
 -spec get_celestial_info( option( celestial_info() ), wooper:state() ) ->
 								celestial_info().
@@ -2863,11 +2881,7 @@ get_celestial_info( CelestialTimes, _State ) ->
 
 
 
--doc """
-Computes (if possible) the actual dawn/dusk times.
-
-(helper)
-""".
+-doc "Computes (if possible) the actual dawn/dusk times.".
 -spec resolve_logical_milestones( option( position() ), wooper:state() ) ->
 									celestial_info().
 resolve_logical_milestones( _MaybeSrvLoc=undefined, State ) ->
@@ -3151,7 +3165,7 @@ updatePresenceSimulation( State, PscId ) ->
 Called whenever having to update presence programs, typically at midnight for
 this new day.
 
-See also the midnight_task_id attribute.
+See also the `midnight_task_id` attribute.
 """.
 -spec updatePresencePrograms( wooper:state() ) -> oneway_return().
 updatePresencePrograms( State ) ->
@@ -3237,7 +3251,7 @@ stopAlarmScheduled( State ) ->
 -doc """
 Called whenever having to monitor Oceanic (typically periodically).
 
-See also the oceanic_monitor_task_id attribute.
+See also the `oceanic_monitor_task_id` attribute.
 """.
 -spec monitorOceanic( wooper:state() ) -> const_oneway_return().
 monitorOceanic( State ) ->
@@ -3779,7 +3793,7 @@ getAlarmStatus( State ) ->
 -doc """
 Sets whether the alarm shall be active.
 
-Direct order, bypasses any restriction (notably ignores the alarm_inhibited
+Direct order, bypasses any restriction (notably ignores the `alarm_inhibited`
 attribute).
 """.
 -spec setAlarmStatus( wooper:state(), boolean() ) -> oneway_return().
@@ -4346,7 +4360,7 @@ get_home_automation_server() ->
 
 	OcSrvPid = naming_utils:wait_for_registration_of(
 		?us_main_home_automation_server_registration_name,
-		naming_utils:registration_to_look_up_scope(
+		naming_utils:registration_to_lookup_scope(
 			?us_main_home_automation_server_registration_scope ) ),
 
 	wooper:return_static( OcSrvPid ).
@@ -4357,6 +4371,75 @@ get_home_automation_server() ->
 %
 % Typically called by the US-Main configuration server.
 
+
+
+
+% Section dedicated to the implementation of actions.
+
+
+
+-doc """
+Request typically triggered by user-defined actions that consists in triggering
+an operation on a device periodically.
+
+This is a request, as actions only trigger such methods, for synchronisation.
+""".
+-spec schedulePeriodicalActionOnDevice( wooper:state(),
+    user_device_designator(), device_operation(), extended_timestamp(),
+    user_periodicity(), schedule_count() ) ->
+            const_request_return( action_outcome() ).
+schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
+                                  DHMSPeriodicity, SchedCount ) ->
+
+    cond_utils:if_defined( us_main_action, ?debug_fmt( "Scheduling a "
+        "periodical '~ts' operation on device designated by ~w, "
+        "starting from ~w, for a DHMS periodicity of ~w and "
+        "a schedule count of ~w.",
+        [ DevOp, UserDevDesig, StartExtTimestamp, DHMSPeriodicity,
+          SchedCount ] ) ),
+
+    oceanic:check_device_operation( DevOp ),
+
+    DevDesig = oceanic:get_internal_device_designator( UserDevDesig ),
+
+    DeviceAction = { DevOp, DevDesig },
+
+    % The oneway that will be triggered by the scheduler onto the Oceanic
+    % server:
+    %
+    UserTaskCommand = { performAction, DeviceAction },
+
+
+    % For example to translate {next_possible_day, {19,54,0}} and avoid
+    % requesting a start in the past:
+    %
+    StartTimestamp = time_utils:resolve_timestamp( StartExtTimestamp ),
+
+    SchedPid = ?getAttr(scheduler_pid),
+
+    SchedPid ! { registerTask, [ UserTaskCommand, StartTimestamp,
+        _UserPeriodicity=DHMSPeriodicity, SchedCount,
+        _UserActPid=?getAttr(oc_srv_pid) ] },
+
+    Res = receive
+
+        % Surprising:
+        { wooper_result, task_done } ->
+            cond_utils:if_defined( us_main_action,
+                ?debug( "Periodical device action already done." ) ),
+            task_done;
+
+
+        { wooper_result, { task_registered, TaskId } } ->
+            cond_utils:if_defined( us_main_action, ?debug_fmt(
+                "Periodical device action registered as task #~B.",
+                [ TaskId ] ) ),
+            wooper:const_return_result( { success, task_done } ),
+            TaskId
+
+    end,
+
+    wooper:const_return_result( { success, Res } ).
 
 
 
@@ -4376,8 +4459,8 @@ Returns the known home automation-related keys in US-Main configuration files.
 get_licit_config_keys() ->
 	[ ?us_main_server_location_key,
 	  ?us_main_alarm_triggers_key, ?us_main_alarm_actuators_key,
-	  ?us_main_presence_triggers_key, ?us_main_presence_settings_key ]
-		++ ?supported_oceanic_config_keys.
+	  ?us_main_presence_triggers_key, ?us_main_presence_settings_key,
+      ?us_main_home_automation_actions_key ] ++ ?supported_oceanic_config_keys.
 
 
 
@@ -4537,15 +4620,30 @@ manage_configuration( ConfigTable, State ) ->
 
 	end,
 
+	HAActionSettings = case table:lookup_entry(
+            ?us_main_home_automation_actions_key, ConfigTable ) of
+
+		key_not_found ->
+			?info( "No action settings defined for home automation." ),
+			[];
+
+
+		{ value, HAActSettings } ->
+            % Checked later directly by this home automation server:
+            HAActSettings
+
+	end,
+
 	% Fetching any Oceanic-related settings:
 	{ OcSettings, _SkrunkCfgTable } = table:extract_entries_if_existing(
 		_OcKeys=?supported_oceanic_config_keys, ConfigTable ),
 
 	% Not specifically checked at this level; will be done by the home
-	% automation server:
+	% automation server (not the configuration server):
 	%
 	HACoreSettings = { AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
-		PscTriggerListenEvSpecs, SetPscUSimSettings, OcSettings },
+		PscTriggerListenEvSpecs, SetPscUSimSettings, HAActionSettings,
+        OcSettings },
 
 	setAttributes( State, [
 		{ server_location, MaybePosition },
@@ -4768,14 +4866,17 @@ to_string( State ) ->
 
 	end,
 
+    ActStr = us_action:action_table_to_string( ?getAttr(action_table) ),
+
 	text_utils:format( "US home automation server ~ts, using the US-Main "
 		"configuration server ~w, the scheduler ~w and the communication "
 		"gateway ~w, ~ts, ~ts, and that the alarm ~ts~n"
         "The presence simulator is currently ~ts, knowing that ~ts~n~ts.~n~n"
+        "This server has ~ts."
         "This server is currently ~ts~n~n",
 		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
 		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, AlarmStr,
-		  PscStr, PscSwitchStr, MidTaskStr,
+		  PscStr, PscSwitchStr, MidTaskStr, ActStr,
           device_table_to_string( ?getAttr(device_table) ) ] ).
 
 

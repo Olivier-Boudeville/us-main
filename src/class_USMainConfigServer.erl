@@ -67,17 +67,12 @@ framework.
 	{ LatDegrees :: float(), LongDegrees :: float() }.
 
 
--doc "A table holding US-Main configuration information.".
--type us_main_config_table() :: table( atom(), term() ).
-
-
 
 % For default_us_main_config_server_registration_name:
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0, user_server_location/0,
-			   us_main_config_table/0 ]).
+-export_type([ general_main_settings/0, user_server_location/0 ]).
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -93,7 +88,7 @@ framework.
 
 -define( us_main_epmd_port_key, epmd_port ).
 
-% The default registration name of the US-Main server:
+% The key to define any specific registration name for this US-Main server:
 -define( us_main_config_server_registration_name_key,
 		 us_main_config_server_registration_name ).
 
@@ -103,6 +98,9 @@ framework.
 -define( us_main_log_dir_key, us_main_log_dir ).
 
 
+% For us_common_actions_key:
+-include("class_USServer.hrl").
+
 
 % All known, licit (top-level) base keys for the US-Main configuration file:
 % (other keys are in their respective server classes)
@@ -110,7 +108,7 @@ framework.
 -define( known_us_main_config_keys, [ ?us_main_epmd_port_key,
 	?us_main_config_server_registration_name_key,
 	?us_main_username_key, ?us_main_app_base_dir_key,
-	?us_main_data_dir_key, ?us_main_log_dir_key ] ).
+	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_actions_key ] ).
 
 
 
@@ -172,6 +170,7 @@ framework.
 
 
 -type server_pid() :: class_USServer:server_pid().
+-type config_table() :: class_USServer:config_table().
 
 -type user_muted_sensor_points() ::
 	class_USSensorManager:user_muted_sensor_points().
@@ -246,7 +245,11 @@ framework.
 	  logs shall be written, notably traces" },
 
 	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
-	  "(as absolute paths), whence contact information may be read" } ] ).
+	  "(as absolute paths), whence contact information may be read" }
+
+    % (action_table and all inherited for class_USServer)
+
+                           ] ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -279,9 +282,8 @@ framework.
 Starts and links a supervision bridge for the US-Main configuration server.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
-
 """.
 -spec start_link( supervisor_pid(), application_run_context() ) -> term().
 start_link( SupervisorPid, AppRunContext ) ->
@@ -297,7 +299,7 @@ start_link( SupervisorPid, AppRunContext ) ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/2 above being executed.
+`start_link/2` above being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
@@ -337,8 +339,8 @@ terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
 -doc """
 Constructs the US-Main configuration server.
 
-SupervisorPid is the PID of the main US-Main OTP supervisor, and AppRunContext
-tells how US-Web is being run.
+`SupervisorPid `is the PID of the main US-Main OTP supervisor, and
+`AppRunContext` tells how US-Web is being run.
 """.
 -spec construct( wooper:state(), supervisor_pid(),
 				 application_run_context() ) -> wooper:state().
@@ -415,16 +417,16 @@ destruct( State ) ->
 
 
 -doc """
-Returns basic, general main configuration settings (typically for the us_main
+Returns basic, general main configuration settings (typically for the US-Main
 supervisor).
 """.
 -spec getMainConfigSettings( wooper:state() ) ->
 								const_request_return( general_main_settings() ).
 getMainConfigSettings( State ) ->
 
-	% TODO.
+	% (not used currently).
 
-	GenMainSettings = #general_main_settings{ },
+	GenMainSettings = #general_main_settings{},
 
 	?debug_fmt( "Returning the general main configuration settings:~n  ~p",
 				[ GenMainSettings ] ),
@@ -469,6 +471,8 @@ getContactSettings( State ) ->
 
 	wooper:const_return_result( ContactSettings ).
 
+
+% performActionFromTokens/2 is inherited from class_USServer.
 
 
 -doc "Callback triggered whenever a linked process exits.".
@@ -532,7 +536,7 @@ get_us_main_config_server() ->
 
 	CfgRegName = ?default_us_main_config_server_registration_name,
 
-	CfgLookupScope = naming_utils:registration_to_look_up_scope(
+	CfgLookupScope = naming_utils:registration_to_lookup_scope(
 		?default_us_main_config_server_registration_scope ),
 
 	CfgPid = naming_utils:wait_for_registration_of( CfgRegName,
@@ -655,7 +659,7 @@ load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined, State ) ->
 load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	MainCfgFilePath = file_utils:ensure_path_is_absolute( BinMainCfgFilename,
-												_BasePath=BinCfgBaseDir ),
+		_BasePath=BinCfgBaseDir ),
 
 	case file_utils:is_existing_file_or_link( MainCfgFilePath ) of
 
@@ -682,7 +686,9 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	?debug_fmt( "Read main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
 
-	EpmdState = manage_epmd_port( MainCfgTable, State ),
+    ActState = manage_automated_actions( MainCfgTable, State ),
+
+	EpmdState = manage_epmd_port( MainCfgTable, ActState ),
 
 	RegState = manage_registrations( MainCfgTable, EpmdState ),
 
@@ -703,8 +709,12 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	AutomatState = class_USHomeAutomationServer:manage_configuration(
 		MainCfgTable, SensorState ),
 
-	FinalState = AutomatState,
+    % Once devices are known:
+    ActionState = manage_automated_actions( MainCfgTable, AutomatState ),
 
+	FinalState = ActionState,
+
+    % US-Main also has its own key for (non home-automation) actions:
 	LicitKeys = ?known_us_main_config_keys
 		++ class_USContactDirectory:get_licit_config_keys()
 		++ class_USSensorManager:get_licit_config_keys()
@@ -718,7 +728,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 		UnexpectedKeys ->
 
-			?error_fmt( "Unknown key(s) in '~ts': ~ts~nLicit keys: ~ts",
+			?error_fmt( "Unknown key(s) in '~ts': ~ts~nLicit keys are: ~ts",
 				[ MainCfgFilePath, text_utils:terms_to_string( UnexpectedKeys ),
 				  text_utils:terms_to_string( LicitKeys ) ] ),
 
@@ -730,14 +740,24 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 -doc """
+Manages any US-Main level user-configured, general-purpose (as opposed to, for
+example, home-automation ones) automated actions.
+""".
+-spec manage_automated_actions( config_table(), wooper:state() ) ->
+                                            wooper:state().
+manage_automated_actions( ConfigTable, State ) ->
+    executeOneway( State, integrateAutomatedActions, [ ConfigTable ] ).
+
+
+
+-doc """
 Manages any US-Main level user-configured EPMD port.
 
 The port may be already set at the US overall level, but it can be overridden on
 a per-US application basis, as it may be convenient to share one's us.config
 between multiple applications (e.g. US-Main and US-Web).
 """.
--spec manage_epmd_port( us_main_config_table(), wooper:state() ) ->
-										wooper:state().
+-spec manage_epmd_port( config_table(), wooper:state() ) -> wooper:state().
 manage_epmd_port( ConfigTable, State ) ->
 
 	% No simple, integrated way of checking the actual port currently in use:
@@ -784,8 +804,7 @@ manage_epmd_port( ConfigTable, State ) ->
 Manages any user-configured registration names for this instance, for the
 US-Main server and their related services, which may be created here.
 """.
--spec manage_registrations( us_main_config_table(), wooper:state() ) ->
-									wooper:state().
+-spec manage_registrations( config_table(), wooper:state() ) -> wooper:state().
 manage_registrations( _ConfigTable, State ) ->
 
 	% As multiple US-Main may coexist, local name registration is preferred; and
@@ -811,8 +830,7 @@ manage_registrations( _ConfigTable, State ) ->
 Manages any user-configured specification regarding the (operating-system level)
 US-Main user.
 """.
--spec manage_os_user( us_main_config_table(), wooper:state() ) ->
-									wooper:state().
+-spec manage_os_user( config_table(), wooper:state() ) -> wooper:state().
 manage_os_user( ConfigTable, State ) ->
 
 	% Mostly used by start/stop/kill scripts:
@@ -860,7 +878,7 @@ manage_os_user( ConfigTable, State ) ->
 Manages any user-configured application base directory, and sets related
 directories.
 """.
--spec manage_app_base_directories( us_main_config_table(), wooper:state() ) ->
+-spec manage_app_base_directories( config_table(), wooper:state() ) ->
 										wooper:state().
 manage_app_base_directories( ConfigTable, State ) ->
 
@@ -1087,8 +1105,7 @@ guess_app_dir( AppRunContext, State ) ->
 -doc """
 Manages any user-configured data directory to rely on, creating it if necessary.
 """.
--spec manage_data_directory( us_main_config_table(), wooper:state() ) ->
-									wooper:state().
+-spec manage_data_directory( config_table(), wooper:state() ) -> wooper:state().
 manage_data_directory( ConfigTable, State ) ->
 
 	BaseDir = case table:lookup_entry( ?us_main_data_dir_key, ConfigTable ) of
@@ -1163,8 +1180,7 @@ manage_data_directory( ConfigTable, State ) ->
 -doc """
 Manages any user-configured log directory to rely on, creating it if necessary.
 """.
--spec manage_log_directory( us_main_config_table(), wooper:state() ) ->
-								wooper:state().
+-spec manage_log_directory( config_table(), wooper:state() ) -> wooper:state().
 manage_log_directory( ConfigTable, State ) ->
 
 	% Longer paths if defined as relative, yet finally preferred as

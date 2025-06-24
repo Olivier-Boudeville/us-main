@@ -272,7 +272,7 @@ get_communication_gateway() ->
 
 	GatewayPid = naming_utils:wait_for_registration_of(
 		?us_main_communication_server_registration_name,
-		naming_utils:registration_to_look_up_scope(
+		naming_utils:registration_to_lookup_scope(
 			?us_main_communication_server_registration_scope ) ),
 
 	wooper:return_static( GatewayPid ).
