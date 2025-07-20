@@ -49,6 +49,7 @@ thanks to Ceylan-Oceanic.
 % (https://github.com/Olivier-Boudeville/erlang-serial).
 
 
+
 % This home automation server is designed to be able to integrate to an OTP
 % supervision tree thanks to a supervisor bridge, whose behaviour is directly
 % defined in this module. See https://wooper.esperide.org/#otp-guidelines for
@@ -1137,8 +1138,9 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		{ app_base_directory, BinAppBaseDirectoryPath },
 
 		% Expecting to be launching this server while being at home:
-		{ actual_presence, true },
-
+		%{ actual_presence, true },
+		% If ever needing to force an initial away status:
+        { actual_presence, false },
 
 		{ device_table, table:new() } ] ),
 
@@ -1447,9 +1449,9 @@ init_presence_simulation( _PresenceSimSettings=[
 		smart_lighting=DoSmartLighting,
 		random_activity=RandActivity },
 
-	% We sued to start from no light in all cases (regardless of initial state),
-	% yet this is a natural byproduct of the initial applying of presence
-	% simulations, hence the following is commented out:
+	% We used to start from no light in all cases (regardless of the initial
+	% state), yet this is a natural byproduct of the initial applying of
+	% presence simulations, hence the following is commented out:
     %
     %send_psc_trace( info, "Ensuring that initially no lighting is done.",
     %                State ),
@@ -1659,7 +1661,7 @@ randomise_slots( _Slots=[ { Start, Stop } | T ], MeanLightDuration,
 		StdDevLightDur, MinNoLightDur, MaxNoLightDur, _AccSlots=[] ),
 
 	randomise_slots( T, MeanLightDuration, StdDevLightDur, MinNoLightDur,
-					   MaxNoLightDur, RevSubSlots ++ Acc ).
+                     MaxNoLightDur, RevSubSlots ++ Acc ).
 
 
 
@@ -4747,7 +4749,7 @@ to_string( State ) ->
 			"with no location defined";
 
 		{ Lat, Long } ->
-			% Degrees as raw floats rather than wtih °, minutes and al:
+			% Degrees as raw floats rather than with °, minutes and al:
 			text_utils:format( "located at latitude ~f degrees and "
 				"longitude ~f degrees", [ Lat, Long ] )
 
@@ -4759,7 +4761,7 @@ to_string( State ) ->
 		true ->
 			"someone";
 
-		famse ->
+		false ->
 			"nobody"
 
 	end ++ " is at home",

@@ -63,20 +63,24 @@ exec() ->
     MainSrvPid = naming_utils:get_registered_pid_from( UMLookupInfo,
                                                        ActualTargetNodeName ),
 
-	app_facilities:display( "Will interact with the US-Main configuration ~w.",
-							[ MainSrvPid ] ),
+    BinTokens = text_utils:strings_to_binaries( AllArgs ),
 
-	trace_utils:debug_fmt( "Executing action from tokens '~p'.", [ AllArgs ] ),
+	app_facilities:display( "Will interact with the US-Main server obtained "
+        "based on a ~ts: ~w, so that it executes action from tokens '~p'.",
+        [ naming_utils:lookup_info_to_string( UMLookupInfo ), MainSrvPid,
+          BinTokens ] ),
+
 
     % Now actions are managed on the US-Main side, notably as they may originate
     % from various means (e.g. SMS).
 
-    MainSrvPid ! { performActionFromTokens, [ AllArgs ], self() },
+    MainSrvPid ! { performActionFromTokens, [ BinTokens ], self() },
 
     receive
 
-        { action_outcome, Outcome } ->
-            trace_utils:info_fmt( "Outcome of action: ~p", [ Outcome ] )
+        { wooper_result, { action_outcome, Outcome } } ->
+            trace_utils:info_fmt( "Outcome of triggered action: ~p",
+                                  [ Outcome ] )
 
     end,
 
