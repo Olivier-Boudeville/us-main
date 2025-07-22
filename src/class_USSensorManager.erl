@@ -1022,7 +1022,7 @@ construct( State, SensorOutputFilePath ) ->
 	% Mostly bogus manager having some bogus (undefined) attributes:
 	InitState = setAttributes( SrvState, [
 		{ sensor_monitoring, false },
-		{ sensor_exec_pair, get_sensor_execution_pair( State ) },
+		{ sensor_exec_pair, get_sensor_execution_pair( ParserState ) },
 		{ parser_state, ParserState },
 		{ us_config_server_pid, undefined },
 		{ scheduler_pid, undefined },
