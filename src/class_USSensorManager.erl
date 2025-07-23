@@ -1016,14 +1016,15 @@ construct( State, SensorOutputFilePath ) ->
 		?us_main_sensor_server_registration_name,
 		?us_main_sensor_server_registration_scope ),
 
-	% Internal state of the JSON parser:
-	ParserState = initialise_json_support( SrvState ),
+	% Internal state of the JSON parser (not of this manager):
+	JSONParserState = initialise_json_support( SrvState ),
 
 	% Mostly bogus manager having some bogus (undefined) attributes:
+    % (no, state management is fine)
 	InitState = setAttributes( SrvState, [
 		{ sensor_monitoring, false },
-		{ sensor_exec_pair, get_sensor_execution_pair( ParserState ) },
-		{ parser_state, ParserState },
+		{ sensor_exec_pair, get_sensor_execution_pair( SrvState ) },
+		{ parser_state, JSONParserState },
 		{ us_config_server_pid, undefined },
 		{ scheduler_pid, undefined },
 		{ task_id, undefined },
