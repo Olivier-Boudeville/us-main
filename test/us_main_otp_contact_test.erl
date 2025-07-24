@@ -22,7 +22,7 @@
 -module(us_main_otp_contact_test).
 
 -moduledoc """
-Module in charge of the testing of the **US-Main contact services**>.
+Module in charge of the testing of the **US-Main contact services**.
 """.
 
 
@@ -102,7 +102,7 @@ test_us_main_contact_management( OrderedAppNames ) ->
 
 	receive
 
-		{'EXIT', ContactDirectoryPid, normal } ->
+		{ 'EXIT', ContactDirectoryPid, normal } ->
 			ok
 
 	end,
@@ -118,10 +118,10 @@ test_us_main_contact_management( OrderedAppNames ) ->
 -doc """
 Runs the tests.
 
-Note that the {us_main, us_common, mobile, seaplus, traces, wooper, myriad}.app
-files will have to be found and used for this test to succeed: US-Main,
-US-Common, Mobile, Seaplus, Traces, WOOPER and Myriad must be already available
-as prerequisite, fully-built OTP applications.
+Note that the `{us_main, us_common, mobile, seaplus, traces, wooper,
+myriad}.app` files will have to be found and used for this test to succeed:
+US-Main, US-Common, Mobile, Seaplus, Traces, WOOPER and Myriad must be already
+available as prerequisite, fully-built OTP applications.
 """.
 -spec run() -> no_return().
 run() ->
