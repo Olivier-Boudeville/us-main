@@ -85,7 +85,7 @@ The US-Main installation itself will be looked up relatively to this script, oth
 
 Example: '$0 /opt/test/universal-server' is to read /opt/test/universal-server/us.config.
 
-The ${kill_prior_opt} option allows killing any previous US-Main instance (useful with systemctl, with which a possibly lingering one may reported by EPMD).
+The ${kill_prior_opt} option allows killing any previous US-Main instance (useful with systemctl, with which a possibly lingering one may be reported by EPMD).
 
 This script must be run as root."
 
