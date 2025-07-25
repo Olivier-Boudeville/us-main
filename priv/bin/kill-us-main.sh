@@ -1,6 +1,7 @@
 #!/bin/sh
 
-# A script to kill for sure a local US-Main instance.
+# A script to kill for sure a local US-Main instance (and, hopefully, only such
+# an instance).
 #
 # See also the {start,stop,control,monitor}-us-main.sh and get-us-main-status.sh
 # scripts.
@@ -123,7 +124,23 @@ read_us_main_config_file 1>/dev/null
 
 echo "Killing brutally (not stopping gracefully) any US-Main instance(s) found."
 
-to_kill="$(ps -edf | grep us_main | grep -v run_erl | grep -v $0 | grep -v grep | grep -v emacs | awk '{ print $2 }')"
+epmd_port_regexp='.*'
+
+# As may not be defined:
+if [ -n "${us_main_epmd_port}" ]; then
+
+	epmd_port_regexp="${us_main_epmd_port}"
+
+fi
+
+# Targeting as precisely as possible the instance:
+# (superfluous now: '| grep -v emacs')
+# (not wanting to catch for example us_main_monitor_app)
+to_kill="$(ps -edf | grep beam.smp | grep us_main_app | grep "${epmd_port_regexp}" | grep -v run_erl | grep -v $0 | grep -v grep | awk '{ print $2 }')"
+
+#to_kill_processes="$(ps -edf | grep beam.smp | grep us_main_app | grep "${epmd_port_regexp}" | grep -v run_erl | grep -v $0 | grep -v grep)"
+
+#echo "Will be killed: ${to_kill_processes}"
 
 
 if [ -n "${to_kill}" ]; then
@@ -190,5 +207,5 @@ fi
 sleep 1
 
 # At least this script:
-echo "Resulting US-Main processes found: $(ps -edf | grep us_main | grep -v grep)"
+echo "Resulting US-Main processes found, afterwards: $(ps -edf | grep us_main | grep -v grep)"
 echo "Resulting EPMD entries found: $(${epmd} -names)"
