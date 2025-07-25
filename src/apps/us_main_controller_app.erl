@@ -22,7 +22,8 @@
 -module(us_main_controller_app).
 
 -moduledoc """
-Actual US-Main client-side **controlling logic**, as a (Myriad) application.
+Actual US-Main client-side **controlling logic**, as a (Myriad) application, of
+any default US-Main server.
 
 Typically called through the `us_main/priv/bin/control-us-main.sh` script.
 
@@ -47,10 +48,15 @@ exec() ->
 	%
 	erlang:process_flag( trap_exit, false ),
 
-	{ ActualTargetNodeName, CfgTable, ArgTable } =
+	{ ActualTargetNodeName, _CfgTable, ArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
-    UMLookupInfo = us_client:get_config_server_info( CfgTable ),
+    % We do not want anymore a specific server to be entered, the US-Main
+    % configuration server is now the only relevant one, centralising the
+    % processing of the requested actions on behalf of all the US-Main
+    % thematical servers (e.g. the home automation one):
+    %
+    %UMLookupInfo = us_client:get_config_server_info( CfgTable ),
 
 	{ AllArgs, FinalArgTable } =
 		cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
@@ -59,15 +65,26 @@ exec() ->
 		throw( { unexpected_arguments,
 				 list_table:enumerate( FinalArgTable ) } ),
 
-	% The US-Main configuration server is expected to run on the target node:
-    MainSrvPid = naming_utils:get_registered_pid_from( UMLookupInfo,
+	% The US-Main configuration server is expected to run on the target node, so
+	% we cannot use class_USMainConfigServer:get_us_main_config_server/0 (as in
+	% the general case we are on a remote host):
+    %
+    %LookupInfo = UMLookupInfo,
+
+	CfgLookupScope = naming_utils:registration_to_lookup_scope(
+		?default_us_main_config_server_registration_scope ),
+
+    LookupInfo = { ?default_us_main_config_server_registration_name,
+                   CfgLookupScope },
+
+    MainSrvPid = naming_utils:get_registered_pid_from( LookupInfo,
                                                        ActualTargetNodeName ),
 
     BinTokens = text_utils:strings_to_binaries( AllArgs ),
 
-	app_facilities:display( "Will interact with the US-Main server obtained "
-        "based on a ~ts: ~w, so that it executes action from tokens '~p'.",
-        [ naming_utils:lookup_info_to_string( UMLookupInfo ), MainSrvPid,
+	app_facilities:display( "Will interact with the US-Main server resolved "
+        "through a ~ts: ~w, so that it executes action from tokens '~p'.",
+        [ naming_utils:lookup_info_to_string( LookupInfo ), MainSrvPid,
           BinTokens ] ),
 
 
@@ -78,12 +95,14 @@ exec() ->
 
     receive
 
-        { wooper_result, { action_outcome, Outcome } } ->
-            trace_utils:info_fmt( "Outcome of triggered action: ~p",
-                                  [ Outcome ] )
+        { wooper_result, { action_outcome, { success, Msg } } } ->
+            trace_utils:info_fmt( "Triggered action succeeded and returned ~p.",
+                                  [ Msg ] );
+
+        { wooper_result, { action_outcome, { error, ErrorReport } } } ->
+            trace_utils:error_fmt( "Triggered action failed, and reported: ~p.",
+                                   [ ErrorReport ] )
 
     end,
-
-	%timer:sleep( 2000 ),
 
 	us_client:teardown().
