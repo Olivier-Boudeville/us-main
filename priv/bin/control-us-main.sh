@@ -2,11 +2,17 @@
 
 # A script to control a (possibly remote) US-Main instance.
 
-usage="Usage: $(basename $0) [-h|--help] US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME ACTION [ACTION_ARGS]: controls the target US-Main instance (possibly running on a remote host), based on the specified configuration filename, looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified action (possibly with arguments).
+conf_opt="--config-filename"
+
+
+# The default US-Main configuration file *for remote access*:
+um_cfg_filename="us-main-remote-access.config"
+
+usage="Usage: $(basename $0) [-h|--help] [${conf_opt} US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME] ACTION [ACTION_ARGS]: controls the target US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified action (possibly with arguments).
 
 Use the 'help' action to list all available ones.
 
-Example of use: './$(basename $0) us-main-remote-access-for-development.config switch_on tv_plug', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
+Example of use: './$(basename $0) ${conf_opt} us-main-remote-access-for-development.config switch_on tv_plug', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
 
 # So we are not looking up configuration files such as us.config (that regards
@@ -14,8 +20,9 @@ Example of use: './$(basename $0) us-main-remote-access-for-development.config s
 # such applications.
 
 # A previous version checked the actions from this script; now that they have
-# been generically implemented in US-Common, this script just forwards the
-# action tokens as they are to the corresponding US server.
+# been generically implemented in US-Common, once having sorted out any
+# configuration file specified, this script just forwards the action tokens as
+# they are to the corresponding US server.
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -27,18 +34,28 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 
-um_cfg_filename="$1"
+if [ "$1" = "${conf_opt}" ]; then
 
-if [ -z "${um_cfg_filename}" ]; then
+	shift
 
-	echo "  Error, no US-Main configuration file specified.
+	um_cfg_filename="$1"
+
+	if [ -z "${um_cfg_filename}" ]; then
+
+		echo "  Error, no configuration filename specified after ${conf_opt}.
 ${usage}" 1>&2
 
-	exit 5
+		exit 15
+
+	fi
+
+	shift
+
+	# Cannot check file existence at this level, as it must be searched in the
+	# US standard paths.
 
 fi
 
-shift
 
 
 full_action="$*"
