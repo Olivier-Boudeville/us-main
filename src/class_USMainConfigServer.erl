@@ -50,6 +50,11 @@ framework.
 % Callbacks of the supervisor_bridge behaviour:
 -export([ init/1, terminate/2 ]).
 
+
+% Built-in action requests are not to be explicitly exported (as they are
+% requests).
+
+
 -define( bridge_name, ?MODULE ).
 
 
@@ -167,7 +172,7 @@ framework.
 -type supervisor_pid() :: otp_utils:supervisor_pid().
 -type application_run_context() :: otp_utils:application_run_context().
 
-
+-type user_action_spec() :: us_action:user_action_spec().
 
 -type server_pid() :: class_USServer:server_pid().
 -type config_table() :: class_USServer:config_table().
@@ -528,8 +533,8 @@ Returns the PID of the US-Main configuration server, waiting (up to a few
 seconds, as all US-Main servers are bound to be launched mostly simultaneously)
 if needed.
 
-Typically useful for the various other US-Main servers, so that they can easily
-access to their configuration information.
+Typically useful for the various US-Main auxiliary, thematical servers, so that
+they can easily access to their configuration information.
 """.
 -spec get_us_main_config_server() -> static_return( server_pid() ).
 get_us_main_config_server() ->
@@ -686,9 +691,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	?debug_fmt( "Read main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
 
-    ActState = manage_automated_actions( MainCfgTable, State ),
-
-	EpmdState = manage_epmd_port( MainCfgTable, ActState ),
+	EpmdState = manage_epmd_port( MainCfgTable, State ),
 
 	RegState = manage_registrations( MainCfgTable, EpmdState ),
 
@@ -746,7 +749,39 @@ example, home-automation ones) automated actions.
 -spec manage_automated_actions( config_table(), wooper:state() ) ->
                                             wooper:state().
 manage_automated_actions( ConfigTable, State ) ->
-    executeOneway( State, integrateAutomatedActions, [ ConfigTable ] ).
+
+    IntegState = executeOneway( State, integrateAutomatedActions,
+                                [ ConfigTable ] ),
+
+    UserResSpec = { _ResType={string,[]}, "Help contents" },
+
+    HelpUserActSpec = { _ActName=help, _UserArgSpec=[], UserResSpec,
+                        _UserDesc="help about the US-Main supported actions" },
+
+    add_actions( [ HelpUserActSpec ], IntegState ).
+
+
+
+
+-doc """
+Adds the specified user action specifications to the current action table.
+""".
+-spec add_actions( [ user_action_spec() ], wooper:state() ) -> wooper:state().
+add_actions( UserActSpecs, State ) ->
+
+    RegActTable = us_action:register_action_specs( UserActSpecs,
+        ?getAttr(action_table), wooper:get_classname( State ) ),
+
+    setAttribute( State, action_table, RegActTable ).
+
+
+
+-doc "Built-in help action request.".
+-spec help( wooper:state() ) ->
+                            const_request_return( { 'success', ustring() } ).
+help( State ) ->
+    HelpText = "The following actions are supported by the US-Main server:",
+    wooper:const_return_result( { success, HelpText } ).
 
 
 
@@ -1251,7 +1286,7 @@ manage_log_directory( ConfigTable, State ) ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	text_utils:format( "US-Main configuration ~ts, running ~ts, "
+	text_utils:format( "US-Main configuration ~ts; it is running ~ts, "
 		"running in the ~ts execution context, "
 		"knowing US overall configuration server ~w and "
 		"OTP supervisor ~w, relying on the '~ts' configuration directory",
