@@ -24,7 +24,7 @@
 -moduledoc """
 **Root OTP supervisor** of the US-Main application.
 
-Directly created by us_main_app.
+Directly spawned from `us_main_app`.
 """.
 
 
@@ -157,8 +157,11 @@ get_config_bridge_spec( ExecTarget ) ->
 	#{ id => us_main_configuration_server_id,
 
 	   start => { _Mod=class_USMainConfigServer, _Fun=start_link,
-				  _Args=[ _SupervisorPid=self(),
-						  _AppRunContext=as_otp_release ] },
+                  % We used to specify the PID of their supervisor to such
+                  % children (with a '_SupervisorPid=self()' argument here), yet
+                  % this does not seem relevant, hence was removed:
+                  %
+				  _Args=[ _AppRunContext=as_otp_release ] },
 
 	   % Always restarted in production:
 	   restart => otp_utils:get_restart_setting( ExecTarget ),
