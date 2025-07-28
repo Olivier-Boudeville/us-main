@@ -107,7 +107,7 @@ cd "${app_dir}"
 
 # The (full) action shall be interpreted as a plain, extra one:
 
-echo make -s us_main_controller_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
+#echo make -s us_main_controller_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
 
 
 
