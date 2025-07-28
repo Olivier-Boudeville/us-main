@@ -66,7 +66,7 @@ test_us_main_contact_management( OrderedAppNames ) ->
 	%
 	otp_utils:start_applications( OrderedAppNames ),
 
-	ContactDirectoryPid = class_USContactDirectory:get_contact_directory(),
+	ContactDirectoryPid = class_USContactDirectory:get_server_pid(),
 
 	% The top-level user process may not be aware that an OTP application fails
 	% (e.g. because its main process crashed), which is a problem for a test. So
@@ -86,7 +86,7 @@ test_us_main_contact_management( OrderedAppNames ) ->
 
 	timer:sleep( WaitDurationMs ),
 
-	test_facilities:display( "Waiting over." ),
+	test_facilities:display( "The test waiting just finished." ),
 
 
 	?test_info( "Successful test (not fully ended yet) of the US-Main OTP "

@@ -589,6 +589,9 @@ Full settings gathered regarding the home automation server.
 -type extended_timestamp() :: unit_utils:extended_timestamp().
 -type milliseconds() :: unit_utils:milliseconds().
 
+-type lookup_info() :: naming_utils:lookup_info().
+
+
 -type trace_severity() :: trace_utils:trace_severity().
 -type trace_message() :: trace_utils: trace_message().
 
@@ -633,7 +636,9 @@ Full settings gathered regarding the home automation server.
 -define( class_attributes, [
 
 	{ oc_srv_pid, option( oceanic_server_pid() ),
-	  "the PID of the Oceanic server (if any can exist) used by this server" },
+	  "the PID of the Oceanic server (if any can exist) used by this server; "
+      "it is stored rather than fetched from the naming service as this server "
+      "manages its life-cycle" },
 
 	{ oc_periodic_restart, boolean(), "tells whether Oceanic shall be "
 	  "periodically restarted, in order to overcome any risk of freeze of "
@@ -645,17 +650,9 @@ Full settings gathered regarding the home automation server.
 	  "as determined by Oceanic, otherwise telegrams are bound to be "
 	  "rejected" },
 
-	{ us_config_server_pid, server_pid(),
-	  "the PID of the overall US configuration server" },
-
-	% Typically for the presence simulator:
-	{ scheduler_pid, scheduler_pid(),
-	  "the PID of the scheduler used by this server" },
-
 	{ app_base_directory, bin_directory_path(),
 	  "the base directory of the US-Main application (the root where "
 	  "src, priv, ebin, etc. can be found)" },
-
 
 	{ alarm_inhibited, boolean(),
 	  "tells whether the alarm is inhibited, permanently, if somebody is at "
@@ -730,10 +727,6 @@ Full settings gathered regarding the home automation server.
 
 	{ celestial_info, option( celestial_info() ),
 	  "any precomputed dawn/dusk time, for the current day" },
-
-	{ comm_gateway_pid, gateway_pid(),
-	  "the PID of the US communication gateway used to send user "
-	  "notifications" },
 
 	{ device_table, device_table(),
 	  "the table recording the current state of devices, notably to "
@@ -962,6 +955,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 			% Ceylan-Traces system, rather than being buried just in, typically,
 			% /opt/universal-server/us_main-latest/us_main/log/erlang.log.*
 			% files:
+            %
 			OCBridgeSpec = trace_bridge:get_bridge_spec(
 				_TraceEmitterName="Oceanic", _TraceCategory="Server",
 				_BridgePid=class_TraceAggregator:get_aggregator() ),
@@ -996,12 +990,9 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	UsMainCfgSrvPid = class_USMainConfigServer:get_us_main_config_server(),
-
-	% Common to all home-automation services; beware to blocking calls:
-	UsMainCfgSrvPid ! { getHomeAutomationSettings, [], self() },
-
-	SchedPid = class_USScheduler:get_main_scheduler(),
+	% Common to all home-automation services; beware of blocking calls:
+	class_USMainConfigServer:get_server_pid() !
+        { getHomeAutomationSettings, [], self() },
 
 	% Interleaved; most elements already canonicalised, except
 	% MaybeConfPscSimUSettings:
@@ -1133,8 +1124,6 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		{ oc_periodic_restart, false },
 
 		{ oc_src_eurid, MaybeSrcEurid },
-		{ us_config_server_pid, UsMainCfgSrvPid },
-		{ scheduler_pid, SchedPid },
 		{ app_base_directory, BinAppBaseDirectoryPath },
 
 		% Expecting to be launching this server while being at home:
@@ -1148,11 +1137,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		init_presence_simulation( RetainedPscSimUSettings, MaybeOcSrvPid,
 								  MoreCompleState ),
 
-	MaybeOcMonTaskId = init_oceanic_monitor( MaybeOcSrvPid, SchedPid,
-											 MoreCompleState ),
-
-	% To report any issue:
-	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
+	MaybeOcMonTaskId = init_oceanic_monitor( MaybeOcSrvPid, MoreCompleState ),
 
 	InitialPscEnabled = not table:is_empty( InitPscTable ),
 
@@ -1166,8 +1151,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		{ server_location, MaybeSrvLoc },
 		{ presence_switching_trigger_specs, PscTriggerListenEvSpecs },
 		{ presence_switching_device_desc, PscSwitchBinDesc },
-		{ celestial_info, undefined },
-		{ comm_gateway_pid, CommGatewayPid } ] ),
+		{ celestial_info, undefined } ] ),
 
 	ApplyState = apply_presence_simulation( SetState ),
 
@@ -1343,7 +1327,7 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
 			% Every day:
 			DHMSPeriodicity = { _D=1, _H=0, _M=0, _S=0 },
 
-			?getAttr(scheduler_pid) ! { registerTask,
+            class_USScheduler:get_server_pid() ! { registerTask,
 				[ _CmdMsg=updatePresencePrograms,
 				  _StartTime=NextMidnightTimestamp, DHMSPeriodicity,
 				  _Count=unlimited ], self() },
@@ -1870,7 +1854,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 
 	NoPlanPscSim = ensure_no_planned_presence_transition( UnlitPscSim,
-		MaybePscTaskInfo, State ),
+                                                          MaybePscTaskInfo ),
 
 	{ NoPlanPscSim, MaybeCelestialInfo };
 
@@ -1895,7 +1879,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 	LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 
 	NoPlanPscSim = ensure_no_planned_presence_transition( LitPscSim,
-		MaybePscTaskInfo, State ),
+                                                          MaybePscTaskInfo ),
 
 	{ NoPlanPscSim, MaybeCelestialInfo };
 
@@ -1919,7 +1903,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 			NoPlanPscSim = ensure_no_planned_presence_transition( UnlitPscSim,
-				MaybePscTaskInfo, State ),
+				MaybePscTaskInfo ),
 			{ NoPlanPscSim, CI };
 
 
@@ -1933,7 +1917,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 			NoPlanPscSim = ensure_no_planned_presence_transition( LitPscSim,
-				MaybePscTaskInfo, State ),
+				MaybePscTaskInfo ),
 			{ NoPlanPscSim, CI };
 
 
@@ -1954,7 +1938,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 					LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 					ensure_no_planned_presence_transition( LitPscSim,
-						MaybePscTaskInfo, State );
+                                                           MaybePscTaskInfo );
 
 				DawnTime when CurrentTime > DawnTime ->
 					% We are after the dawn; but before or after any dusk?
@@ -1978,7 +1962,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 								IsActivated, State ),
 
 							ensure_no_planned_presence_transition( UnlitPscSim,
-								MaybePscTaskInfo, State );
+								MaybePscTaskInfo );
 
 
 						DuskTime when CurrentTime > DuskTime ->
@@ -1997,7 +1981,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 														 State ),
 
 							ensure_no_planned_presence_transition(
-								LitPscSim, MaybePscTaskInfo, State );
+								LitPscSim, MaybePscTaskInfo );
 
 
 						% Hence CurrentTime <= DuskTime:
@@ -2044,7 +2028,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 
 	NoPlanPscSim = ensure_no_planned_presence_transition( UnlitPscSim,
-		MaybePscTaskInfo, State ),
+                                                          MaybePscTaskInfo ),
 
 	{ NoPlanPscSim, MaybeCelestialInfo };
 
@@ -2070,7 +2054,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 			ensure_no_planned_presence_transition( LitPscSim,
-				MaybePscTaskInfo, State );
+                                                   MaybePscTaskInfo );
 
 		always_absent ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
@@ -2081,7 +2065,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 			ensure_no_planned_presence_transition( UnlitPscSim,
-				MaybePscTaskInfo, State );
+                                                   MaybePscTaskInfo );
 
 		{ present_until, AbsStartTime } ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
@@ -2093,7 +2077,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
 			ensure_planned_presence_transition( LitPscSim, AbsStartTime,
-				MaybePscTaskInfo, State );
+                                                MaybePscTaskInfo, State );
 
 		{ absent_until, PresStartTime } ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
@@ -2105,7 +2089,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 			ensure_planned_presence_transition( UnlitPscSim, PresStartTime,
-				MaybePscTaskInfo, State )
+                                                MaybePscTaskInfo, State )
 
 	end,
 
@@ -2150,7 +2134,7 @@ manage_presence_simulation( PscSim=#presence_simulation{
 
 			UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
 			ensure_no_planned_presence_transition( UnlitPscSim,
-												   MaybePscTaskInfo, State );
+                                                   MaybePscTaskInfo );
 
 		{ present_until, AbsStart } ->
 			cond_utils:if_defined( us_main_debug_presence_simulation,
@@ -2319,17 +2303,16 @@ Ensures that the specified presence task (and only it) is planned for an update
 at the specified time.
 """.
 -spec ensure_planned_presence_transition( presence_simulation(), time(),
-			option( task_info() ), wooper:state() ) ->
-				{ presence_simulation(), wooper:state() }.
+			option( task_info() ), wooper:state() ) -> presence_simulation().
 % Plan if not already planned:
 ensure_planned_presence_transition( PscSim=#presence_simulation{ id=PscId },
-		PlannedTime, _MaybePscTaskInfo=undefined, State ) ->
+		PlannedTime, _MaybePscTaskInfo=undefined, _State ) ->
 
 	TaskCmd = { updatePresenceSimulation, [ PscId ] },
 
 	PlannedTimestamp = { date(), PlannedTime },
 
-	?getAttr(scheduler_pid) !
+	class_USScheduler:get_server_pid() !
 		{ registerOneshotTask, [ TaskCmd, PlannedTimestamp ], self() },
 
 	receive
@@ -2367,26 +2350,25 @@ ensure_planned_presence_transition( PscSim, PlannedTime,
 
 	% Clearer:
 	%ClearedPsim = ensure_no_planned_presence_transition( PscSim,
-	%                           PrevPscTaskInfo, State ),
+	%                                                     PrevPscTaskInfo ),
 
-	?getAttr(scheduler_pid) ! { unregisterTaskAsync, [ PrevPscTaskId ] },
+	class_USScheduler:get_server_pid() !
+        { unregisterTaskAsync, [ PrevPscTaskId ] },
 
 	% Force rescheduling:
 	ensure_planned_presence_transition( PscSim, PlannedTime,
-		_MaybePscTaskInfo=undefined, State ).
+                                        _MaybePscTaskInfo=undefined, State ).
 
 
 
 -doc "Ensures that there is no planned presence task.".
 -spec ensure_no_planned_presence_transition( presence_simulation(),
-				option( task_id() ), wooper:state() ) -> presence_simulation().
-ensure_no_planned_presence_transition( PscSim, _MaybePscTaskInfo=undefined,
-									   _State ) ->
+    option( task_id() ) ) -> presence_simulation().
+ensure_no_planned_presence_transition( PscSim, _MaybePscTaskInfo=undefined ) ->
 	PscSim;
 
-ensure_no_planned_presence_transition( PscSim, { PscTaskId, _TaskTime },
-									   State ) ->
-	?getAttr(scheduler_pid) ! { unregisterTaskAsync, [ PscTaskId ] },
+ensure_no_planned_presence_transition( PscSim, { PscTaskId, _TaskTime } ) ->
+	class_USScheduler:get_server_pid() ! { unregisterTaskAsync, [ PscTaskId ] },
 	PscSim#presence_simulation{ presence_task_info=undefined }.
 
 
@@ -2412,7 +2394,7 @@ ensure_constant_light( _CurrentTime, _MaybeDawnTime=undefined,
 			"lighting needed.", State ) ),
 
 	LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
-	ensure_no_planned_presence_transition( LitPscSim, MaybePscTaskInfo, State );
+	ensure_no_planned_presence_transition( LitPscSim, MaybePscTaskInfo );
 
 % A dawn but no dusk: lights (only) until that dawn.
 %
@@ -2442,8 +2424,7 @@ ensure_constant_light( _CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 		basic_utils:ignore_unused( DawnTime ) ),
 
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
-	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo,
-										   State );
+	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo );
 
 % General case: a dawn and a dusk.
 %
@@ -2491,7 +2472,7 @@ ensure_constant_light( _CurrentTime, _DawnTime, DuskTime, PscSim,
 		basic_utils:ignore_unused( DuskTime ) ),
 
 	LitPscSim = ensure_lighting( PscSim, IsActivated, State ),
-	ensure_no_planned_presence_transition( LitPscSim, MaybePscTaskInfo, State ).
+	ensure_no_planned_presence_transition( LitPscSim, MaybePscTaskInfo ).
 
 
 
@@ -2555,8 +2536,7 @@ ensure_light_until( _StopTime, _CurrentTime, _DawnTime,
 			State ) ),
 
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
-	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo,
-										   State );
+	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo );
 
 % General case: a dawn and a dusk.
 %
@@ -2671,7 +2651,7 @@ ensure_light_from( StartTime, CurrentTime, DawnTime, _MaybeDuskTime=undefined,
 					  time_utils:time_to_string( DawnTime ) ], State ) ),
 
 			ensure_no_planned_presence_transition( UnlitPscSim,
-												   MaybePscTaskInfo, State )
+                                                   MaybePscTaskInfo )
 
 	end;
 
@@ -2690,8 +2670,7 @@ ensure_light_from( StartTime, _CurrentTime, DawnTime,
 		basic_utils:ignore_unused( [ StartTime, DawnTime ] ) ),
 
 	UnlitPscSim = ensure_not_lighting( PscSim, IsActivated, State ),
-	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo,
-										   State );
+	ensure_no_planned_presence_transition( UnlitPscSim, MaybePscTaskInfo );
 
 % General case: a dawn and a dusk.
 %
@@ -3050,12 +3029,12 @@ from_decimal_hour( DecHour ) ->
 -doc """
 Setups the monitoring of Oceanic, with test reports and/or periodic restarts.
 """.
--spec init_oceanic_monitor( option( oceanic_server_pid() ),
-				scheduler_pid(), wooper:state() ) -> option( task_id() ).
-init_oceanic_monitor( _MaybeOcSrvPid=undefined, _SchedPid, _State ) ->
+-spec init_oceanic_monitor( option( oceanic_server_pid() ), wooper:state() ) ->
+                                        option( task_id() ).
+init_oceanic_monitor( _MaybeOcSrvPid=undefined, _State ) ->
 	undefined;
 
-init_oceanic_monitor( _OcSrvPid, SchedPid, State ) ->
+init_oceanic_monitor( _OcSrvPid, State ) ->
 
 	% Every 4 hours:
 	DHMSPeriodicity = { _D=0, _H=4, _M=0, _S=0 },
@@ -3064,15 +3043,13 @@ init_oceanic_monitor( _OcSrvPid, SchedPid, State ) ->
 		"based on a periodicity of ~ts.", [
 		time_utils:dhms_to_string( DHMSPeriodicity ) ], State ),
 
-	SchedPid ! { registerTask,
-				 [ _CmdMsg=monitorOceanic,
-				   _StartTime=flexible, DHMSPeriodicity,
-				  _Count=unlimited ], self() },
+    class_USScheduler:get_server_pid() ! { registerTask,
+		[ _CmdMsg=monitorOceanic, _StartTime=flexible, DHMSPeriodicity,
+          _Count=unlimited ], self() },
 
 	receive
 
 		{ wooper_result, { task_registered, MonTaskId } } ->
-
 			send_oc_mon_trace_fmt( debug,
 				"Oceanic monitoring task #~B defined.", [ MonTaskId ], State ),
 			MonTaskId
@@ -3191,7 +3168,7 @@ updatePresencePrograms( State ) ->
 						" unscheduling these updates (task #~B).",
 						[ MidnightTaskId ], State ),
 
-					?getAttr(scheduler_pid) !
+					class_USScheduler:get_server_pid() !
 						{ unregisterTaskAsync, [ MidnightTaskId ] },
 
 					setAttribute( State, midnight_task_id, undefined )
@@ -3202,7 +3179,7 @@ updatePresencePrograms( State ) ->
 			% Force a reevaluation thereof, once any past presence task is
 			% cleared:
 
-			SchedPid = ?getAttr(scheduler_pid),
+			SchedPid = class_USScheduler:get_server_pid(),
 
 			ClearedPscTable = lists:foldl(
 				fun( Psc, PTableAcc ) ->
@@ -3222,9 +3199,8 @@ updatePresencePrograms( State ) ->
 	end,
 
 	% Just for inspection purpose:
-
 	cond_utils:if_defined( us_main_debug_home_automation,
-						   ?getAttr(scheduler_pid) ! logState ),
+						   class_USScheduler:get_server_pid() ! logState ),
 
 	wooper:return_state( UpdatedState ).
 
@@ -3640,8 +3616,7 @@ onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
 		"by the Oceanic server ~w.~n~nFull device information: ~ts.",
 		[ BinDeviceName, oceanic_text:eurid_to_string( DeviceEurid ),
 		  time_utils:timestamp_to_string( LastSeenTimestamp ),
-		  time_utils:duration_to_string( TimeOutMs ),
-		  OcSrvPid, BinDevDesc ] ),
+		  time_utils:duration_to_string( TimeOutMs ), OcSrvPid, BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( error, State, Msg,
 		get_trace_emitter_name_from( BinDeviceName ) ),
@@ -3656,8 +3631,7 @@ onEnoceanDeviceLost( State, DeviceEurid, BinDeviceName, BinDevDesc,
 		"by Oceanic server ~w.~n~nFull device information: ~ts.",
 		[ BinDeviceName, oceanic_text:eurid_to_string( DeviceEurid ),
 		  time_utils:timestamp_to_string( LastSeenTimestamp ),
-		  time_utils:duration_to_string( TimeOutMs ),
-		  OcSrvPid, BinDevDesc ] ),
+		  time_utils:duration_to_string( TimeOutMs ), OcSrvPid, BinDevDesc ] ),
 
 	class_TraceEmitter:send_named_emitter( warning, State, Msg,
 		get_trace_emitter_name_from( BinDeviceName ) ),
@@ -4202,7 +4176,7 @@ apply_alarm_status( NewStatus=true, State ) ->
 	oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
                                ?getAttr(oc_srv_pid) ),
 
-	SchedPid = ?getAttr(scheduler_pid),
+	SchedPid = class_USScheduler:get_server_pid(),
 
 	% Setting-up a timer to stop that alarm, but disabling any past one first:
 	case ?getAttr(alarm_stop_task_id ) of
@@ -4290,9 +4264,8 @@ apply_alarm_status( NewStatus=false, State ) ->
 			ok;
 
 		PastTaskId ->
-			SchedPid = ?getAttr(scheduler_pid),
-
-			SchedPid ! { unregisterTask, PastTaskId, self() },
+			class_USScheduler:get_server_pid() !
+                { unregisterTask, PastTaskId, self() },
 
 			cond_utils:if_defined( us_main_debug_alarm, send_alarm_trace_fmt(
 				debug, "Unregistering past alarm stop task #~B.",
@@ -4352,20 +4325,32 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 % Static subsection.
 
 
+% Implemented from class_USServer:
+
+-doc "Returns the naming lookup information of this server.".
+-spec get_lookup_info() -> static_return( lookup_info() ).
+get_lookup_info() ->
+   wooper:return_static( { ?us_main_home_automation_server_registration_name,
+       ?us_main_home_automation_server_registration_scope } ).
+
+
 -doc """
-Returns the PID of the supposedly already-launched home automation server; waits
-for it if needed.
+Returns the PID of the current, supposedly already-launched, home automation
+server, waiting for it if needed.
+
+It is better to obtain it each time from the naming service rather than to
+resolve and store its PID once for all, as, for an increased robustness, servers
+may be restarted (hence any former PID may not reference a live process
+anymore).
 """.
--spec get_home_automation_server() ->
-			static_return( home_automation_server_pid() ).
-get_home_automation_server() ->
+-spec get_server_pid () -> static_return( home_automation_server_pid() ).
+get_server_pid() ->
 
-	OcSrvPid = naming_utils:wait_for_registration_of(
-		?us_main_home_automation_server_registration_name,
-		naming_utils:registration_to_lookup_scope(
-			?us_main_home_automation_server_registration_scope ) ),
+	SrvPid = class_USServer:resolve_server_pid(
+        _RegName=?us_main_home_automation_server_registration_name,
+        _RegScope=?us_main_home_automation_server_registration_scope ),
 
-	wooper:return_static( OcSrvPid ).
+	wooper:return_static( SrvPid ).
 
 
 
@@ -4417,11 +4402,9 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
     %
     StartTimestamp = time_utils:resolve_timestamp( StartExtTimestamp ),
 
-    SchedPid = ?getAttr(scheduler_pid),
-
-    SchedPid ! { registerTask, [ UserTaskCommand, StartTimestamp,
-        _UserPeriodicity=DHMSPeriodicity, SchedCount,
-        _UserActPid=?getAttr(oc_srv_pid) ] },
+    class_USScheduler:get_server_pid() ! { registerTask,
+        [ UserTaskCommand, StartTimestamp, _UserPeriodicity=DHMSPeriodicity,
+          SchedCount, _UserActPid=?getAttr(oc_srv_pid) ] },
 
     Res = receive
 
@@ -4870,15 +4853,13 @@ to_string( State ) ->
 
     ActStr = us_action:action_table_to_string( ?getAttr(action_table) ),
 
-	text_utils:format( "US home automation server ~ts, using the US-Main "
-		"configuration server ~w, the scheduler ~w and the communication "
-		"gateway ~w, ~ts, ~ts, and that the alarm ~ts~n"
+	text_utils:format( "US home automation server ~ts, ~ts, ~ts, "
+        "and that the alarm ~ts~n"
         "The presence simulator is currently ~ts, knowing that ~ts~n~ts.~n~n"
         "This server has ~ts."
         "This server is currently ~ts~n~n",
-		[ OcSrvStr, ?getAttr(us_config_server_pid), ?getAttr(scheduler_pid),
-		  ?getAttr(comm_gateway_pid), LocStr, AtHomeStr, AlarmStr,
-		  PscStr, PscSwitchStr, MidTaskStr, ActStr,
+		[ OcSrvStr, LocStr, AtHomeStr, AlarmStr, PscStr, PscSwitchStr,
+          MidTaskStr, ActStr,
           device_table_to_string( ?getAttr(device_table) ) ] ).
 
 
@@ -4897,7 +4878,7 @@ Returns a textual description of the specified presence simulation internal
 record.
 """.
 -spec presence_simulation_to_string( presence_simulation(),
-			option( oceanic_server_pid() ) ) -> ustring().
+                                option( oceanic_server_pid() ) ) -> ustring().
 presence_simulation_to_string( #presence_simulation{
 		id=Id,
 		enabled=IsEnabled,
@@ -4944,7 +4925,7 @@ presence_simulation_to_string( #presence_simulation{
 
 				OcSrvPid ->
 					oceanic_text:canon_emitted_event_spec_to_string( SingleAct,
-																OcSrvPid )
+                                                                     OcSrvPid )
 
 			end,
 			text_utils:format( "a single ~ts", [ Str ] );
@@ -4957,7 +4938,7 @@ presence_simulation_to_string( #presence_simulation{
 
 				OcSrvPid ->
 					oceanic_text:canon_emitted_event_specs_to_string( Acts,
-                        OcSrvPid )
+                                                                      OcSrvPid )
 
 			end,
 			text_utils:format( "~B actuators: ~ts", [ length( Acts ), Str ] )

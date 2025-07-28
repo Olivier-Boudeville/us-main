@@ -472,23 +472,27 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 
 -doc """
-Returns the PID of the supposedly already-launched contact directory; waits for
-it if needed.
-""".
--spec get_contact_directory() -> static_return( contact_directory_pid() ).
-get_contact_directory() ->
+Returns the PID of the current, supposedly already-launched, contact directory,
+waiting (up to a few seconds, as all US servers are bound to be launched mostly
+simultaneously) if needed.
 
-	DirectoryPid = naming_utils:wait_for_registration_of(
-		?us_main_contact_server_registration_name,
-		naming_utils:registration_to_lookup_scope(
-			?us_main_contact_server_registration_scope ) ),
+It is better to obtain the PID of a server each time from the naming service
+rather than to resolve and store its PID once for all, as, for an increased
+robustness, servers may be restarted (hence any stored PID may not reference a
+live process anymore).
+""".
+-spec get_server_pid () -> static_return( contact_directory_pid() ).
+get_server_pid() ->
+
+	DirectoryPid = class_USServer:resolve_server_pid(
+        _RegName=?us_main_contact_server_registration_name,
+        _RegScope=?us_main_contact_server_registration_scope ),
 
 	wooper:return_static( DirectoryPid ).
 
 
 
 % Helper section.
-
 
 
 -doc """
@@ -502,7 +506,7 @@ server), we just select the relevant information from it.
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
-	USMainCfgServerPid = class_USMainConfigServer:get_us_main_config_server(),
+	USMainCfgServerPid = class_USMainConfigServer:get_server_pid(),
 
 	% This contact directory server is not supposed to read more the US
 	% configuration file; it should request it to the overall configuration

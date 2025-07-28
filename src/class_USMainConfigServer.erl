@@ -45,7 +45,7 @@ framework.
 
 
 % User API of the bridge:
--export([ start_link/2 ]).
+-export([ start_link/1 ]).
 
 % Callbacks of the supervisor_bridge behaviour:
 -export([ init/1, terminate/2 ]).
@@ -72,12 +72,15 @@ framework.
 	{ LatDegrees :: float(), LongDegrees :: float() }.
 
 
+-type main_config_server_pid() :: server_pid().
+
 
 % For default_us_main_config_server_registration_name:
 -include("us_main_defines.hrl").
 
 
--export_type([ general_main_settings/0, user_server_location/0 ]).
+-export_type([ general_main_settings/0, user_server_location/0,
+               main_config_server_pid/0 ]).
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -159,43 +162,12 @@ framework.
 -include_lib("myriad/include/spawn_utils.hrl").
 
 
-% Type shorthands:
-
--type execution_context() :: basic_utils:execution_context().
--type three_digit_version() :: basic_utils:three_digit_version().
-
--type ustring() :: text_utils:ustring().
-
--type bin_file_path() :: file_utils:bin_file_path().
--type bin_directory_path() :: file_utils:bin_directory_path().
-
--type supervisor_pid() :: otp_utils:supervisor_pid().
--type application_run_context() :: otp_utils:application_run_context().
-
--type user_action_spec() :: us_action:user_action_spec().
-
--type server_pid() :: class_USServer:server_pid().
--type config_table() :: class_USServer:config_table().
-
--type user_muted_sensor_points() ::
-	class_USSensorManager:user_muted_sensor_points().
-
--type home_automation_settings() ::
-	class_USHomeAutomationServer:home_automation_settings().
-
-
-
-%-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
-
-%-type position() :: unit_utils:position().
-
-%-type contact_directory_pid() ::
-%   class_USContactDirectory:contact_directory_pid().
-
-
-
 
 % The class-specific attributes:
+%
+% (now, for a better robustness, servers are resolved on the fly, their PIDs are
+% not to be stored anymore)
+%
 -define( class_attributes, [
 
 	{ execution_context, execution_context(),
@@ -205,18 +177,6 @@ framework.
 	{ app_run_context, application_run_context(),
 	  "tells how US-Main is run, natively (using the Ceylan build/run system) "
 	  "or as an OTP release" },
-
-	{ us_config_server_pid, server_pid(),
-	  "the PID of the overall US configuration server" },
-
-	{ us_main_supervisor_pid, supervisor_pid(),
-	  "the PID of the OTP supervisor of US-Main, as defined in us_main_sup" },
-
-	{ contact_directory_pid, option( contact_directory_pid() ),
-	  "the PID (if any) of the US-Main server managing the contact directory" },
-
-	{ sensor_manager_pid, option( sensor_manager_pid() ),
-	  "the PID (if any) of the US-Main server managing the local sensors" },
 
 	{ muted_sensor_measurements, user_muted_sensor_points(),
 	  "A list expected to contain muted sensor measurement points; "
@@ -278,6 +238,42 @@ framework.
 
 
 
+
+% Type shorthands:
+
+-type execution_context() :: basic_utils:execution_context().
+-type three_digit_version() :: basic_utils:three_digit_version().
+
+-type ustring() :: text_utils:ustring().
+
+-type bin_file_path() :: file_utils:bin_file_path().
+-type bin_directory_path() :: file_utils:bin_directory_path().
+
+-type application_run_context() :: otp_utils:application_run_context().
+
+%-type user_action_spec() :: us_action:user_action_spec().
+-type action_result( T ) :: us_action:action_result( T ).
+
+-type server_pid() :: class_USServer:server_pid().
+-type config_table() :: class_USServer:config_table().
+
+-type user_muted_sensor_points() ::
+	class_USSensorManager:user_muted_sensor_points().
+
+-type home_automation_settings() ::
+	class_USHomeAutomationServer:home_automation_settings().
+
+
+
+%-type sensor_manager_pid() :: class_USSensorManager:sensor_manager_pid().
+
+%-type position() :: unit_utils:position().
+
+%-type contact_directory_pid() ::
+%   class_USContactDirectory:contact_directory_pid().
+
+
+
 % Implementation of the supervisor_bridge behaviour, for the intermediate
 % process allowing to interface this US-Main configuration server with an OTP
 % supervision tree.
@@ -290,15 +286,15 @@ Note: typically spawned as a supervised child of the US-Main root supervisor
 (see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
--spec start_link( supervisor_pid(), application_run_context() ) -> term().
-start_link( SupervisorPid, AppRunContext ) ->
+-spec start_link( application_run_context() ) -> term().
+start_link( AppRunContext ) ->
 
 	% Apparently not displayed in a release context, yet executed:
 	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the communication gateway." ),
+						"the US-Main configuration server." ),
 
 	supervisor_bridge:start_link( { local, ?bridge_name },
-		_Module=?MODULE, _InitArgs=[ SupervisorPid, AppRunContext ] ).
+		_Module=?MODULE, _InitArgs=[ AppRunContext ] ).
 
 
 
@@ -308,15 +304,14 @@ Callback to initialise this supervisor bridge, typically in answer to
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
-init( _Args=[ SupervisorPid, AppRunContext ] ) ->
+init( _Args=[ AppRunContext ] ) ->
 
 	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
-		"the configuration server (US-Main OTP root supervisor: ~w; "
-		"application run context: ~ts).",
-		[ self(), SupervisorPid, AppRunContext ] ),
+		"the configuration server (application run context: ~ts).",
+		[ self(), AppRunContext ] ),
 
 	% Not specifically synchronous:
-	CfgSrvPid = ?MODULE:new_link( SupervisorPid, AppRunContext ),
+	CfgSrvPid = ?MODULE:new_link( AppRunContext ),
 
 	{ ok, CfgSrvPid, _InitialBridgeState=CfgSrvPid }.
 
@@ -344,12 +339,10 @@ terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
 -doc """
 Constructs the US-Main configuration server.
 
-`SupervisorPid `is the PID of the main US-Main OTP supervisor, and
 `AppRunContext` tells how US-Web is being run.
 """.
--spec construct( wooper:state(), supervisor_pid(),
-				 application_run_context() ) -> wooper:state().
-construct( State, SupervisorPid, AppRunContext ) ->
+-spec construct( wooper:state(), application_run_context() ) -> wooper:state().
+construct( State, AppRunContext ) ->
 
 	TraceCateg = ?trace_categorize("Configuration Server"),
 
@@ -375,9 +368,7 @@ construct( State, SupervisorPid, AppRunContext ) ->
 
 
 	% Other attributes set by the next function:
-	SupState = setAttributes( TraceState, [
-		{ app_run_context, AppRunContext },
-		{ us_main_supervisor_pid, SupervisorPid } ] ),
+	SupState = setAttribute( TraceState, app_run_context, AppRunContext ),
 
 	CfgState = load_and_apply_configuration( SupState ),
 
@@ -466,8 +457,7 @@ getHomeAutomationSettings( State ) ->
 
 
 -doc "Returns suitable contact settings (typically for the contact directory).".
--spec getContactSettings( wooper:state() ) ->
-	const_request_return(
+-spec getContactSettings( wooper:state() ) -> const_request_return(
 		{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
 getContactSettings( State ) ->
 
@@ -529,29 +519,26 @@ get_us_main_version_string() ->
 
 
 -doc """
-Returns the PID of the US-Main configuration server, waiting (up to a few
-seconds, as all US-Main servers are bound to be launched mostly simultaneously)
-if needed.
+Returns the PID of the current, supposedly already-launched, US-Main
+configuration server, waiting (up to a few seconds, as all US-Main servers are
+bound to be launched mostly simultaneously) if needed.
 
 Typically useful for the various US-Main auxiliary, thematical servers, so that
 they can easily access to their configuration information.
+
+It is better to obtain the PID of a server each time from the naming service
+rather than to resolve and store its PID once for all, as, for an increased
+robustness, servers may be restarted (hence any stored PID may not reference a
+live process anymore).
 """.
--spec get_us_main_config_server() -> static_return( server_pid() ).
-get_us_main_config_server() ->
+-spec get_server_pid () -> static_return( main_config_server_pid() ).
+get_server_pid() ->
 
-	CfgRegName = ?default_us_main_config_server_registration_name,
+	MainCfgSrvPid = class_USServer:resolve_server_pid(
+        _RegName=?default_us_main_config_server_registration_name,
+        _RegScope=?default_us_main_config_server_registration_scope ),
 
-	CfgLookupScope = naming_utils:registration_to_lookup_scope(
-		?default_us_main_config_server_registration_scope ),
-
-	CfgPid = naming_utils:wait_for_registration_of( CfgRegName,
-													CfgLookupScope ),
-
-	%trace_bridge:debug_fmt( "Resolved the US-Main configuration server as ~w, "
-	%   "(name: '~ts', look-up scope: ~ts).",
-	%   [ CfgPid, CfgRegName, CfgLookupScope ] ),
-
-	wooper:return_static( CfgPid ).
+	wooper:return_static( MainCfgSrvPid ).
 
 
 
@@ -587,7 +574,6 @@ us_main_mockup_srv() ->
 	receive
 
 		{ getSensorSettings, [], RequesterPid } ->
-
 			RequesterPid ! { wooper_result, _MutMeasurements=[] },
 			us_main_mockup_srv();
 
@@ -606,7 +592,7 @@ us_main_mockup_srv() ->
 
 -doc """
 Loads and applies the relevant configuration settings first from the overall US
-configuration file, then from the more main/vhost specific one.
+configuration file, then from the US-Main specific one.
 
 As a result, the US configuration file is not fully checked as such (e.g. no
 extracting and check that no entry remains), we just select the relevant
@@ -634,8 +620,7 @@ load_and_apply_configuration( State ) ->
 			StoreState = setAttributes( State, [
 				{ execution_context, ExecContext },
 				{ config_base_directory, BinCfgDir },
-				{ log_directory, ?default_log_base_dir },
-				{ us_config_server_pid, CfgServerPid } ] ),
+				{ log_directory, ?default_log_base_dir } ] ),
 
 			load_main_config( BinCfgDir, MaybeMainCfgFilename, StoreState )
 
@@ -743,42 +728,59 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 -doc """
-Manages any US-Main level user-configured, general-purpose (as opposed to, for
-example, home-automation ones) automated actions.
+Manages all US-Main level user-configured, general-purpose automated actions, so
+that the user code has to interact with only a single overall server/service.
 """.
 -spec manage_automated_actions( config_table(), wooper:state() ) ->
                                             wooper:state().
-manage_automated_actions( ConfigTable, State ) ->
+manage_automated_actions( _ConfigTable, State ) ->
 
-    IntegState = executeOneway( State, integrateAutomatedActions,
-                                [ ConfigTable ] ),
+    % (to be added some day: credential_server_pid, comm_gateway_pid)
 
-    UserResSpec = { _ResType={string,[]}, "Help contents" },
+    % Aggregate on this main server the actions of all other US-Main servers:
 
-    HelpUserActSpec = { _ActName=help, _UserArgSpec=[], UserResSpec,
-                        _UserDesc="help about the US-Main supported actions" },
+    %% SrvPids = [ SrvMod:get_server_pid()
+    %%     || SrvMod <- [ class_USCommunicationGateway, class_USContactDirectory,
+    %%                    class_USHomeAutomationServer, class_USSensorManager ] ],
 
-    add_actions( [ HelpUserActSpec ], IntegState ).
+    %% % Interleaving:
+    %% ConcurrentWaitInfo = wooper:send_concurrent_request(
+    %%     _TargetInstancePids=SrvPids, _ReqName=getAutomatedActions ),
 
+    %% % Integrate any user-defined actions in the meantime:
+    %% IntegState = executeOneway( State, integrateAutomatedActions,
+    %%                             [ ConfigTable ] ),
 
+    %% ResType = { tuple, [ {atom,success}, {string,[]} ] },
 
+    %% UserResSpec = { ResType, "Help contents" },
 
--doc """
-Adds the specified user action specifications to the current action table.
-""".
--spec add_actions( [ user_action_spec() ], wooper:state() ) -> wooper:state().
-add_actions( UserActSpecs, State ) ->
+    %% HelpUserActSpec = { _ActName=help, _UserArgSpec=[], UserResSpec,
+    %%                     _UserDesc="help about the US-Main supported actions" },
 
-    RegActTable = us_action:register_action_specs( UserActSpecs,
-        ?getAttr(action_table), wooper:get_classname( State ) ),
+    %% HelpState = executeOneway( IntegState, addAutomatedAction,
+    %%                            HelpUserActSpec ),
 
-    setAttribute( State, action_table, RegActTable ).
+    %% % End of interleaving:
+    %% SrvActions = case wooper:wait_for_concurrent_request_results(
+    %%         ConcurrentWaitInfo ) of
 
+    %%     { Results, _TimedOutInstances=[] } ->
+    %%         Results;
+
+    %%     { _MaybeResults, TimedOutInstances } ->
+    %%         throw( { fetch_action_time_out_from, TimedOutInstances } )
+
+    %% end,
+
+    %% executeOneway( HelpState, addAutomatedActions, [ SrvActions ] ).
+
+    State.
 
 
 -doc "Built-in help action request.".
 -spec help( wooper:state() ) ->
-                            const_request_return( { 'success', ustring() } ).
+                    const_request_return( action_result( ustring() ) ).
 help( State ) ->
     HelpText = "The following actions are supported by the US-Main server:",
     wooper:const_return_result( { success, HelpText } ).
@@ -827,7 +829,7 @@ manage_epmd_port( ConfigTable, State ) ->
 	end,
 
 	% For correct information; available by design:
-	?getAttr(us_config_server_pid) !
+    class_USConfigServer:get_server_pid() !
 		{ notifyEPMDPort, [ Port, Origin, ?MODULE, self() ] },
 
 	% Const:
@@ -1103,7 +1105,7 @@ guess_app_dir( AppRunContext, State ) ->
 			% us_main, so:
 			%
 			OTPPath = file_utils:normalise_path( file_utils:join(
-							[ CurrentDir, "..", "..", "..", ".." ] ) ),
+				[ CurrentDir, "..", "..", "..", ".." ] ) ),
 
 			case file_utils:get_base_path( OTPPath ) of
 
@@ -1147,7 +1149,7 @@ manage_data_directory( ConfigTable, State ) ->
 
 		key_not_found ->
 			file_utils:ensure_path_is_absolute( ?default_data_base_dir,
-				?getAttr(app_base_directory) );
+                                                ?getAttr(app_base_directory) );
 
 		{ value, D } when is_list( D ) ->
 			file_utils:ensure_path_is_absolute( D,
@@ -1157,7 +1159,7 @@ manage_data_directory( ConfigTable, State ) ->
 			?error_fmt( "Read invalid user-configured data directory: '~p'.",
 						[ InvalidDir ] ),
 			throw( { invalid_data_directory, InvalidDir,
-					 ?us_main_data_dir_key } )
+                     ?us_main_data_dir_key } )
 
 	end,
 
@@ -1288,10 +1290,8 @@ to_string( State ) ->
 
 	text_utils:format( "US-Main configuration ~ts; it is running ~ts, "
 		"running in the ~ts execution context, "
-		"knowing US overall configuration server ~w and "
-		"OTP supervisor ~w, relying on the '~ts' configuration directory",
+		"relying on the '~ts' configuration directory",
 		[ class_USServer:to_string( State ),
 		  otp_utils:application_run_context_to_string(
 			?getAttr(app_run_context ) ), ?getAttr(execution_context),
-		  ?getAttr(us_config_server_pid), ?getAttr(us_main_supervisor_pid),
 		  ?getAttr(config_base_directory) ] ).

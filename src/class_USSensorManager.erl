@@ -822,6 +822,10 @@ data (e.g. regarding temperature, intrusion, etc.).
 
 
 % The class-specific attributes:
+%
+% (no more us_config_server_pid, scheduler_pid, comm_gateway_pid, etc. as
+% servers shall be resolved on the fly, for an increased robustness)
+%
 -define( class_attributes, [
 
 	{ sensor_exec_pair, system_utils:execution_pair(),
@@ -835,17 +839,8 @@ data (e.g. regarding temperature, intrusion, etc.).
 	{ sensor_table, sensor_table(),
 	  "table registering all information regarding detected local sensors" },
 
-	{ us_config_server_pid, server_pid(),
-	  "the PID of the overall US configuration server" },
-
-	{ scheduler_pid, scheduler_pid(), "the PID of the main US scheduler" },
-
 	{ task_id, task_id(),
-	  "the scheduling identifier of the sensor-polling task" },
-
-	{ comm_gateway_pid, gateway_pid(),
-	  "the PID of the US communication gateway used to send user "
-	  "notifications" } ] ).
+	  "the scheduling identifier of the sensor-polling task" } ] ).
 
 
 
@@ -975,21 +970,14 @@ construct( State ) ->
 		{ _SensorEnabled=false, InitState } ->
 			?send_notice( InitState,
 						  "No sensor enabled, no polling scheduled." ),
-			setAttributes( InitState, [ { scheduler_pid, undefined },
-										{ task_id, undefined } ] )
+			setAttribute( InitState, task_id, undefined )
 
 	end,
 
-	% To report any issue:
-	CommGatewayPid = class_USCommunicationGateway:get_communication_gateway(),
+	?send_notice_fmt( InitSensorState, "Constructed: ~ts",
+                      [ to_string( InitSensorState ) ] ),
 
-	SetState = setAttributes( InitSensorState, [
-		{ us_config_server_pid, undefined },
-		{ comm_gateway_pid, CommGatewayPid } ] ),
-
-	?send_notice( SetState, "Constructed: " ++ to_string( SetState ) ),
-
-	SetState.
+	InitSensorState.
 
 
 
@@ -1025,10 +1013,7 @@ construct( State, SensorOutputFilePath ) ->
 		{ sensor_monitoring, false },
 		{ sensor_exec_pair, get_sensor_execution_pair( SrvState ) },
 		{ parser_state, JSONParserState },
-		{ us_config_server_pid, undefined },
-		{ scheduler_pid, undefined },
-		{ task_id, undefined },
-		{ comm_gateway_pid, undefined } ] ),
+		{ task_id, undefined } ] ),
 
 	ReadState =
 		parse_sensor_output_from_file( SensorOutputFilePath, InitState ),
@@ -1116,18 +1101,24 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 
 
 -doc """
-Returns the PID of the supposedly already-launched sensor manager; waits for it
-if needed.
-""".
--spec get_sensor_manager() -> static_return( sensor_manager_pid() ).
-get_sensor_manager() ->
+Returns the PID of the current, supposedly already-launched, sensor manager,
+waiting (up to a few seconds, as all US servers are bound to be launched mostly
+simultaneously) if needed.
 
-	ManagerPid = naming_utils:wait_for_registration_of(
-		?us_main_sensor_server_registration_name,
-		naming_utils:registration_to_lookup_scope(
-			?us_main_sensor_server_registration_scope ) ),
+It is better to obtain the PID of a server each time from the naming service
+rather than to resolve and store its PID once for all, as, for an increased
+robustness, servers may be restarted (hence any stored PID may not reference a
+live process anymore).
+""".
+-spec get_server_pid () -> static_return( sensor_manager_pid() ).
+get_server_pid() ->
+
+	ManagerPid = class_USServer:resolve_server_pid(
+        _RegName=?us_main_sensor_server_registration_name,
+        _RegScope=?us_main_sensor_server_registration_scope ),
 
 	wooper:return_static( ManagerPid ).
+
 
 
 
@@ -1304,12 +1295,10 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	DecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
 	% At about the last possible moment:
-	UsMainCfgSrvPid = class_USMainConfigServer:get_us_main_config_server(),
+	UsMainCfgSrvPid = class_USMainConfigServer:get_server_pid(),
 
 	% Blocking; beware of not creating deadlocks that way:
 	UsMainCfgSrvPid ! { getSensorSettings, [], self() },
-
-	CfgState = setAttribute( State, us_config_server_pid, UsMainCfgSrvPid ),
 
 	ReadMutedMeasurements = receive
 
@@ -1320,13 +1309,13 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	end,
 
 	MutedMeasurementTable =
-		vet_muted_sensor_points( ReadMutedMeasurements, CfgState ),
+		vet_muted_sensor_points( ReadMutedMeasurements, State ),
 
 	cond_utils:if_defined( us_main_debug_sensors,
 		?debug_fmt( "Muted measurements:~n ~p.", [ ReadMutedMeasurements ] ) ),
 
 	parse_initial_sensors( map_hashtable:enumerate( DecodedMap ),
-		_SensorTable=table:new(), MutedMeasurementTable, CfgState ).
+		_SensorTable=table:new(), MutedMeasurementTable, State ).
 
 
 
@@ -3964,17 +3953,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 	?debug_fmt( "Planning a sensor measurement each ~ts.",
 		[ time_utils:duration_to_string( 1000 * SensorPollPeriodicity ) ] ),
 
-	SchedulerPid = case class_USScheduler:get_main_scheduler() of
-
-		undefined ->
-			?critical( "The US main scheduler has not been found, "
-					   "whereas it is necessary for sensor polling." ),
-			throw( us_scheduler_not_found );
-
-		SchedPid ->
-			SchedPid
-
-	end,
+	SchedulerPid = class_USScheduler:get_server_pid(),
 
 	SchedulerPid ! { registerTask,
 					[ _TaskCmd=readSensors, SensorPollPeriodicity ], self() },
@@ -3984,8 +3963,7 @@ init_polling( SensorPollPeriodicity, State ) ->
 		{ wooper_result, { task_registered, TaskId } } ->
 			?debug_fmt( "Sensor polling task registered, as identifier #~B.",
 						[ TaskId ] ),
-			setAttributes( State, [ { scheduler_pid, SchedulerPid },
-									{ task_id, TaskId } ] )
+			setAttribute( State, task_id, TaskId )
 
 	end.
 
@@ -4629,30 +4607,17 @@ to_string( State ) ->
 
 	end,
 
-	SchedStr = case ?getAttr(scheduler_pid) of
+    % No more scheduler_pid:
+	SchedStr = case ?getAttr(task_id) of
 
-		undefined ->
-			"no specific scheduler";
+        undefined ->
+            "not known of the US main scheduler";
 
-		SchedPid ->
-			% Task known if scheduler is:
-			text_utils:format( "the scheduler ~w (as task #~B)",
-				[ SchedPid, ?getAttr(task_id) ] )
+        TaskId ->
+            text_utils:format( "known of the US main scheduler as task #~B",
+                               [ TaskId ] )
 
-	end,
+    end,
 
-	CfgStr = case ?getAttr(us_config_server_pid) of
-
-		undefined ->
-			"no US configuration server";
-
-		CfgSrvPid ->
-			text_utils:format( "US configuration server ~w", [ CfgSrvPid ] )
-
-	end,
-
-	text_utils:format( "US sensor manager for '~ts', ~ts; using the "
-		"US configuration server ~ts, using ~ts and "
-		"the communication gateway ~w",
-		[ net_utils:localhost(), TrackStr, CfgStr, SchedStr,
-		  ?getAttr(comm_gateway_pid) ] ).
+	text_utils:format( "US sensor manager for '~ts', ~ts; ~ts",
+		[ net_utils:localhost(), TrackStr, SchedStr ] ).

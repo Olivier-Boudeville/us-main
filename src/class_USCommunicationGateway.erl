@@ -94,21 +94,18 @@ Such gateways rely on a contact directory.
 
 
 % The class-specific attributes:
+%
+% (now, for a better robustness, servers are resolved on the fly, their PIDs are
+% not to be stored anymore)
+%
 -define( class_attributes, [
-
-	{ us_main_config_server_pid, server_pid(),
-	  "the PID of the US-Main configuration server" },
-
-	{ contact_directory_pid, option( directory_pid() ),
-	  "the PID of any associated contact directory" },
 
 	{ sms_support_operational, boolean(), "tells whether an actual SMS "
 	  "support is enabled and operational, notably to be able to send them" },
 
-	{ parent_comm_gateway_pid, option( gateway_pid() ),
-	  "the PID of any parent, authoritative gateway (e.g. able to send SMS)" }
-
-						   ] ).
+	{ parent_comm_gateway_lookup_info, option( lookup_info() ),
+	  "the lookup naming information  of any parent, authoritative gateway "
+      "(e.g. able to send SMSs)" } ] ).
 
 
 
@@ -205,11 +202,8 @@ construct( State ) ->
 
 	InitCommState = init_communications( SrvState ),
 
-	USMainCfgServerPid = class_USMainConfigServer:get_us_main_config_server(),
-
-	SetState = setAttributes( InitCommState, [
-		{ us_main_config_server_pid, USMainCfgServerPid },
-		{ parent_comm_gateway_pid, undefined } ] ),
+	SetState = setAttribute( InitCommState, parent_comm_gateway_lookup_info,
+                             undefined ),
 
 	?send_notice_fmt( SetState, "Constructed: ~ts.",
 					  [ to_string( SetState ) ] ),
@@ -264,19 +258,22 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
 
 -doc """
-Returns the PID of the supposedly already-launched communication gateway; waits
-for it if needed.
-""".
--spec get_communication_gateway() -> static_return( gateway_pid() ).
-get_communication_gateway() ->
+Returns the PID of the current, supposedly already-launched, communication
+gateway, waiting for it if needed.
 
-	GatewayPid = naming_utils:wait_for_registration_of(
-		?us_main_communication_server_registration_name,
-		naming_utils:registration_to_lookup_scope(
-			?us_main_communication_server_registration_scope ) ),
+It is better to obtain it each time from the naming service rather than to
+resolve and store its PID once for all, as, for an increased robustness, servers
+may be restarted (hence any former PID may not reference a live process
+anymore).
+""".
+-spec get_server_pid() -> static_return( gateway_pid() ).
+get_server_pid() ->
+
+	GatewayPid = class_USServer:resolve_server_pid(
+        _RegName=?us_main_communication_server_registration_name,
+        _RegScope=?us_main_communication_server_registration_scope ),
 
 	wooper:return_static( GatewayPid ).
-
 
 
 
@@ -329,11 +326,7 @@ init_communications( State ) ->
 
 	end,
 
-	% Needing the contact directory for operation, done as late as possible:
-	ContactDirPid = class_USContactDirectory:get_contact_directory(),
-
-	setAttributes( State, [ { contact_directory_pid, ContactDirPid },
-							{ sms_support_enabled, SMSSupportEnabled } ] ).
+	setAttribute( State, sms_support_enabled, SMSSupportEnabled ).
 
 
 
@@ -341,39 +334,15 @@ init_communications( State ) ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	ContactStr = case ?getAttr(contact_directory_pid) of
+	ParentGatewayStr = case ?getAttr(parent_comm_gateway_lookup_info) of
 
 		undefined ->
-			"not knowing a contact directory";
+			"not referencing any parent communication gateway";
 
-		ContactDirPid ->
-			text_utils:format( "knowing the contact directory ~w",
-							   [ ContactDirPid ] )
+		LI ->
+			text_utils:format( "referencing a parent communication gateway "
+                "based on a ~ts", [ naming_utils:lookup_info_to_string( LI ) ] )
 
 	end,
 
-	CfgStr = case ?getAttr(us_main_config_server_pid) of
-
-		% Would be surprising:
-		undefined ->
-			"not knowing a US-Main configuration server";
-
-		CfgSrvPid ->
-			text_utils:format( "knowing the US-Main configuration server ~w",
-							   [ CfgSrvPid ] )
-
-	end,
-
-	ParentGatewayStr = case ?getAttr(parent_comm_gateway_pid) of
-
-		undefined ->
-			"not registering a parent communication gateway";
-
-		GtwPid ->
-			text_utils:format( "registering parent communication gateway ~w",
-							   [ GtwPid ] )
-
-	end,
-
-	text_utils:format( "US communication gateway, ~ts, ~ts, ~ts",
-					   [ ContactStr, CfgStr, ParentGatewayStr ] ).
+	text_utils:format( "US communication gateway, ~ts", [ ParentGatewayStr ] ).
