@@ -22,6 +22,10 @@
 
 % Common US-Main defines.
 
+
+% As multiple US-Main instances could coexist, local name registration is
+% preferred.
+%
 -define( default_us_main_config_server_registration_name,
 		 us_main_config_server ).
 
