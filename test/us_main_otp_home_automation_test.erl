@@ -40,8 +40,8 @@ test_us_main_home_automation( OrderedAppNames ) ->
 
 	test_facilities:display( "The version of this currently tested US-Main "
 		"library is ~ts (i.e. ~w).", [
-			class_USMainConfigServer:get_us_main_version_string(),
-			class_USMainConfigServer:get_us_main_version() ] ),
+			class_USMainConfigServer:get_us_app_version_string(),
+			class_USMainConfigServer:get_us_app_version() ] ),
 
 	% We did not trap EXIT messages, as we wanted this test to crash (thanks to
 	% the links below) in case of problem (and not to receive an EXIT message
@@ -116,7 +116,7 @@ test_us_main_home_automation( OrderedAppNames ) ->
 	basic_utils:check_no_pending_message(),
 
 	test_facilities:display(
-		"Successful end of test of the US-Web OTP application." ).
+		"Successful end of test of the US-Main OTP application." ).
 
 
 
@@ -124,7 +124,7 @@ test_us_main_home_automation( OrderedAppNames ) ->
 Runs the tests.
 
 Note that the {oceanic, us_main, us_common, traces, wooper, myriad}.app files
-will have to be found and used for this test to succeed: Oceanic, US-Web,
+will have to be found and used for this test to succeed: Oceanic, US-Main,
 US-Common, Traces, WOOPER and Myriad must be already available as prerequisite,
 fully-built OTP applications.
 """.
