@@ -170,15 +170,7 @@ framework.
 %
 -define( class_attributes, [
 
-	{ execution_context, execution_context(),
-	  "tells whether this server is to run in development or production mode" },
-
-	% As it impacts at least various paths:
-	{ app_run_context, application_run_context(),
-	  "tells how US-Main is run, natively (using the Ceylan build/run system) "
-	  "or as an OTP release" },
-
-	{ muted_sensor_measurements, user_muted_sensor_points(),
+    { muted_sensor_measurements, user_muted_sensor_points(),
 	  "A list expected to contain muted sensor measurement points; "
 	  "to be vetted by the sensor manager when it will request it" },
 
@@ -191,30 +183,8 @@ framework.
 	  "any home automation core settings read (and not specifically checked) "
 	  "on behalf of the house automation server" },
 
-	{ config_base_directory, bin_directory_path(),
-	  "the base directory where all US configuration is to be found "
-	  "(not the us_main/priv/conf internal directory)" },
-
-	{ app_base_directory, bin_directory_path(),
-	  "the base directory of the US-Main application (the root where "
-	  "src, priv, ebin, etc. can be found)" },
-
-	{ conf_directory, bin_directory_path(),
-	  "the US-Main internal configuration directory, 'us_main/priv/conf'" },
-
-	{ data_directory, bin_directory_path(),
-	  "the directory where the US-Main working data is to be stored "
-	  "(typically [...]/us_main/priv/data)" },
-
-	{ log_directory, bin_directory_path(), "the directory where (non-VM) US-Main
-	  logs shall be written, notably traces" },
-
 	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
-	  "(as absolute paths), whence contact information may be read" }
-
-    % (action_table and all inherited for class_USServer)
-
-                           ] ).
+	  "(as absolute paths), whence contact information may be read" } ] ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -242,7 +212,6 @@ framework.
 % Type shorthands:
 
 -type execution_context() :: basic_utils:execution_context().
--type three_digit_version() :: basic_utils:three_digit_version().
 
 -type ustring() :: text_utils:ustring().
 
@@ -255,7 +224,6 @@ framework.
 -type action_result( T ) :: us_action:action_result( T ).
 
 -type server_pid() :: class_USServer:server_pid().
--type config_table() :: class_USServer:config_table().
 
 -type user_muted_sensor_points() ::
 	class_USSensorManager:user_muted_sensor_points().
@@ -344,31 +312,26 @@ Constructs the US-Main configuration server.
 -spec construct( wooper:state(), application_run_context() ) -> wooper:state().
 construct( State, AppRunContext ) ->
 
-	TraceCateg = ?trace_categorize("Configuration Server"),
+	TraceCateg = ?trace_categorize("Main configuration server"),
 
 	% First the direct mother classes, then this class-specific actions:
-	TraceState = class_USServer:construct( State, TraceCateg, _TrapExits=true ),
+	SrvState = class_USServer:construct( State, TraceCateg, _TrapExits=true ),
 
-	% Allows functions provided by lower-level libraries (e.g. LEEC) called
-	% directly from this instance process to plug to the same (trace aggregator)
-	% bridge, with the same settings:
-	%
-	class_TraceEmitter:register_bridge( TraceState ),
-
-	?send_info_fmt( TraceState, "Creating a US-Main configuration server, "
+	?send_info_fmt( SrvState, "Creating a US-Main configuration server, "
 		"running ~ts.",
 		[ otp_utils:application_run_context_to_string( AppRunContext ) ] ),
 
-	?send_debug_fmt( TraceState, "Running Erlang ~ts, whose ~ts",
+	?send_debug_fmt( SrvState, "Running Erlang ~ts, whose ~ts",
 		[ system_utils:get_interpreter_version(),
 		  code_utils:get_code_path_as_string() ] ),
 
-	?send_debug_fmt( TraceState, "System description: ~ts",
+	?send_debug_fmt( SrvState, "System description: ~ts",
 		[ system_utils:get_system_description() ] ),
 
-
 	% Other attributes set by the next function:
-	SupState = setAttribute( TraceState, app_run_context, AppRunContext ),
+	SupState = setAttributes( SrvState, [
+        { app_run_context, AppRunContext },
+        { waited_operations, undefined } ] ),
 
 	CfgState = load_and_apply_configuration( SupState ),
 
@@ -499,29 +462,10 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 % Static section.
 
 
-% Version-related static methods.
-
-
--doc "Returns the version of the US-Main library being used.".
--spec get_us_main_version() -> static_return( three_digit_version() ).
-get_us_main_version() ->
-	wooper:return_static(
-		basic_utils:parse_version( get_us_main_version_string() ) ).
-
-
-
--doc "Returns the version of the US-Main library being used, as a string.".
--spec get_us_main_version_string() -> static_return( ustring() ).
-get_us_main_version_string() ->
-	% As defined (uniquely) in GNUmakevars.inc:
-	wooper:return_static( ?us_main_version ).
-
-
-
 -doc """
 Returns the PID of the current, supposedly already-launched, US-Main
-configuration server, waiting (up to a few seconds, as all US-Main servers are
-bound to be launched mostly simultaneously) if needed.
+configuration server, waiting (up to a few seconds, as all US-Main server
+processes are bound to be launched mostly simultaneously) if needed.
 
 Typically useful for the various US-Main auxiliary, thematical servers, so that
 they can easily access to their configuration information.
@@ -676,17 +620,28 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	?debug_fmt( "Read main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
 
-	EpmdState = manage_epmd_port( MainCfgTable, State ),
+	EpmdState = executeOneway( State, manageEPMDPort,
+        [ MainCfgTable, _PortKey=?us_main_epmd_port_key,
+          _DefPort= ?default_us_main_epmd_port ] ),
 
-	RegState = manage_registrations( MainCfgTable, EpmdState ),
+	RegState = executeOneway( EpmdState, manageRegistrations,
+        [ MainCfgTable, ?default_us_main_config_server_registration_name,
+          ?default_us_main_config_server_registration_scope ] ),
 
-	UserState = manage_os_user( MainCfgTable, RegState ),
+	UserState = executeOneway( RegState, manageSystemUser,
+        [ MainCfgTable, _UsernameKey=?us_main_username_key ] ),
 
-	AppState = manage_app_base_directories( MainCfgTable, UserState ),
+	AppState = executeOneway( UserState, manageAppBaseDirectories,
+        [ _BaseDirKey=?us_main_app_base_dir_key,
+          _BaseDirEnvVarName=?us_main_app_env_variable ] ),
 
-	DataState = manage_data_directory( MainCfgTable, AppState ),
+	DataState = executeOneway( AppState, manageDataDirectory,
+        [ MainCfgTable, _DataDirKey=?us_main_data_dir_key,
+          _DefaultDataBaseDir=?default_data_base_dir ] ),
 
-	LogState = manage_log_directory( MainCfgTable, DataState ),
+	LogState = executeOneway( DataState, manageLogDirectory,
+        [ MainCfgTable, _LogDirKey=?us_main_log_dir_key,
+          _DefaultLogDir=?default_log_base_dir ] ),
 
 	ContactState = class_USContactDirectory:manage_configuration( MainCfgTable,
 																  LogState ),
@@ -697,8 +652,12 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	AutomatState = class_USHomeAutomationServer:manage_configuration(
 		MainCfgTable, SensorState ),
 
-    % Once devices are known:
-    ActionState = manage_automated_actions( MainCfgTable, AutomatState ),
+    % The US servers of this application, federated by this central one:
+    SrvClassnames = [ class_USCommunicationGateway, class_USContactDirectory,
+                      class_USHomeAutomationServer, class_USSensorManager ],
+
+    ActionState = executeOneway( AutomatState, manageAutomatedActions,
+                                 [ MainCfgTable, SrvClassnames ] ),
 
 	FinalState = ActionState,
 
@@ -727,56 +686,6 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 
 
--doc """
-Manages all US-Main level user-configured, general-purpose automated actions, so
-that the user code has to interact with only a single overall server/service.
-""".
--spec manage_automated_actions( config_table(), wooper:state() ) ->
-                                            wooper:state().
-manage_automated_actions( _ConfigTable, State ) ->
-
-    % (to be added some day: credential_server_pid, comm_gateway_pid)
-
-    % Aggregate on this main server the actions of all other US-Main servers:
-
-    %% SrvPids = [ SrvMod:get_server_pid()
-    %%     || SrvMod <- [ class_USCommunicationGateway, class_USContactDirectory,
-    %%                    class_USHomeAutomationServer, class_USSensorManager ] ],
-
-    %% % Interleaving:
-    %% ConcurrentWaitInfo = wooper:send_concurrent_request(
-    %%     _TargetInstancePids=SrvPids, _ReqName=getAutomatedActions ),
-
-    %% % Integrate any user-defined actions in the meantime:
-    %% IntegState = executeOneway( State, integrateAutomatedActions,
-    %%                             [ ConfigTable ] ),
-
-    %% ResType = { tuple, [ {atom,success}, {string,[]} ] },
-
-    %% UserResSpec = { ResType, "Help contents" },
-
-    %% HelpUserActSpec = { _ActName=help, _UserArgSpec=[], UserResSpec,
-    %%                     _UserDesc="help about the US-Main supported actions" },
-
-    %% HelpState = executeOneway( IntegState, addAutomatedAction,
-    %%                            HelpUserActSpec ),
-
-    %% % End of interleaving:
-    %% SrvActions = case wooper:wait_for_concurrent_request_results(
-    %%         ConcurrentWaitInfo ) of
-
-    %%     { Results, _TimedOutInstances=[] } ->
-    %%         Results;
-
-    %%     { _MaybeResults, TimedOutInstances } ->
-    %%         throw( { fetch_action_time_out_from, TimedOutInstances } )
-
-    %% end,
-
-    %% executeOneway( HelpState, addAutomatedActions, [ SrvActions ] ).
-
-    State.
-
 
 -doc "Built-in help action request.".
 -spec help( wooper:state() ) ->
@@ -786,512 +695,7 @@ help( State ) ->
     wooper:const_return_result( { success, HelpText } ).
 
 
-
--doc """
-Manages any US-Main level user-configured EPMD port.
-
-The port may be already set at the US overall level, but it can be overridden on
-a per-US application basis, as it may be convenient to share one's us.config
-between multiple applications (e.g. US-Main and US-Web).
-""".
--spec manage_epmd_port( config_table(), wooper:state() ) -> wooper:state().
-manage_epmd_port( ConfigTable, State ) ->
-
-	% No simple, integrated way of checking the actual port currently in use:
-	{ Port, Origin } = case table:lookup_entry( ?us_main_epmd_port_key,
-												ConfigTable ) of
-
-		key_not_found ->
-			% No US-Main EPMD port defined, so its default will apply unless a
-			% port was explicitly set at the US-level:
-			%
-			DefaultUSMainEpmdPort = ?default_us_main_epmd_port,
-
-			?info_fmt( "No user-configured EPMD TCP port for US-Main, "
-				"proposing its default one, ~B.", [ DefaultUSMainEpmdPort  ] ),
-
-			{ DefaultUSMainEpmdPort, as_default };
-
-
-		{ value, UserEPMDPort } when is_integer( UserEPMDPort ) ->
-			?info_fmt( "Supposing already running using the user-defined "
-					   "US-Main EPMD TCP port #~B.", [ UserEPMDPort ] ),
-
-			{ UserEPMDPort, explicit_set };
-
-
-		{ value, InvalidEPMDPort } ->
-			?error_fmt( "Read invalid user-configured US-Main EPMD port: '~p'.",
-						[ InvalidEPMDPort ] ),
-			throw( { invalid_us_main_epmd_port, InvalidEPMDPort,
-					 ?us_main_epmd_port_key } )
-
-	end,
-
-	% For correct information; available by design:
-    class_USConfigServer:get_server_pid() !
-		{ notifyEPMDPort, [ Port, Origin, ?MODULE, self() ] },
-
-	% Const:
-	State.
-
-
-
--doc """
-Manages any user-configured registration names for this instance, for the
-US-Main server and their related services, which may be created here.
-""".
--spec manage_registrations( config_table(), wooper:state() ) -> wooper:state().
-manage_registrations( _ConfigTable, State ) ->
-
-	% As multiple US-Main may coexist, local name registration is preferred; and
-	% overriding such names would be unnecessarily complex.
-
-	CfgRegName = ?default_us_main_config_server_registration_name,
-
-	CfgRegScope = ?default_us_main_config_server_registration_scope,
-
-	naming_utils:register_as( CfgRegName, CfgRegScope ),
-
-	?info_fmt( "This US-Main configuration server was registered as '~ts' "
-		"(scope: ~ts).", [ CfgRegName, CfgRegScope ] ),
-
-	setAttributes( State, [
-		% Inherited:
-		{ registration_name, CfgRegName },
-		{ registration_scope, CfgRegScope } ] ).
-
-
-
--doc """
-Manages any user-configured specification regarding the (operating-system level)
-US-Main user.
-""".
--spec manage_os_user( config_table(), wooper:state() ) -> wooper:state().
-manage_os_user( ConfigTable, State ) ->
-
-	% Mostly used by start/stop/kill scripts:
-	MainUsername = case table:lookup_entry( ?us_main_username_key,
-											ConfigTable ) of
-
-		key_not_found ->
-			ActualUsername = system_utils:get_user_name(),
-			?info_fmt( "No user-configured US-Main operating-system username "
-				"set for this server; runtime-detected: '~ts'.",
-				[ ActualUsername ] ),
-			ActualUsername;
-
-		{ value, Username } when is_list( Username ) ->
-
-			% No overriding expected:
-			basic_utils:check_undefined( ?getAttr(username) ),
-
-			case system_utils:get_user_name() of
-
-				Username ->
-					?info_fmt( "Using user-configured US-Main operating-system "
-						"username '~ts' for this server, which matches "
-						"the current runtime user.", [ Username ] ),
-					Username;
-
-				OtherUsername ->
-					?error_fmt( "The user-configured US-Main operating-system "
-						"username '~ts' for this server does not match "
-						"the current runtime user, '~ts'.",
-						[ Username, OtherUsername ] ),
-					throw( { inconsistent_os_us_main_user, OtherUsername,
-							 Username, ?us_main_username_key } )
-
-			end
-
-	end,
-
-	setAttribute( State, username,
-				  text_utils:string_to_binary( MainUsername ) ).
-
-
-
--doc """
-Manages any user-configured application base directory, and sets related
-directories.
-""".
--spec manage_app_base_directories( config_table(), wooper:state() ) ->
-										wooper:state().
-manage_app_base_directories( ConfigTable, State ) ->
-
-	% As opposed to, say, start/stop script, the Erlang code does not care so
-	% much about these directories, so warnings, not errors, were issued if
-	% not found (the US framework being also launchable thanks to, for example,
-	% 'make debug'). We finally opted for a stricter policy, as errors could be
-	% induced afterwards.
-
-	AppRunContext = ?getAttr(app_run_context),
-
-	MaybeConfBaseDir = case table:lookup_entry( ?us_main_app_base_dir_key,
-												ConfigTable ) of
-
-		key_not_found ->
-			undefined;
-
-		{ value, D } when is_list( D ) ->
-			?info_fmt( "User-configured US-Main application base directory "
-					   "is '~ts'.", [ D ] ),
-			D;
-
-		{ value, InvalidDir }  ->
-			?error_fmt( "Read invalid user-configured US-Main application base "
-						"directory: '~p'.", [ InvalidDir ] ),
-			throw( { invalid_us_main_app_base_directory, InvalidDir,
-					 ?us_main_app_base_dir_key, AppRunContext } )
-
-	end,
-
-	MaybeBaseDir = case MaybeConfBaseDir of
-
-		undefined ->
-			case system_utils:get_environment_variable(
-					?us_main_app_env_variable ) of
-
-				false ->
-					undefined;
-
-				% Might be set, yet to an empty string, typically because of
-				% US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}":
-				%
-				"" ->
-					undefined;
-
-				EnvDir ->
-					?info_fmt( "No user-configured US-Main application base "
-						"directory set in configuration file, using the value "
-						"of the '~ts' environment variable: '~ts'.",
-						[ ?us_main_app_env_variable, EnvDir ] ),
-					EnvDir
-
-			end;
-
-		_ ->
-			MaybeConfBaseDir
-
-	end,
-
-	RawBaseDir = case MaybeBaseDir of
-
-		undefined ->
-			guess_app_dir( AppRunContext, State );
-
-		_ ->
-			MaybeBaseDir
-
-	end,
-
-	BaseDir = file_utils:ensure_path_is_absolute( RawBaseDir ),
-
-	% We check not only that this candidate app directory exists, but also that
-	% it is a right one, expecting to have a 'priv' direct subdirectory then:
-
-	MaybeBaseBinDir =
-			case file_utils:is_existing_directory_or_link( BaseDir ) of
-
-		true ->
-			BinBaseDir = text_utils:string_to_binary( BaseDir ),
-			case AppRunContext of
-
-				as_otp_release ->
-					% As, if run as a release, it may end with a version (e.g.
-					% "us_main-0.0.1"), or a "us_main-latest" symlink thereof,
-					% or directly as "us-main":
-					%
-					case filename:basename( BaseDir ) of
-
-						% From a clone made with our deployment conventions:
-						"us_main" ++ _ ->
-							?info_fmt( "US-Main (release) application base "
-								"directory set to '~ts'.", [ BaseDir ] ),
-							BinBaseDir;
-
-						% For a clone made to a default directory (e.g. by CI):
-						"us-main" ++ _ ->
-							?info_fmt( "US-Main (release) application base "
-								"directory set to '~ts'.", [ BaseDir ] ),
-							BinBaseDir;
-
-						_Other ->
-							%?warning_fmt( "The US-Main application base "
-							%  "directory '~ts' does not seem legit (it "
-							%  "should end with 'us_main'), thus considering "
-							%  "knowing none.", [ BaseDir ] ),
-							%undefined
-							throw( { incorrect_us_main_app_base_directory,
-									 BaseDir, ?us_main_app_base_dir_key,
-									 AppRunContext } )
-
-					end;
-
-				as_native ->
-					case file_utils:get_last_path_element( BaseDir ) of
-
-						"us_main" ->
-							?info_fmt( "US-Main (native) application base "
-									   "directory set to '~ts'.", [ BaseDir ] ),
-							BinBaseDir;
-
-						_Other ->
-							throw( { incorrect_us_main_app_base_directory,
-									 BaseDir, ?us_main_app_base_dir_key,
-									 AppRunContext } )
-
-					end
-
-			end,
-
-			% Final paranoid check:
-			PrivDir = file_utils:join( BinBaseDir, "priv" ),
-			case file_utils:is_existing_directory_or_link( PrivDir ) of
-
-				true ->
-					BinBaseDir;
-
-				false ->
-					?error_fmt( "The determined US-Main application base "
-						"directory '~ts' does not have a 'priv' subdirectory.",
-						[ BinBaseDir ] ),
-					throw( { no_priv_us_main_app_base_directory, BaseDir,
-							 ?us_main_app_base_dir_key } )
-
-			end;
-
-
-		false ->
-			%?warning_fmt( "The US-Main application base directory '~ts' does "
-			%   "not exist, thus considering knowing none.", [ BaseDir ] ),
-			%undefined
-			throw( { non_existing_us_main_app_base_directory, BaseDir,
-					 ?us_main_app_base_dir_key } )
-
-
-	end,
-
-	% The internal US-Main directory (see conf_directory) used to be derived
-	% from the app base one (as a 'conf' subdirectory thereof), yet because of
-	% that it was not included in releases. So instead this 'conf' directory is
-	% a subdirectory of 'priv':
-	%
-	% (for some reason, using this module, although it is listed in us_main.app,
-	% results with code:priv_dir/1 in a bad_name exception)
-	%
-	%TargetMod = ?MODULE,
-	%TargetMod = us_main_app,
-	TargetMod = us_main_sup,
-
-	ConfBinDir = file_utils:bin_join(
-		otp_utils:get_priv_root( TargetMod, _BeSilent=true ), "conf" ),
-
-	% Set in all cases:
-	setAttributes( State, [ { app_base_directory, MaybeBaseBinDir },
-							{ conf_directory, ConfBinDir } ] ).
-
-
-
--doc "Tries to guess the US-Main application directory.".
-guess_app_dir( AppRunContext, State ) ->
-
-	CurrentDir = file_utils:get_current_directory(),
-
-	GuessingDir = case AppRunContext of
-
-		as_otp_release ->
-			% In [...]/us_main/_build/default/rel/us_main, and we want the first
-			% us_main, so:
-			%
-			OTPPath = file_utils:normalise_path( file_utils:join(
-				[ CurrentDir, "..", "..", "..", ".." ] ) ),
-
-			case file_utils:get_base_path( OTPPath ) of
-
-				"us_main" ->
-					% Looks good:
-					OTPPath;
-
-				% Not found; another try, if running as a test (from
-				% us_main/test):
-				%
-				_ ->
-					file_utils:get_base_path( CurrentDir )
-
-			end;
-
-		as_native ->
-			% In the case of a native build, running from us_main/src (covers
-			% also the case where a test is being run from us_main/test), so:
-			%
-			file_utils:get_base_path( CurrentDir )
-
-	end,
-
-	% Was a warning:
-	?info_fmt( "No user-configured US-Main application base directory set "
-		"(neither in configuration file nor through the '~ts' environment "
-		"variable), hence trying to guess it, in a ~ts context, as '~ts'.",
-		[ ?us_main_app_env_variable, AppRunContext, GuessingDir ] ),
-
-	GuessingDir.
-
-
-
--doc """
-Manages any user-configured data directory to rely on, creating it if necessary.
-""".
--spec manage_data_directory( config_table(), wooper:state() ) -> wooper:state().
-manage_data_directory( ConfigTable, State ) ->
-
-	BaseDir = case table:lookup_entry( ?us_main_data_dir_key, ConfigTable ) of
-
-		key_not_found ->
-			file_utils:ensure_path_is_absolute( ?default_data_base_dir,
-                                                ?getAttr(app_base_directory) );
-
-		{ value, D } when is_list( D ) ->
-			file_utils:ensure_path_is_absolute( D,
-				?getAttr(app_base_directory) );
-
-		{ value, InvalidDir }  ->
-			?error_fmt( "Read invalid user-configured data directory: '~p'.",
-						[ InvalidDir ] ),
-			throw( { invalid_data_directory, InvalidDir,
-                     ?us_main_data_dir_key } )
-
-	end,
-
-	file_utils:is_existing_directory( BaseDir ) orelse
-		?warning_fmt( "The base data directory '~ts' does not exist, "
-					  "creating it.", [ BaseDir ] ),
-
-	% Would lead to inconvenient paths, at least if defined as relative:
-	%DataDir = file_utils:join( BaseDir, ?app_subdir ),
-	DataDir = BaseDir,
-
-	try
-
-		file_utils:create_directory_if_not_existing( DataDir, create_parents )
-
-	catch
-
-		{ create_directory_failed, _DataDir, eacces } ->
-
-			% Clearer than system_utils:get_user_name_string/0:
-			Username = system_utils:get_user_name(),
-
-			?error_fmt( "Unable to create the directory for working data "
-				"'~ts': please ensure its parent directory can be written "
-				"by user '~ts', or set it to different path thanks to the "
-				"'~ts' key.", [ DataDir, Username, ?us_main_data_dir_key ] ),
-
-			throw( { data_directory_creation_failed, DataDir, eacces,
-					 Username } );
-
-		E ->
-			throw( { data_directory_creation_failed, DataDir, E } )
-
-	end,
-
-	% Enforce security in all cases ("chmod 700"); if it fails here, the
-	% combined path/user configuration must be incorrect; however we might not
-	% be the owner of that directory (e.g. if the us-main user is different from
-	% the us one). So:
-	%
-	CurrentUserId = system_utils:get_user_id(),
-
-	% If not owned, do nothing:
-	file_utils:get_owner_of( DataDir ) =:= CurrentUserId andalso
-		file_utils:change_permissions( DataDir,
-			[ owner_read, owner_write, owner_execute,
-			  group_read, group_write, group_execute ] ),
-
-	BinDataDir = text_utils:ensure_binary( DataDir ),
-
-	setAttribute( State, data_directory, BinDataDir ).
-
-
-
--doc """
-Manages any user-configured log directory to rely on, creating it if necessary.
-""".
--spec manage_log_directory( config_table(), wooper:state() ) -> wooper:state().
-manage_log_directory( ConfigTable, State ) ->
-
-	% Longer paths if defined as relative, yet finally preferred as
-	% '/var/log/universal-server/us-main' (rather than
-	% '/var/log/universal-server') as it allows separating US-Main from any
-	% other US-* services:
-	%
-	LogDir = case table:lookup_entry( ?us_main_log_dir_key, ConfigTable ) of
-
-		key_not_found ->
-			% Bound to require special permissions:
-			?default_log_base_dir;
-
-		{ value, D } when is_list( D ) ->
-			file_utils:ensure_path_is_absolute( D,
-												?getAttr(app_base_directory) );
-
-		{ value, InvalidDir }  ->
-			?error_fmt( "Read invalid user-configured log directory: '~p'.",
-						[ InvalidDir ] ),
-			throw( { invalid_log_directory, InvalidDir, ?us_main_log_dir_key } )
-
-	end,
-
-	file_utils:is_existing_directory( LogDir ) orelse
-		begin
-
-			%throw( { non_existing_base_us_web_log_directory, LogDir } )
-
-			?warning_fmt( "The base US-Web log directory '~ts' does not exist, "
-						  "creating it.", [ LogDir ] ),
-
-			% As for example the default path would require to create
-			% /var/log/universal-server/us-web:
-			%
-			file_utils:create_directory_if_not_existing( LogDir,
-														 create_parents )
-
-		end,
-
-	% Enforce security in all cases ("chmod 700"); if it fails here, the
-	% combined path/user configuration must be incorrect; however we might not
-	% be the owner of that directory (e.g. if the us-main user is different from
-	% the US-Common one).
-	%
-	% So:
-	%
-	CurrentUserId = system_utils:get_user_id(),
-
-	% If not owned, does nothing:
-	CurrentUserId =:= file_utils:get_owner_of( LogDir ) andalso
-		begin
-
-			Perms = [ owner_read, owner_write, owner_execute,
-					  group_read, group_write, group_execute ],
-
-			file_utils:change_permissions( LogDir, Perms )
-
-		end,
-
-	BinLogDir = text_utils:ensure_binary( LogDir ),
-
-	setAttribute( State, log_directory, BinLogDir ).
-
-
-
 -doc "Returns a textual description of this configuration server.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
-
-	text_utils:format( "US-Main configuration ~ts; it is running ~ts, "
-		"running in the ~ts execution context, "
-		"relying on the '~ts' configuration directory",
-		[ class_USServer:to_string( State ),
-		  otp_utils:application_run_context_to_string(
-			?getAttr(app_run_context ) ), ?getAttr(execution_context),
-		  ?getAttr(config_base_directory) ] ).
+    class_USCentralServer:to_string( State ).
