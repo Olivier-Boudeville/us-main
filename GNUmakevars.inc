@@ -69,8 +69,7 @@ ifeq ($(EXECUTION_TARGET),development)
 endif
 
 
-ERLANG_COMPILER_OPT_BASE += -Dus_main_version=\"$(US_MAIN_VERSION)\" \
-							$(US_MAIN_DEBUG_FLAGS)    \
+ERLANG_COMPILER_OPT_BASE += $(US_MAIN_DEBUG_FLAGS) \
 							$(US_MAIN_CHECK_FLAGS)
 
 
@@ -109,6 +108,9 @@ endif
 # class_USMainConfigServer:get_us_main_version{_string,}/0):
 #
 US_MAIN_VERSION := 0.0.20
+
+# Used by US-Common:
+US_APP_VERSION := $(US_MAIN_VERSION)
 
 
 # PROJECT_VERSION should be defined on a per-project basis:
