@@ -131,7 +131,7 @@ fans), and of reporting any abnormal situation" ).
 
 -doc """
 Table associating, to a measurement point (e.g. `<<"Core 0">>`), a table of the
-corresponding attributes (that is a point_attribute_map/0).
+corresponding attributes (that is a `point_attribute_map/0`).
 """.
 -type json_point_map() :: map_hashtable( measurement_point_name(),
 										 point_attribute_map() ).
@@ -140,7 +140,6 @@ corresponding attributes (that is a point_attribute_map/0).
 
 -doc "An entry of a json_point_map/0.".
 -type json_point_entry() :: { measurement_point_name(), point_attribute_map() }.
-% An entry of a json_point_map/0.
 
 
 
@@ -241,7 +240,7 @@ Full internal identifier of a sensor, directly deriving from a raw one.
 For example `{coretemp, isa, <<"0a20">>}`.
 """.
 -type sensor_id() ::
-		{ atom_sensor_type(), sensor_interface(), sensor_number() }.
+	{ atom_sensor_type(), sensor_interface(), sensor_number() }.
 
 
 
@@ -1022,7 +1021,7 @@ construct( State, SensorOutputFilePath ) ->
 					  [ SensorOutputFilePath, to_string( ReadState ) ] ),
 
 	% Not wanted, as we would read updated data not from file but from local
-	% host instead and thus detect unexpected sensors:
+	% host instead, and thus detect unexpected sensors:
 	%
 	%UpdatedSensorState = update_sensor_data( ReadState ),
 	UpdatedSensorState = ReadState,
@@ -1295,10 +1294,10 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	DecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
 	% At about the last possible moment:
-	UsMainCfgSrvPid = class_USMainConfigServer:get_server_pid(),
+	USMainCfgSrvPid = class_USMainConfigServer:get_server_pid(),
 
 	% Blocking; beware of not creating deadlocks that way:
-	UsMainCfgSrvPid ! { getSensorSettings, [], self() },
+	USMainCfgSrvPid ! { getSensorSettings, [], self() },
 
 	ReadMutedMeasurements = receive
 
@@ -1547,7 +1546,6 @@ categorise_sensor( RawSensorType="iwlwifi" ++ _ ) ->
 % For example "ucsi_source_psy_USBC000:001-isa-0000" (for USB-C)
 categorise_sensor( RawSensorType ) ->
 	{ text_utils:string_to_atom( RawSensorType ), bus }.
-
 
 
 -doc "Returns the sensor interface corresponding to the specified string.".
