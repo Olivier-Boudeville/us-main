@@ -4858,7 +4858,7 @@ to_string( State ) ->
 
 	text_utils:format( "US home automation server ~ts, ~ts, ~ts, "
         "and that the alarm ~ts~n"
-        "The presence simulator is currently ~ts, knowing that ~ts~n~ts.~n~n"
+        "The presence simulator is currently ~ts, knowing that ~ts.~n~ts.~n~n"
         "This server has ~ts."
         "This server is currently ~ts~n~n",
 		[ OcSrvStr, LocStr, AtHomeStr, AlarmStr, PscStr, PscSwitchStr,
