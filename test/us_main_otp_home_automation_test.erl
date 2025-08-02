@@ -40,8 +40,8 @@ test_us_main_home_automation( OrderedAppNames ) ->
 
 	test_facilities:display( "The version of this currently tested US-Main "
 		"library is ~ts (i.e. ~w).", [
-			class_USMainConfigServer:get_us_app_version_string(),
-			class_USMainConfigServer:get_us_app_version() ] ),
+			class_USMainCentralServer:get_us_app_version_string(),
+			class_USMainCentralServer:get_us_app_version() ] ),
 
 	% We did not trap EXIT messages, as we wanted this test to crash (thanks to
 	% the links below) in case of problem (and not to receive an EXIT message
@@ -71,7 +71,7 @@ test_us_main_home_automation( OrderedAppNames ) ->
 	%
 	otp_utils:start_applications( OrderedAppNames ),
 
-	HomeAutoSrvPid = class_USHomeAutomationServer:get_home_automation_server(),
+	HomeAutoSrvPid = class_USHomeAutomationServer:get_server_pid(),
 
 	% The top-level user process may not be aware that an OTP application fails
 	% (e.g. because its main process crashed), which is a problem for a test. So

@@ -27,7 +27,7 @@ Reads and interprets the specified text file containing **sensor output data**
 US-Main).
 
 Such a file is typically obtained thanks to:
-`$ sensors --no-adapter -j > test_sensor_output.txt`
+`sensors --no-adapter -j > test_sensor_output.txt`
 """.
 
 
@@ -52,7 +52,7 @@ run() ->
 		true ->
 
 			% As used by the sensor manager:
-			class_USMainConfigServer:create_mockup_for_test(),
+			class_USMainCentralServer:create_mockup_for_test(),
 
 			SensorManagerPid =
 				class_USSensorManager:new_link( SensorDataFilename ),

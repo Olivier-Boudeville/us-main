@@ -62,7 +62,7 @@ test_us_main_sensor_management( OrderedAppNames ) ->
 	%
 	otp_utils:start_applications( OrderedAppNames ),
 
-	SensorManagerPid = class_USSensorManager:get_sensor_manager(),
+	SensorManagerPid = class_USSensorManager:get_server_pid(),
 
 	% The top-level user process may not be aware that an OTP application fails
 	% (e.g. because its main process crashed), which is a problem for a test. So
