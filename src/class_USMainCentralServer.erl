@@ -75,12 +75,17 @@ automated actions, etc. for the **US-Main** framework.
 -type main_central_server_pid() :: server_pid().
 
 
-% For default_us_main_central_server_registration_name:
--include("us_main_defines.hrl").
+-doc "A table holding US-Main configuration information.".
+-type us_main_config_table() :: config_table().
 
 
 -export_type([ general_main_settings/0, user_server_location/0,
-               main_central_server_pid/0 ]).
+               main_central_server_pid/0, us_main_config_table/0 ]).
+
+
+% For default_us_main_central_server_registration_name:
+-include("us_main_defines.hrl").
+
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -214,6 +219,7 @@ automated actions, etc. for the **US-Main** framework.
 % Type shorthands:
 
 -type execution_context() :: basic_utils:execution_context().
+
 -type three_digit_version() :: basic_utils:three_digit_version().
 
 -type ustring() :: text_utils:ustring().
@@ -222,6 +228,9 @@ automated actions, etc. for the **US-Main** framework.
 -type bin_directory_path() :: file_utils:bin_directory_path().
 
 -type application_run_context() :: otp_utils:application_run_context().
+
+-type config_table() :: app_facilities:config_table().
+
 
 %-type user_action_spec() :: us_action:user_action_spec().
 -type action_result( T ) :: us_action:action_result( T ).
@@ -323,7 +332,7 @@ construct( State, AppRunContext ) ->
 
 	% Done rather late on purpose, so that the existence of this trace file can
 	% be seen as a sign that the initialisation went well (used by
-	% start-us-xxx-{native-build,release}.sh).
+	% start-us-main-{native-build,release}.sh).
 	%
 	% Now that the log directory is known, we can properly redirect the traces:
     executeConstOneway( CfgState, finaliseTraceSetup ),
@@ -475,7 +484,7 @@ get_server_pid() ->
 
 
 -doc """
-Creates a mockup of the US-Main centraluration server, notably for the testing of
+Creates a mockup of the US-Main central server, notably for the testing of
 the other servers.
 """.
 -spec create_mockup_for_test() -> static_return( server_pid() ).
@@ -485,12 +494,11 @@ create_mockup_for_test() ->
 	CfgPid = ?myriad_spawn_link( fun() -> us_main_mockup_srv() end ),
 
 	CfgRegName = ?default_us_main_central_server_registration_name,
-
 	CfgRegScope = ?default_us_main_central_server_registration_scope,
 
 	naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
 
-	trace_bridge:info_fmt( "Created a mock-up US-Main centraluration server ~w, "
+	trace_bridge:info_fmt( "Created a mock-up US-Main central server ~w, "
 		"registered (~ts) as '~ts'.",
 		[ CfgPid, CfgRegScope, CfgRegName ] ),
 
@@ -501,7 +509,7 @@ create_mockup_for_test() ->
 
 us_main_mockup_srv() ->
 
-	%trace_utils:debug( "Mock-up US-Main centraluration server in main loop." ),
+	%trace_utils:debug( "Mock-up US-Main central server in main loop." ),
 
 	receive
 
@@ -510,7 +518,7 @@ us_main_mockup_srv() ->
 			us_main_mockup_srv();
 
 		UnexpectedMsg ->
-			trace_bridge:error_fmt( "The mock-up US-Main centraluration server "
+			trace_bridge:error_fmt( "The mock-up US-Main central server "
 				"~w received an unexpected (ignored) message: ~p.",
 				[ self(), UnexpectedMsg ] ),
 			us_main_mockup_srv()
@@ -590,7 +598,6 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 				[ MainCfgFilePath ] );
 
 		false ->
-
 			% Possibly user/group permission issue:
 			?error_fmt( "No US-Main configuration file found or accessible "
 				"(e.g. symbolic link to an inaccessible file); tried '~ts'.",
@@ -605,7 +612,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	MainCfgTable = table:new_from_unique_entries(
 		file_utils:read_etf_file( MainCfgFilePath ) ),
 
-	?debug_fmt( "Read main configuration ~ts",
+	?debug_fmt( "Read US-Main configuration ~ts",
 				[ table:to_string( MainCfgTable ) ] ),
 
 	EpmdState = executeOneway( State, manageEPMDPort,
