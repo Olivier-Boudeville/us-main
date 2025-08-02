@@ -349,7 +349,7 @@ UserMutedMeasurements = [
 % At least currently, this mostly applies to temperature sensors.
 
 % Corresponds to the legit settings expected as
-% class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+% class_USMainCentralServer:user_muted_sensor_points(); may be for example:
 % ```
 % [{nct6792, isa, "0a20"}, ["AUXTIN1"]},
 %  {acpitz, acpi, "0"}, all_points}].
@@ -382,7 +382,7 @@ Specification of sensor measurements to be muted.
 At least currently, this mostly applies to temperature sensors.
 
 Corresponds to the legit settings expected as
-class_USMainConfigServer:user_muted_sensor_points(); may be for example:
+class_USMainCentralServer:user_muted_sensor_points(); may be for example:
 ```
 [{nct6792, isa, <<"0a20">>}, [<<"AUXTIN1">>]},
  {acpitz, acpi, <<"0">>}, all_points}]
@@ -816,7 +816,7 @@ data (e.g. regarding temperature, intrusion, etc.).
 %-type scheduler_pid() :: class_USScheduler:scheduler_pid().
 %-type task_id() :: class_USScheduler:task_id().
 
--type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
+-type us_main_config_table() :: class_USMainCentralServer:us_main_config_table().
 
 
 
@@ -1294,10 +1294,10 @@ parse_initial_sensor_output( SensorJsonStr, State ) ->
 	DecodedMap = decode_sensor_json( SensorJsonStr, State ),
 
 	% At about the last possible moment:
-	USMainCfgSrvPid = class_USMainConfigServer:get_server_pid(),
+	USMainCtrSrvPid = class_USMainCentralServer:get_server_pid(),
 
 	% Blocking; beware of not creating deadlocks that way:
-	USMainCfgSrvPid ! { getSensorSettings, [], self() },
+	USMainCtrSrvPid ! { getSensorSettings, [], self() },
 
 	ReadMutedMeasurements = receive
 

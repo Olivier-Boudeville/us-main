@@ -39,7 +39,7 @@ Directly spawned from `us_main_app`.
 
 
 % For the general_main_settings record:
--include("class_USMainConfigServer.hrl").
+-include("class_USMainCentralServer.hrl").
 
 
 % Type shorthands:
@@ -104,7 +104,7 @@ init( _Args=[ AppRunContext ] ) ->
 
 	trace_bridge:register( BridgeSpec ),
 
-	ExecTarget = class_USConfigServer:get_execution_target(),
+	ExecTarget = class_USCentralServer:get_execution_target(),
 
 	trace_bridge:debug_fmt( "Starting us_main supervisor (run context: ~ts; "
 		"execution target: ~ts)...", [ AppRunContext, ExecTarget ] ),
@@ -116,12 +116,12 @@ init( _Args=[ AppRunContext ] ) ->
 	SupSettings = otp_utils:get_supervisor_settings(
 		% If a child process terminates, only that process is restarted:
 		_RestartStrategy=one_for_one,
-		class_USConfigServer:get_execution_target() ),
+		class_USCentralServer:get_execution_target() ),
 
 	% Five children; first is an OTP supervisor bridge in charge of the US-Main
 	% configuration server:
 	%
-	ConfigServerSpec = get_config_bridge_spec( ExecTarget ),
+	CentralServerSpec = get_config_bridge_spec( ExecTarget ),
 
 	% Second child, another supervisor bridge in charge of the (US-Main) contact
 	% directory:
@@ -139,7 +139,7 @@ init( _Args=[ AppRunContext ] ) ->
 	%
 	HomeAutomationServerSpec = get_home_automation_bridge_spec( ExecTarget ),
 
-	ChildSpecs = [ ConfigServerSpec, ContactDirectorySpec, CommGatewaySpec,
+	ChildSpecs = [ CentralServerSpec, ContactDirectorySpec, CommGatewaySpec,
 				   SensorManagerSpec, HomeAutomationServerSpec ],
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
@@ -156,7 +156,7 @@ get_config_bridge_spec( ExecTarget ) ->
 
 	#{ id => us_main_configuration_server_id,
 
-	   start => { _Mod=class_USMainConfigServer, _Fun=start_link,
+	   start => { _Mod=class_USMainCentralServer, _Fun=start_link,
                   % We used to specify the PID of their supervisor to such
                   % children (with a '_SupervisorPid=self()' argument here), yet
                   % this does not seem relevant, hence was removed:
@@ -177,7 +177,7 @@ get_config_bridge_spec( ExecTarget ) ->
 	   % As it is a WOOPER instance (not for example a gen_server):
 	   type => supervisor,
 
-	   modules => [ class_USMainConfigServer ] }.
+	   modules => [ class_USMainCentralServer ] }.
 
 
 

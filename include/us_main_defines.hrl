@@ -23,14 +23,14 @@
 % Common US-Main defines.
 
 
-% As multiple US-Main instances could coexist, local name registration is
-% preferred.
+% As multiple US-Main instances could coexist (e.g. one per host), local name
+% registration is preferred.
 %
--define( default_us_main_config_server_registration_name,
-		 us_main_config_server ).
+-define( default_us_main_central_server_registration_name,
+		 us_main_central_server ).
 
 % As they should not clash:
--define( default_us_main_config_server_registration_scope, local_only ).
+-define( default_us_main_central_server_registration_scope, local_only ).
 
 
 
@@ -64,7 +64,6 @@
 
 % Local, as one instance of such server per host may run:
 -define( us_main_home_automation_server_registration_scope, local_only ).
-
 
 
 % Same from the upper US-Common level:

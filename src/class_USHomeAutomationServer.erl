@@ -487,7 +487,7 @@ Full settings gathered regarding the home automation server.
 % To define the actual location of a US-Main server.
 %
 % The value associated to this key has for type
-% [class_USMainConfigServer:user_server_location()].
+% [class_USMainCentralServer:user_server_location()].
 %
 -define( us_main_server_location_key, server_location ).
 
@@ -625,8 +625,11 @@ Full settings gathered regarding the home automation server.
 -type emitted_event_spec() :: oceanic:emitted_event_spec().
 -type oceanic_settings() :: oceanic:oceanic_settings().
 
--type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
--type user_server_location() :: class_USMainConfigServer:user_server_location().
+-type us_main_config_table() ::
+    class_USMainCentralServer:us_main_config_table().
+
+-type user_server_location() ::
+    class_USMainCentralServer:user_server_location().
 
 -type user_action_spec() :: us_action:user_action_spec().
 -type action_outcome() :: us_action:action_outcome().
@@ -991,7 +994,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 	end,
 
 	% Common to all home-automation services; beware of blocking calls:
-	class_USMainConfigServer:get_server_pid() !
+	class_USMainCentralServer:get_server_pid() !
         { getHomeAutomationSettings, [], self() },
 
 	% Interleaved; most elements already canonicalised, except

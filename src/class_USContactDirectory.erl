@@ -66,7 +66,7 @@ Birth date of interest to wish happy birthdays.
 
 Postal address not of use here, yet possibly specified for completeness.
 
-Refer to the fields of the user_settings record for more information.
+Refer to the fields of the `user_settings` record for more information.
 """.
 -type contact_line() :: { UserId :: user_id(),
 	FirstName :: ustring(), LastName :: ustring(), Nickname :: ustring(),
@@ -231,7 +231,8 @@ organisations.
 -type bin_email_address() :: email_utils:bin_email_address().
 
 
--type us_main_config_table() :: class_USMainConfigServer:us_main_config_table().
+-type us_main_config_table() ::
+    class_USMainCentralServer:us_main_config_table().
 
 
 
@@ -269,10 +270,7 @@ assigned.
 	%  "the next user identifier that will be assigned by this directory" },
 
 	{ config_base_directory, option( bin_directory_path() ),
-	  "the base directory where all US configuration is to be found" },
-
-	{ us_main_config_server_pid, option( server_pid() ),
-	  "the PID of the overall US configuration server" } ] ).
+	  "the base directory where all US configuration is to be found" } ] ).
 
 
 
@@ -303,7 +301,7 @@ assigned.
 Starts and links a supervision bridge for the contact directory.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
 -spec start_link() -> term().
@@ -320,13 +318,13 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 being executed.
+`start_link/0` being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 							| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
-	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
+	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
 						   "the contact directory.", [ self() ] ),
 
 	% Not specifically synchronous:
@@ -339,7 +337,7 @@ init( _Args=[] ) ->
 -doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=ContactDirectoryPid )
-  when is_pid( ContactDirectoryPid ) ->
+                                    when is_pid( ContactDirectoryPid ) ->
 
 	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
 		"the contact directory (reason: ~w, contact directory: ~w).",
@@ -444,8 +442,8 @@ destruct( State ) ->
 
 
 -doc """
-Callback triggered, if this server enabled the trapping of exits, whenever a
-linked process terminates.
+Callback triggered, if this server enabled the trapping of EXIT messages,
+whenever a linked process terminates.
 """.
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
@@ -506,15 +504,14 @@ server), we just select the relevant information from it.
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
-	USMainCfgServerPid = class_USMainConfigServer:get_server_pid(),
-
 	% This contact directory server is not supposed to read more the US
 	% configuration file; it should request it to the overall configuration
 	% server, about all the extra information it needs, to avoid duplicated,
 	% possibly inconsistent reading/interpretation (and in order to declare
 	% itself in the same move):
 	%
-	USMainCfgServerPid ! { getContactSettings, [], self() },
+	class_USMainCentralServer:get_server_pid() !
+        { getContactSettings, [], self() },
 
 	% No possible interleaving:
 	receive
@@ -532,16 +529,15 @@ load_and_apply_configuration( State ) ->
 				{ role_table, RoleTable },
 				{ contact_files, ContactFiles },
 				{ execution_context, ExecContext },
-				{ config_base_directory, USCfgBinDir },
-				{ us_main_config_server_pid, USMainCfgServerPid } ] )
+				{ config_base_directory, USCfgBinDir } ] )
 
 	end.
 
 
 
--doc "Reads specified contact file and enriches specified table.".
+-doc "Reads the specified contact file and enriches specified table.".
 -spec read_contact_file( any_file_path(), bin_directory_path(), user_table(),
-			role_table(), wooper:state() ) -> { user_table(), role_table() }.
+	role_table(), wooper:state() ) -> { user_table(), role_table() }.
 read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
 				   State ) ->
 
@@ -566,8 +562,8 @@ read_contact_file( ContactFilePath, USCfgBinDir, UserTable, RoleTable,
 
 
 -doc """
-Adds specified contact terms (expected to be contact lines) to specified contact
-table.
+Adds the specified contact terms (expected to be contact lines) to specified
+contact table.
 """.
 -spec add_contacts( [ term() ], user_table(), role_table(), wooper:state() ) ->
 			{ user_table(), role_table() }.
@@ -647,7 +643,7 @@ add_contacts( _ReadTerms=[ Line={ UserIdT, FirstNameT, LastNameT, NicknameT,
 
 
 add_contacts( _ReadTerms=[ InvalidTuple | T ], UserTable, RoleTable, State )
-								when is_tuple( InvalidTuple ) ->
+                                            when is_tuple( InvalidTuple ) ->
 
 	?error_fmt( "Read invalid (hence ignored) contact line "
 		"(a tuple with ~B elements instead of 13):~n  ~p",
@@ -842,14 +838,14 @@ vet_contacts_fifth( Line, T, Settings, UserId, RolesT, UserTable, RoleTable,
 
 
 
--doc "Reads specified contact files and enriches specified table.".
+-doc "Reads the specified contact files and enriches the specified table.".
 -spec read_contact_files( [ any_file_path() ], bin_directory_path(),
 		user_table(), role_table(), wooper:state() ) ->
 			{ user_table(), role_table() }.
 read_contact_files( ContactFilePaths, USCfgBinDir, UserTable, RoleTable,
 					State ) ->
 
-	?debug_fmt( "Reading following contact files: ~ts.",
+	?debug_fmt( "Reading the following contact files: ~ts.",
 				[ text_utils:strings_to_string( ContactFilePaths ) ] ),
 
 	lists:foldl(

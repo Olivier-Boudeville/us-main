@@ -54,7 +54,7 @@ exec() ->
     % We do not want anymore a specific server to be entered, the US-Main
     % configuration server is now the only relevant one, centralising the
     % processing of the requested actions on behalf of all the US-Main
-    % thematical servers (e.g. the home automation one):
+    % auxiliary, thematical servers (e.g. the home automation one):
     %
     %UMLookupInfo = us_client:get_config_server_info( CfgTable ),
 
@@ -65,16 +65,16 @@ exec() ->
 		throw( { unexpected_arguments,
 				 list_table:enumerate( FinalArgTable ) } ),
 
-	% The US-Main configuration server is expected to run on the target node, so
-	% we cannot use class_USMainConfigServer:get_us_main_config_server/0 (as in
-	% the general case we are on a remote host):
+	% The US-Main central server is expected to run on the target node, so we
+	% cannot use our class_USMainCentralServer:get_server_pid/0 (as in the
+	% general case we are on a remote host):
     %
     %LookupInfo = UMLookupInfo,
 
 	CfgLookupScope = naming_utils:registration_to_lookup_scope(
-		?default_us_main_config_server_registration_scope ),
+		?default_us_main_central_server_registration_scope ),
 
-    LookupInfo = { ?default_us_main_config_server_registration_name,
+    LookupInfo = { ?default_us_main_central_server_registration_name,
                    CfgLookupScope },
 
     MainSrvPid = naming_utils:get_registered_pid_from( LookupInfo,

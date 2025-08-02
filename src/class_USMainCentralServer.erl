@@ -19,21 +19,21 @@
 % Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
 % Creation date: Wednesday, September 15, 2021.
 
--module(class_USMainConfigServer).
+-module(class_USMainCentralServer).
 
 -moduledoc """
-Singleton server holding the **configuration information** of the US-Main
-framework.
+Singleton central server holding the configuration information, managing the
+automated actions, etc. for the **US-Main** framework.
 """.
 
 
 -define( class_description,
-		 "Singleton server holding the configuration information of the "
-		 "US-Main framework." ).
+		 "Singleton central server holding the configuration information, "
+         "managing the automated actions, etc. for the US-Main framework" ).
 
 
 % Determines what are the direct mother classes of this class (if any):
--define( superclasses, [ class_USServer ] ).
+-define( superclasses, [ class_USCentralServer ] ).
 
 
 % This communication gateway is designed to be able to integrate to an OTP
@@ -60,7 +60,7 @@ framework.
 
 
 % For the general_main_settings records:
--include("class_USMainConfigServer.hrl").
+-include("class_USMainCentralServer.hrl").
 
 -doc "General US-Main settings".
 -type general_main_settings() :: #general_main_settings{}.
@@ -72,15 +72,15 @@ framework.
 	{ LatDegrees :: float(), LongDegrees :: float() }.
 
 
--type main_config_server_pid() :: server_pid().
+-type main_central_server_pid() :: server_pid().
 
 
-% For default_us_main_config_server_registration_name:
+% For default_us_main_central_server_registration_name:
 -include("us_main_defines.hrl").
 
 
 -export_type([ general_main_settings/0, user_server_location/0,
-               main_config_server_pid/0 ]).
+               main_central_server_pid/0 ]).
 
 
 % Must be kept consistent with the default_us_main_epmd_port variable in
@@ -97,8 +97,8 @@ framework.
 -define( us_main_epmd_port_key, epmd_port ).
 
 % The key to define any specific registration name for this US-Main server:
--define( us_main_config_server_registration_name_key,
-		 us_main_config_server_registration_name ).
+-define( us_main_central_server_registration_name_key,
+		 us_main_central_server_registration_name ).
 
 -define( us_main_username_key, us_main_username ).
 -define( us_main_app_base_dir_key, us_main_app_base_dir ).
@@ -113,8 +113,8 @@ framework.
 % All known, licit (top-level) base keys for the US-Main configuration file:
 % (other keys are in their respective server classes)
 %
--define( known_us_main_config_keys, [ ?us_main_epmd_port_key,
-	?us_main_config_server_registration_name_key,
+-define( known_us_main_central_config_keys, [ ?us_main_epmd_port_key,
+	?us_main_central_server_registration_name_key,
 	?us_main_username_key, ?us_main_app_base_dir_key,
 	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_actions_key ] ).
 
@@ -138,10 +138,10 @@ framework.
 
 % Design notes:
 %
-% This US-Main configuration server will ensure that an overall US
-% (i.e. US-Common) configuration server is running, either by fetching its PID
-% if already existing (which is most probably the case), otherwise by launching
-% it accordingly.
+% This US-Main central server will ensure that an overall US (i.e. US-Common)
+% configuration server is running, either by fetching its PID if already
+% existing (which is most probably the case), otherwise by launching it
+% accordingly.
 %
 % In both cases the PID of the overall server will be known, but no link will be
 % created between these two, as their life-cycles are mostly independent.
@@ -155,8 +155,10 @@ framework.
 
 % Implementation notes:
 %
-% The US-main configuration server is responsible for the parsing and sharing of
-% all US-Main configuration information.
+% The US-main central server is responsible for the parsing and sharing of all
+% US-Main configuration information, and for the management of all automated
+% actions - the ones that it provides and the ones implemented by the US-Main
+% auxiliary servers.
 
 
 -include_lib("myriad/include/spawn_utils.hrl").
@@ -188,7 +190,7 @@ framework.
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.US-Main.Configuration" ).
+-define( trace_emitter_categorization, "US.US-Main.Central" ).
 
 
 % Exported helpers:
@@ -212,6 +214,7 @@ framework.
 % Type shorthands:
 
 -type execution_context() :: basic_utils:execution_context().
+-type three_digit_version() :: basic_utils:three_digit_version().
 
 -type ustring() :: text_utils:ustring().
 
@@ -243,12 +246,12 @@ framework.
 
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
-% process allowing to interface this US-Main configuration server with an OTP
+% process allowing to interface this US-Main central server with an OTP
 % supervision tree.
 
 
 -doc """
-Starts and links a supervision bridge for the US-Main configuration server.
+Starts and links a supervision bridge for the US-Main central server.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
 (see `us_main_sup:init/1`), hence generally triggered by the application
@@ -259,10 +262,10 @@ start_link( AppRunContext ) ->
 
 	% Apparently not displayed in a release context, yet executed:
 	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the US-Main configuration server." ),
+						"the US-Main central server." ),
 
-	supervisor_bridge:start_link( { local, ?bridge_name },
-		_Module=?MODULE, _InitArgs=[ AppRunContext ] ).
+	supervisor_bridge:start_link( { local, ?bridge_name }, _Module=?MODULE,
+                                  _InitArgs=[ AppRunContext ] ).
 
 
 
@@ -274,87 +277,58 @@ Callback to initialise this supervisor bridge, typically in answer to
 							| 'ignore' | { 'error', Error :: term() }.
 init( _Args=[ AppRunContext ] ) ->
 
-	trace_bridge:info_fmt( "Initializing the US-Main supervisor bridge ~w for "
-		"the configuration server (application run context: ~ts).",
+	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
+		"its central server (application run context: ~ts).",
 		[ self(), AppRunContext ] ),
 
 	% Not specifically synchronous:
-	CfgSrvPid = ?MODULE:new_link( AppRunContext ),
+	CtrSrvPid = ?MODULE:new_link( AppRunContext ),
 
-	{ ok, CfgSrvPid, _InitialBridgeState=CfgSrvPid }.
+	{ ok, CtrSrvPid, _InitialBridgeState=CtrSrvPid }.
 
 
 
 -doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
-terminate( Reason, _BridgeState=CfgSrvPid ) when is_pid( CfgSrvPid ) ->
+terminate( Reason, _BridgeState=CtrSrvPid ) when is_pid( CtrSrvPid ) ->
 
 	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
-		"the configuration server (reason: ~w, configuration server: ~w).",
-		[ Reason, CfgSrvPid ] ),
+		"the central server (reason: ~w, central server: ~w).",
+		[ Reason, CtrSrvPid ] ),
 
 	% Synchronicity needed, otherwise a potential race condition exists, leading
 	% this process to be killed by its OTP supervisor instead of being normally
 	% stopped:
 	%
-	wooper:delete_synchronously_instance( CfgSrvPid ),
+	wooper:delete_synchronously_instance( CtrSrvPid ),
 
-	trace_bridge:debug_fmt( "US-Main configuration server ~w terminated.",
-							[ CfgSrvPid ] ).
+	trace_bridge:debug_fmt( "US-Main central server ~w terminated.",
+							[ CtrSrvPid ] ).
 
 
 
 -doc """
-Constructs the US-Main configuration server.
+Constructs the US-Main central server.
 
-`AppRunContext` tells how US-Web is being run.
+`AppRunContext` tells how US-Main is being run.
 """.
 -spec construct( wooper:state(), application_run_context() ) -> wooper:state().
 construct( State, AppRunContext ) ->
 
-	TraceCateg = ?trace_categorize("Main configuration server"),
-
 	% First the direct mother classes, then this class-specific actions:
-	SrvState = class_USServer:construct( State, TraceCateg, _TrapExits=true ),
+	SrvState = class_USCentralServer:construct( State, _USAppShortName="main",
+        _ServerInit=?trace_categorize("Main central server"), AppRunContext ),
 
-	?send_info_fmt( SrvState, "Creating a US-Main configuration server, "
-		"running ~ts.",
-		[ otp_utils:application_run_context_to_string( AppRunContext ) ] ),
+	CfgState = load_and_apply_configuration( SrvState ),
 
-	?send_debug_fmt( SrvState, "Running Erlang ~ts, whose ~ts",
-		[ system_utils:get_interpreter_version(),
-		  code_utils:get_code_path_as_string() ] ),
-
-	?send_debug_fmt( SrvState, "System description: ~ts",
-		[ system_utils:get_system_description() ] ),
-
-	% Other attributes set by the next function:
-	SupState = setAttributes( SrvState, [
-        { app_run_context, AppRunContext },
-        { waited_operations, undefined } ] ),
-
-	CfgState = load_and_apply_configuration( SupState ),
+	% Done rather late on purpose, so that the existence of this trace file can
+	% be seen as a sign that the initialisation went well (used by
+	% start-us-xxx-{native-build,release}.sh).
+	%
+	% Now that the log directory is known, we can properly redirect the traces:
+    executeConstOneway( CfgState, finaliseTraceSetup ),
 
 	?send_info_fmt( CfgState, "Constructed: ~ts.", [ to_string( CfgState ) ] ),
-
-	% Done rather late on purpose, so that the existence of that file can be
-	% seen as a sign that the initialisation went well (used by
-	% start-us-main-{native-build,release}.sh).
-	%
-	% Now that the log directory is known, we can properly redirect the traces.
-	% Already a trace emitter:
-
-	LogDirBin = getAttribute( CfgState, log_directory ),
-
-	file_utils:create_directory_if_not_existing( LogDirBin, create_parents ),
-
-	NewBinTraceFilePath = file_utils:bin_join( LogDirBin, "us_main.traces" ),
-
-	?send_debug_fmt( CfgState, "Requesting the renaming of trace file "
-					 "to '~ts'.", [ NewBinTraceFilePath ] ),
-
-	getAttribute( CfgState, trace_aggregator_pid ) !
-		{ renameTraceFile, NewBinTraceFilePath },
 
 	CfgState.
 
@@ -396,7 +370,7 @@ getMainConfigSettings( State ) ->
 
 -doc "Returns suitable sensor settings (typically for the sensor manager).".
 -spec getSensorSettings( wooper:state() ) ->
-			const_request_return( user_muted_sensor_points() ).
+                            const_request_return( user_muted_sensor_points() ).
 getSensorSettings( State ) ->
 	wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
 
@@ -407,7 +381,7 @@ Returns suitable home automation settings, read from the configuration
 (typically on behalf of the home automation server).
 """.
 -spec getHomeAutomationSettings( wooper:state() ) ->
-			const_request_return( home_automation_settings() ).
+                        const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
 	CoreSettingTuple = ?getAttr(home_automation_core_settings),
@@ -429,8 +403,6 @@ getContactSettings( State ) ->
 
 	wooper:const_return_result( ContactSettings ).
 
-
-% performActionFromTokens/2 is inherited from class_USServer.
 
 
 -doc "Callback triggered whenever a linked process exits.".
@@ -462,10 +434,26 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 % Static section.
 
 
+-doc "Returns the version of the US application being used.".
+-spec get_us_app_version() -> static_return( three_digit_version() ).
+get_us_app_version() ->
+	wooper:return_static(
+		basic_utils:parse_version( get_us_app_version_string() ) ).
+
+
+
+-doc "Returns the version of the US application being used, as a string.".
+-spec get_us_app_version_string() -> static_return( ustring() ).
+get_us_app_version_string() ->
+	% As defined (uniquely) in GNUmakevars.inc:
+	wooper:return_static( ?us_app_version ).
+
+
+
 -doc """
-Returns the PID of the current, supposedly already-launched, US-Main
-configuration server, waiting (up to a few seconds, as all US-Main server
-processes are bound to be launched mostly simultaneously) if needed.
+Returns the PID of the current, supposedly already-launched, US-Main central
+server, waiting (up to a few seconds, as all US-Main server processes are bound
+to be launched mostly simultaneously) if needed.
 
 Typically useful for the various US-Main auxiliary, thematical servers, so that
 they can easily access to their configuration information.
@@ -475,19 +463,19 @@ rather than to resolve and store its PID once for all, as, for an increased
 robustness, servers may be restarted (hence any stored PID may not reference a
 live process anymore).
 """.
--spec get_server_pid () -> static_return( main_config_server_pid() ).
+-spec get_server_pid () -> static_return( main_central_server_pid() ).
 get_server_pid() ->
 
-	MainCfgSrvPid = class_USServer:resolve_server_pid(
-        _RegName=?default_us_main_config_server_registration_name,
-        _RegScope=?default_us_main_config_server_registration_scope ),
+	MainCtrPid = class_USServer:resolve_server_pid(
+        _RegName=?default_us_main_central_server_registration_name,
+        _RegScope=?default_us_main_central_server_registration_scope ),
 
-	wooper:return_static( MainCfgSrvPid ).
+	wooper:return_static( MainCtrPid ).
 
 
 
 -doc """
-Creates a mockup of the US-Main configuration server, notably for the testing of
+Creates a mockup of the US-Main centraluration server, notably for the testing of
 the other servers.
 """.
 -spec create_mockup_for_test() -> static_return( server_pid() ).
@@ -496,13 +484,13 @@ create_mockup_for_test() ->
 	% Clearer than a Y-combinator:
 	CfgPid = ?myriad_spawn_link( fun() -> us_main_mockup_srv() end ),
 
-	CfgRegName = ?default_us_main_config_server_registration_name,
+	CfgRegName = ?default_us_main_central_server_registration_name,
 
-	CfgRegScope = ?default_us_main_config_server_registration_scope,
+	CfgRegScope = ?default_us_main_central_server_registration_scope,
 
 	naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
 
-	trace_bridge:info_fmt( "Created a mock-up US-Main configuration server ~w, "
+	trace_bridge:info_fmt( "Created a mock-up US-Main centraluration server ~w, "
 		"registered (~ts) as '~ts'.",
 		[ CfgPid, CfgRegScope, CfgRegName ] ),
 
@@ -513,7 +501,7 @@ create_mockup_for_test() ->
 
 us_main_mockup_srv() ->
 
-	%trace_utils:debug( "Mock-up US-Main configuration server in main loop." ),
+	%trace_utils:debug( "Mock-up US-Main centraluration server in main loop." ),
 
 	receive
 
@@ -522,7 +510,7 @@ us_main_mockup_srv() ->
 			us_main_mockup_srv();
 
 		UnexpectedMsg ->
-			trace_bridge:error_fmt( "The mock-up US-Main configuration server "
+			trace_bridge:error_fmt( "The mock-up US-Main centraluration server "
 				"~w received an unexpected (ignored) message: ~p.",
 				[ self(), UnexpectedMsg ] ),
 			us_main_mockup_srv()
@@ -548,11 +536,10 @@ load_and_apply_configuration( State ) ->
 	CfgServerPid = class_USConfigServer:get_us_config_server(
 		_CreateIfNeeded=false, State ),
 
-	% This main configuration server is not supposed to read more the US
-	% configuration file; it should request it to the overall configuration
-	% server, about all the extra information it needs, to avoid duplicated,
-	% possibly inconsistent reading/interpretation (and in order to declare
-	% itself in the same move):
+	% This central server is not supposed to read more the US configuration
+	% file; it should request it to the overall configuration server, about all
+	% the extra information it needs, to avoid duplicated, possibly inconsistent
+	% reading/interpretation (and in order to declare itself in the same move):
 	%
 	CfgServerPid ! { getUSMainRuntimeSettings, [], self() },
 
@@ -583,8 +570,8 @@ load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined, State ) ->
 
 	DefaultBinMainCfgFilename = ?default_us_main_cfg_filename,
 
-	?info_fmt( "No configuration filename known of the overall US configuration"
-		" server (i.e. none defined in its own configuration file), "
+	?info_fmt( "No configuration filename known of the overall US central "
+		"server (i.e. none defined in its own configuration file), "
 		"hence defaulting to '~ts'.", [ DefaultBinMainCfgFilename ] ),
 
 	load_main_config( BinCfgBaseDir, DefaultBinMainCfgFilename, State );
@@ -598,8 +585,9 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	case file_utils:is_existing_file_or_link( MainCfgFilePath ) of
 
 		true ->
-			?info_fmt( "Reading US-Main configuration file, found as '~ts'.",
-					   [ MainCfgFilePath ] );
+			?info_fmt(
+                "Reading the US-Main configuration file, found as '~ts'.",
+				[ MainCfgFilePath ] );
 
 		false ->
 
@@ -622,17 +610,17 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	EpmdState = executeOneway( State, manageEPMDPort,
         [ MainCfgTable, _PortKey=?us_main_epmd_port_key,
-          _DefPort= ?default_us_main_epmd_port ] ),
+          _DefPort=?default_us_main_epmd_port ] ),
 
 	RegState = executeOneway( EpmdState, manageRegistrations,
-        [ MainCfgTable, ?default_us_main_config_server_registration_name,
-          ?default_us_main_config_server_registration_scope ] ),
+        [ MainCfgTable, ?default_us_main_central_server_registration_name,
+          ?default_us_main_central_server_registration_scope ] ),
 
 	UserState = executeOneway( RegState, manageSystemUser,
         [ MainCfgTable, _UsernameKey=?us_main_username_key ] ),
 
 	AppState = executeOneway( UserState, manageAppBaseDirectories,
-        [ _BaseDirKey=?us_main_app_base_dir_key,
+        [ MainCfgTable, _BaseDirKey=?us_main_app_base_dir_key,
           _BaseDirEnvVarName=?us_main_app_env_variable ] ),
 
 	DataState = executeOneway( AppState, manageDataDirectory,
@@ -650,7 +638,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 															  ContactState ),
 
 	AutomatState = class_USHomeAutomationServer:manage_configuration(
-		MainCfgTable, SensorState ),
+        MainCfgTable, SensorState ),
 
     % The US servers of this application, federated by this central one:
     SrvClassnames = [ class_USCommunicationGateway, class_USContactDirectory,
@@ -662,7 +650,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 	FinalState = ActionState,
 
     % US-Main also has its own key for (non home-automation) actions:
-	LicitKeys = ?known_us_main_config_keys
+	LicitKeys = ?known_us_main_central_config_keys
 		++ class_USContactDirectory:get_licit_config_keys()
 		++ class_USSensorManager:get_licit_config_keys()
 		% Includes the Oceanic ones:
@@ -674,8 +662,8 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 			FinalState;
 
 		UnexpectedKeys ->
-
-			?error_fmt( "Unknown key(s) in '~ts': ~ts~nLicit keys are: ~ts",
+			?error_fmt( "Unknown configuration key(s) in '~ts': ~ts~n"
+                "Licit ones are: ~ts",
 				[ MainCfgFilePath, text_utils:terms_to_string( UnexpectedKeys ),
 				  text_utils:terms_to_string( LicitKeys ) ] ),
 
