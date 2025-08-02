@@ -105,7 +105,7 @@ endif
 
 # The uniquely-defined version of this layer, for all uses (including rebar, hex
 # and the code itself, see
-# class_USMainConfigServer:get_us_main_version{_string,}/0):
+# class_USMainCentralServer:get_us_main_version{_string,}/0):
 #
 US_MAIN_VERSION := 0.0.20
 
