@@ -499,8 +499,7 @@ create_mockup_for_test() ->
 	naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
 
 	trace_bridge:info_fmt( "Created a mock-up US-Main central server ~w, "
-		"registered (~ts) as '~ts'.",
-		[ CfgPid, CfgRegScope, CfgRegName ] ),
+		"registered (~ts) as '~ts'.", [ CfgPid, CfgRegScope, CfgRegName ] ),
 
 
 	wooper:return_static( CfgPid ).
@@ -690,7 +689,7 @@ help( State ) ->
     wooper:const_return_result( { success, HelpText } ).
 
 
--doc "Returns a textual description of this configuration server.".
+-doc "Returns a textual description of this central server.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
     class_USCentralServer:to_string( State ).
