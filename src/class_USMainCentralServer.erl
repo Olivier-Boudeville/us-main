@@ -235,6 +235,8 @@ automated actions, etc. for the **US-Main** framework.
 %-type user_action_spec() :: us_action:user_action_spec().
 -type action_result( T ) :: us_action:action_result( T ).
 
+-type config_server_pid() :: class_USConfigServer:config_server_pid().
+
 -type server_pid() :: class_USServer:server_pid().
 
 -type user_muted_sensor_points() ::
@@ -346,7 +348,6 @@ construct( State, AppRunContext ) ->
 -doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
-
 	?debug( "Deletion initiated." ),
 
 	?info( "Deleted." ),
@@ -404,7 +405,7 @@ getHomeAutomationSettings( State ) ->
 
 -doc "Returns suitable contact settings (typically for the contact directory).".
 -spec getContactSettings( wooper:state() ) -> const_request_return(
-		{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
+	{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
 getContactSettings( State ) ->
 
 	ContactSettings = { ?getAttr(config_base_directory),
@@ -540,27 +541,31 @@ information from it.
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
-	CfgServerPid = class_USConfigServer:get_us_config_server(
-		_CreateIfNeeded=false, State ),
+	{ CfgSrvRegName, CfgSrvLookupScope, CfgSrvPid } =
+        class_USConfigServer:get_us_config_registration_info(
+            _CreateIfNeeded=false, State ),
 
 	% This central server is not supposed to read more the US configuration
 	% file; it should request it to the overall configuration server, about all
 	% the extra information it needs, to avoid duplicated, possibly inconsistent
 	% reading/interpretation (and in order to declare itself in the same move):
 	%
-	CfgServerPid ! { getUSMainRuntimeSettings, [], self() },
+	CfgSrvPid ! { getUSMainRuntimeSettings, [], self() },
 
-	% No possible interleaving:
+    RegState = setAttribute( State, us_config_lookup_info,
+                             { CfgSrvRegName, CfgSrvLookupScope } ),
+
 	receive
 
 		{ wooper_result, { BinCfgDir, ExecContext, MaybeMainCfgFilename } } ->
 
-			StoreState = setAttributes( State, [
+			StoreState = setAttributes( RegState, [
 				{ execution_context, ExecContext },
 				{ config_base_directory, BinCfgDir },
 				{ log_directory, ?default_log_base_dir } ] ),
 
-			load_main_config( BinCfgDir, MaybeMainCfgFilename, StoreState )
+			load_main_config( BinCfgDir, MaybeMainCfgFilename, CfgSrvPid,
+                              StoreState )
 
 	end.
 
@@ -572,8 +577,9 @@ configuration file, as identified from the US one), on behalf of the various
 services that it offers.
 """.
 -spec load_main_config( bin_directory_path(), option( bin_file_path() ),
-			wooper:state() ) -> wooper:state().
-load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined, State ) ->
+	config_server_pid(), wooper:state() ) -> wooper:state().
+load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined,
+                  CfgSrvPid, State ) ->
 
 	DefaultBinMainCfgFilename = ?default_us_main_cfg_filename,
 
@@ -581,10 +587,11 @@ load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined, State ) ->
 		"server (i.e. none defined in its own configuration file), "
 		"hence defaulting to '~ts'.", [ DefaultBinMainCfgFilename ] ),
 
-	load_main_config( BinCfgBaseDir, DefaultBinMainCfgFilename, State );
+	load_main_config( BinCfgBaseDir, DefaultBinMainCfgFilename, CfgSrvPid,
+                      State );
 
 
-load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
+load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
 
 	MainCfgFilePath = file_utils:ensure_path_is_absolute( BinMainCfgFilename,
 		_BasePath=BinCfgBaseDir ),
@@ -616,7 +623,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, State ) ->
 
 	EpmdState = executeOneway( State, manageEPMDPort,
         [ MainCfgTable, _PortKey=?us_main_epmd_port_key,
-          _DefPort=?default_us_main_epmd_port ] ),
+          _DefPort=?default_us_main_epmd_port, CfgSrvPid ] ),
 
 	RegState = executeOneway( EpmdState, manageRegistrations,
         [ MainCfgTable, ?default_us_main_central_server_registration_name,
