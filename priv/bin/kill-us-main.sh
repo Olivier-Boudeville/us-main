@@ -122,7 +122,7 @@ read_us_main_config_file 1>/dev/null
 
 
 
-echo "Killing brutally (not stopping gracefully) any US-Main instance(s) found."
+echo "Killing any US-Main instance(s) found."
 
 epmd_port_regexp='.*'
 
@@ -145,16 +145,39 @@ to_kill="$(ps -edf | grep beam.smp | grep us_main_app | grep "${epmd_port_regexp
 
 if [ -n "${to_kill}" ]; then
 
-	echo "Following US-Main processes to kill found, as $(id -un): ${to_kill}."
+	echo "Following US-Main processes to kill (gracefully) found, as $(id -un): ${to_kill}."
 
-	# The signal 9 *is* necessary in some cases:
-	if ! kill -9 ${to_kill}; then  # 2>/dev/null
+	# The signal 9 *is* necessary in some cases (possibly always); however most
+	# probably that a brutal kill (unlike a normal one) prevents the killed VM
+	# to notify its EPMD daemon, which will then prevent any next launching
+	# thereof - unless being killed in turn). Now attempting a normal kill first
+	# (the current user may or may not be able to kill these processes):
 
-		echo "  Error: failed to kill processes of PIDs ${to_kill}." 1>&2
+	if ! kill ${to_kill}; then  # 2>/dev/null
 
-		exit 40
+		echo "  Error: failed to kill gracefully processes of PIDs ${to_kill}." 1>&2
+
+		exit 41
 
 	fi
+
+	# Inspecting again:
+	to_kill="$(ps -edf | grep beam.smp | grep us_main_app | grep "${epmd_port_regexp}" | grep -v run_erl | grep -v $0 | grep -v grep | awk '{ print $2 }')"
+
+	if [ -n "${to_kill}" ]; then
+
+		echo "  Error: having to kill brutally processes of PIDs ${to_kill} (their EPMD daemon will thus not be notified of their termination)." 1>&2
+
+		if ! kill -9 ${to_kill}; then  # 2>/dev/null
+
+			echo "  Error: failed to brutally kill processes of PIDs ${to_kill}." 1>&2
+
+			exit 45
+
+		fi
+
+	fi
+
 
 	# Actually not specifically safer:
 	#for p in ${to_kill}; do
