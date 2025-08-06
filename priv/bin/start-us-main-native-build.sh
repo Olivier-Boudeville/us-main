@@ -284,7 +284,6 @@ echo " -- Starting US-Main natively-built application as user '${us_main_usernam
 
 #echo Starting US-Main with: /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service ${cookie_env} ${epmd_make_opt}
 
-
 /bin/sudo -u ${us_main_username} XDG_CONFIG_DIRS="${xdg_cfg_dirs}" VM_LOG_DIR="${us_main_vm_log_dir}" US_APP_BASE_DIR="${US_APP_BASE_DIR}" US_MAIN_APP_BASE_DIR="${US_MAIN_APP_BASE_DIR}" ${authbind} --deep make -s us_main_exec_service ${cookie_env} ${epmd_make_opt}
 
 res=$?
@@ -299,7 +298,7 @@ if [ ${res} -eq 0 ]; then
 
 	echo "  (authbind success reported)"
 
-	# If wanting to check or have more details:
+	# If wanting to check logs or have more details:
 	inspect_us_main_launch_outcome
 
 	# Not wanting to diagnose too soon, otherwise we might return a failure code
@@ -319,11 +318,21 @@ if [ ${res} -eq 0 ]; then
 
 	else
 
+		if [ -f "${us_main_vm_log_file}" ]; then
+
+			log_hint="; refer to the US-Main log file, '${us_main_vm_log_file}', for more information"
+
+		else
+
+			log_hint=", and no US-Main log file '${us_main_vm_log_file}' found either"
+
+		fi
+
 		# For some unknown reason, if the start fails, this script will exit
 		# quickly, as expected, yet 'systemctl start' will wait for a long time
 		# (most probably because of a time-out).
 		#
-		echo "  (failure assumed - or slow start, as '${trace_file}' not found)"
+		echo "  (failure assumed - or slow start, as '${trace_file}' not found${log_hint})"
 		exit 100
 
 	fi
