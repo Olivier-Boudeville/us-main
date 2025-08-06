@@ -301,41 +301,51 @@ if [ ${res} -eq 0 ]; then
 	# If wanting to check logs or have more details:
 	inspect_us_main_launch_outcome
 
-	# Not wanting to diagnose too soon, otherwise we might return a failure code
-	# and trigger the brutal killing by systemd of an otherwise working us_main:
-	#
-	sleep 5
+	# Not wanting to diagnose too soon (or to wait too long), otherwise we might
+	# return a failure code and trigger the brutal killing by systemd of an
+	# otherwise working us_main:
 
-	# Better diagnosis than the previous res code:
-	#
-	# (only renamed once construction is mostly finished; trace_file supposedly
-	# inherited from us-main-common.sh)
-	#
-	if [ -f "${trace_file}" ]; then
+	max_seconds_waited=8
 
-		echo "  (success assumed, as '${trace_file}' found)"
-		exit 0
+	while [ ${max_seconds_waited} -ge 0 ]; do
 
-	else
+		# Better diagnosis than the previous res code:
+		#
+		# (only renamed once construction is mostly finished; trace_file
+		# supposedly inherited from us-main-common.sh)
 
-		if [ -f "${us_main_vm_log_file}" ]; then
+		if [ -f "${trace_file}" ]; then
 
-			log_hint="; refer to the US-Main log file, '${us_main_vm_log_file}', for more information"
+			echo "  (success assumed, as '${trace_file}' found)"
+			exit 0
 
 		else
 
-			log_hint=", and no US-Main log file '${us_main_vm_log_file}' found either"
+			max_seconds_waited=$(expr ${max_seconds_waited} - 1)
+			sleep 1
 
 		fi
 
-		# For some unknown reason, if the start fails, this script will exit
-		# quickly, as expected, yet 'systemctl start' will wait for a long time
-		# (most probably because of a time-out).
-		#
-		echo "  (failure assumed - or slow start, as '${trace_file}' not found${log_hint})"
-		exit 100
+	done
+
+	# Time-out here.
+
+	if [ -f "${us_main_vm_log_file}" ]; then
+
+		log_hint="; refer to the US-Main log file, '${us_main_vm_log_file}', for more information"
+
+	else
+
+		log_hint=", and no US-Main log file '${us_main_vm_log_file}' found either"
 
 	fi
+
+	# For some unknown reason, if the start fails, this script will exit
+	# quickly, as expected, yet 'systemctl start' will wait for a long time
+	# (most probably because of a time-out).
+	#
+	echo "  (failure assumed - or slow start, as '${trace_file}' not found${log_hint})"
+	exit 100
 
 else
 
