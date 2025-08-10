@@ -391,7 +391,7 @@ Returns suitable home automation settings, read from the configuration
 (typically on behalf of the home automation server).
 """.
 -spec getHomeAutomationSettings( wooper:state() ) ->
-                        const_request_return( home_automation_settings() ).
+                            const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
 	CoreSettingTuple = ?getAttr(home_automation_core_settings),
