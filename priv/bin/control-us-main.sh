@@ -109,6 +109,4 @@ cd "${app_dir}"
 
 #echo make -s us_main_controller_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
 
-
-
 make -s us_main_controller_exec ${epmd_opt} CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie ${remote_vm_cookie}"
