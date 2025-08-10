@@ -554,7 +554,7 @@ Full settings gathered regarding the home automation server.
 % The settings of the automated actions that shall be supported for home
 % automation:
 %
--define( us_main_home_automation_actions_key, home_automation_action_settings ).
+-define( us_main_home_automation_actions_key, home_automation_action_specs ).
 
 % All known, licit (top-level) keys for the Oceanic configuration information
 % (preferred to be read directly from the US-Main configuration file rather than
@@ -563,76 +563,6 @@ Full settings gathered regarding the home automation server.
 -define( supported_oceanic_config_keys,
 		 [ oceanic_emitter, oceanic_devices, oceanic_jamming_threshold ] ).
 
-
-
-
-% Type shorthands:
-
--type count() :: basic_utils:count().
--type user_data() :: basic_utils:user_data().
-
--type ustring() :: text_utils:ustring().
--type bin_string() :: text_utils:bin_string().
-
--type timestamp() :: time_utils:timestamp().
-
--type device_path() :: file_utils:device_path().
--type bin_directory_path() :: file_utils:bin_directory_path().
-
--type bytes_per_second() :: system_utils:bytes_per_second().
-
--type date() :: time_utils:date().
--type time() :: time_utils:time().
--type second_duration() :: time_utils:second_duration().
--type day_in_the_year() :: time_utils:day_in_the_year().
-
--type extended_timestamp() :: unit_utils:extended_timestamp().
--type milliseconds() :: unit_utils:milliseconds().
-
--type lookup_info() :: naming_utils:lookup_info().
-
-
--type trace_severity() :: trace_utils:trace_severity().
--type trace_message() :: trace_utils: trace_message().
-
--type trace_format() :: text_utils:trace_format().
--type trace_values() :: text_utils:trace_values().
-
--type scheduler_pid() :: class_USScheduler:scheduler_pid().
--type user_periodicity() :: class_USScheduler:user_periodicity().
--type schedule_count() ::  class_USScheduler:schedule_count().
--type task_id() :: class_USScheduler:task_id().
-
--type position() :: unit_utils:position().
--type declination() :: unit_utils:declination().
--type radians() :: unit_utils:radians().
-
--type oceanic_server_pid() :: oceanic:oceanic_server_pid().
--type device_name() :: oceanic:device_name().
--type user_device_designator()  :: oceanic:user_device_designator().
--type device_description() :: oceanic:device_description().
--type device_event() :: oceanic:device_event().
--type device_event_type() :: oceanic:device_event_type().
--type device_operation() :: oceanic:device_operation().
--type back_online_info() :: oceanic:back_online_info().
--type eurid_string() :: oceanic:eurid_string().
--type eurid() :: oceanic:eurid().
--type telegram() :: oceanic:telegram().
--type eep_id() :: oceanic:eep_id().
-
--type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
--type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
--type emitted_event_spec() :: oceanic:emitted_event_spec().
--type oceanic_settings() :: oceanic:oceanic_settings().
-
--type us_main_config_table() ::
-    class_USMainCentralServer:us_main_config_table().
-
--type user_server_location() ::
-    class_USMainCentralServer:user_server_location().
-
--type user_action_spec() :: us_action:user_action_spec().
--type action_outcome() :: us_action:action_outcome().
 
 
 % The class-specific attributes:
@@ -816,6 +746,76 @@ Full settings gathered regarding the home automation server.
 
 
 
+% Type shorthands:
+
+-type count() :: basic_utils:count().
+-type user_data() :: basic_utils:user_data().
+
+-type ustring() :: text_utils:ustring().
+-type bin_string() :: text_utils:bin_string().
+
+-type timestamp() :: time_utils:timestamp().
+
+-type device_path() :: file_utils:device_path().
+-type bin_directory_path() :: file_utils:bin_directory_path().
+
+-type bytes_per_second() :: system_utils:bytes_per_second().
+
+-type date() :: time_utils:date().
+-type time() :: time_utils:time().
+-type second_duration() :: time_utils:second_duration().
+-type day_in_the_year() :: time_utils:day_in_the_year().
+
+-type extended_timestamp() :: unit_utils:extended_timestamp().
+-type milliseconds() :: unit_utils:milliseconds().
+
+-type lookup_info() :: naming_utils:lookup_info().
+
+
+-type trace_severity() :: trace_utils:trace_severity().
+-type trace_message() :: trace_utils: trace_message().
+
+-type trace_format() :: text_utils:trace_format().
+-type trace_values() :: text_utils:trace_values().
+
+-type scheduler_pid() :: class_USScheduler:scheduler_pid().
+-type user_periodicity() :: class_USScheduler:user_periodicity().
+-type schedule_count() ::  class_USScheduler:schedule_count().
+-type task_id() :: class_USScheduler:task_id().
+
+-type position() :: unit_utils:position().
+-type declination() :: unit_utils:declination().
+-type radians() :: unit_utils:radians().
+
+-type oceanic_server_pid() :: oceanic:oceanic_server_pid().
+-type device_name() :: oceanic:device_name().
+-type user_device_designator()  :: oceanic:user_device_designator().
+-type device_description() :: oceanic:device_description().
+-type device_event() :: oceanic:device_event().
+-type device_event_type() :: oceanic:device_event_type().
+-type device_operation() :: oceanic:device_operation().
+-type back_online_info() :: oceanic:back_online_info().
+-type eurid_string() :: oceanic:eurid_string().
+-type eurid() :: oceanic:eurid().
+-type telegram() :: oceanic:telegram().
+-type eep_id() :: oceanic:eep_id().
+
+-type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
+-type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
+-type emitted_event_spec() :: oceanic:emitted_event_spec().
+-type oceanic_settings() :: oceanic:oceanic_settings().
+
+-type us_main_config_table() ::
+    class_USMainCentralServer:us_main_config_table().
+
+-type user_server_location() ::
+    class_USMainCentralServer:user_server_location().
+
+-type user_action_spec() :: us_action:user_action_spec().
+-type action_outcome() :: us_action:action_outcome().
+
+
+
 % Implementation of the supervisor_bridge behaviour, for the intermediate
 % process allowing to interface this home automation server with an OTP
 % supervision tree.
@@ -948,6 +948,10 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		?us_main_home_automation_server_registration_name,
 		?us_main_home_automation_server_registration_scope ),
 
+	% Common to all home-automation services; beware of blocking calls:
+	class_USMainCentralServer:get_server_pid() !
+        { getHomeAutomationSettings, [], self() },
+
 	% Do not start Oceanic if it is bound to fail:
 	{ MaybeOcSrvPid, MaybeSrcEurid } = case oceanic:is_available( TtyPath ) of
 
@@ -993,16 +997,13 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	% Common to all home-automation services; beware of blocking calls:
-	class_USMainCentralServer:get_server_pid() !
-        { getHomeAutomationSettings, [], self() },
 
-	% Interleaved; most elements already canonicalised, except
-	% MaybeConfPscSimUSettings:
+	% Interleaved getHomeAutomationSettings call; most elements already
+	% canonicalised, except MaybeConfPscSimUSettings:
 	%
 	{ MaybeUserSrvLoc, BinAppBaseDirectoryPath,
 	  AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
-	  PscTriggerListenEvSpecs, ConfPscSimUSettings, _HAActionSettings,
+	  PscTriggerListenEvSpecs, ConfPscSimUSettings, UserActSpecs,
       OcSettings } = receive
 
 		{ wooper_result, HomeAutoMatSettings } ->
@@ -1067,8 +1068,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-    % FIXME already done
-    %ActionState = init_automated_actions( HAActionSettings, AlarmState ),
+    ActionState = init_automated_actions( UserActSpecs, AlarmState ),
 
     % To read all oceanic_* configuration keys:
 	MaybeOcSrvPid =:= undefined orelse
@@ -1120,7 +1120,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
 	end,
 
-	MoreCompleState = setAttributes( AlarmState, [
+	MoreCompleState = setAttributes( ActionState, [
 		{ oc_srv_pid, MaybeOcSrvPid },
 
 		%{ oc_periodic_restart, true },
@@ -1130,9 +1130,9 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 		{ app_base_directory, BinAppBaseDirectoryPath },
 
 		% Expecting to be launching this server while being at home:
-		%{ actual_presence, true },
+		{ actual_presence, true },
 		% If ever needing to force an initial away status:
-        { actual_presence, false },
+        %{ actual_presence, false },
 
 		{ device_table, table:new() } ] ),
 
@@ -1204,11 +1204,7 @@ init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 
 
 
--doc """
-Initialises the overall presence simulation.
-
-(helper)
-""".
+-doc "Initialises the overall presence simulation.".
 -spec init_presence_simulation( presence_simulation_user_settings(),
 			option( oceanic_server_pid() ), wooper:state() ) ->
 		{ presence_table(), presence_sim_id(), option( time_equation_table() ),
@@ -2205,21 +2201,26 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 	end.
 
 
-%% -doc "Initialises the automated actions for home automation.".
-%% -spec init_automated_actions( [ user_action_spec() ], wooper:state() ) ->
-%%                                                 wooper:state().
-%% init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
 
-%%     RegActTable = us_action:register_action_specs( UserActSpecs,
-%%                                                    ?getAttr(action_table) ),
+-doc "Initialises the automated actions for home automation.".
+-spec init_automated_actions( [ user_action_spec() ], wooper:state() ) ->
+                                                wooper:state().
+init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
 
-%%     setAttribute( State, action_table, RegActTable );
+    ?debug_fmt( "Initialising automated actions, based on their user "
+                "specifications:~n ~p.", [ UserActSpecs ] ),
 
-%% init_automated_actions( Other, State ) ->
-%%     ?error_fmt( "Invalid automated actions for home automation "
-%%                 "(not a list): ~p.", [ Other ] ),
+    RegActTable = us_action:register_action_specs( UserActSpecs,
+        ?getAttr(action_table), wooper:get_classname( State ) ),
 
-%%     throw( { invalid_home_automation_actions, Other, not_list } ).
+    setAttribute( State, action_table, RegActTable );
+
+init_automated_actions( Other, State ) ->
+    ?error_fmt( "Invalid automated actions for home automation "
+                "(not a list): ~p.", [ Other ] ),
+
+    throw( { invalid_home_automation_actions, Other, not_list } ).
+
 
 
 -doc """
@@ -2966,8 +2967,9 @@ resolve_logical_milestones( SrvLoc={ LatDegrees, LongDegrees }, State ) ->
 	% compensate for insufficient light) - even if atmospheric refraction will
 	% help a bit - the following duration margins, expressed in seconds, apply:
 
-	EnoughLightAfterDawnMargin  = 15*60,
-	EnoughLightBeforeDuskMargin = 15*60,
+    % 15 minutes were too large, 5 are better:
+	EnoughLightAfterDawnMargin  = 5*60,
+	EnoughLightBeforeDuskMargin = 5*60,
 
 	% To end the lighting a little later than the actual forecast dawn:
 	RetainedDawnTime = time_utils:offset_time( LocalDawnTime,
@@ -3408,11 +3410,7 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
--doc """
-Records the existence of a device not expected to be already known.
-
-(helper)
-""".
+-doc "Records the existence of a device not expected to be already known.".
 -spec record_new_device( device_event(), wooper:state() ) -> wooper:state().
 record_new_device( DeviceEvent, State ) ->
 
@@ -4367,10 +4365,35 @@ get_server_pid() ->
 % Section dedicated to the implementation of actions.
 
 
+-doc """
+Triggers (immediately) the specified operation onto the specified device.
+""".
+-spec actOnDevice( wooper:state(), user_device_designator(),
+    device_operation() ) -> const_request_return( action_outcome() ).
+actOnDevice( State, UserDevDesig, DevOp ) ->
+
+    cond_utils:if_defined( us_main_action, ?debug_fmt( "Triggering the "
+        "'~ts' operation on device designated by ~w.",
+        [ DevOp, UserDevDesig ] ) ),
+
+    oceanic:check_device_operation( DevOp ),
+
+    DevDesig = oceanic:get_internal_device_designator( UserDevDesig ),
+
+    DeviceAction = { DevOp, DevDesig },
+
+    % No result to expect:
+    ?getAttr(oc_srv_pid) ! { performAction, DeviceAction },
+
+    ActRes = { success, action_triggered },
+
+    wooper:const_return_result( { action_outcome, ActRes } ).
+
+
 
 -doc """
-Request typically triggered by user-defined actions that consists in triggering
-an operation on a device periodically.
+Request that is typically triggered by user-defined actions and that consists in
+triggering an operation on a device periodically.
 
 This is a request, as actions only trigger such methods, for synchronisation.
 """.
@@ -4431,9 +4454,6 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
 
 
 
-
-
-% Helper section.
 
 
 
@@ -4608,7 +4628,7 @@ manage_configuration( ConfigTable, State ) ->
 
 	end,
 
-	HAActionSettings = case table:lookup_entry(
+    UserActSpecs = case table:lookup_entry(
             ?us_main_home_automation_actions_key, ConfigTable ) of
 
 		key_not_found ->
@@ -4630,7 +4650,7 @@ manage_configuration( ConfigTable, State ) ->
 	% automation server (not the configuration server):
 	%
 	HACoreSettings = { AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
-		PscTriggerListenEvSpecs, SetPscUSimSettings, HAActionSettings,
+		PscTriggerListenEvSpecs, SetPscUSimSettings, UserActSpecs,
         OcSettings },
 
 	setAttributes( State, [
@@ -4646,8 +4666,10 @@ Sends the specified alarm simulation trace, to have it correctly categorised.
 -spec send_alarm_trace( trace_severity(), trace_message(), wooper:state() ) ->
 								void().
 send_alarm_trace( TraceSeverity, TraceMsg, State ) ->
-	class_TraceEmitter:send_named_emitter( TraceSeverity, State, TraceMsg,
-		<<"Alarm">> ).
+	class_TraceEmitter:send_categorised_named_emitter( TraceSeverity, State,
+        TraceMsg,
+        _EmitterCateg=?trace_emitter_categorization ".Alarm",
+        _EmitterName="Configuration"  ).
 
 
 -doc """
@@ -4668,8 +4690,10 @@ Sends the specified presence simulation trace, to have it correctly categorised.
 -spec send_psc_trace( trace_severity(), trace_message(), wooper:state() ) ->
 								void().
 send_psc_trace( TraceSeverity, TraceMsg, State ) ->
-	class_TraceEmitter:send_named_emitter( TraceSeverity, State, TraceMsg,
-		<<"Presence simulation">> ).
+	class_TraceEmitter:send_categorised_named_emitter( TraceSeverity, State,
+        TraceMsg,
+        _EmitterCateg=?trace_emitter_categorization ".Presence simulation",
+        _EmitterName="Configuration"  ).
 
 
 -doc """
