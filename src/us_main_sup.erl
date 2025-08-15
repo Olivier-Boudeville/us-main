@@ -59,6 +59,7 @@ Directly spawned from `us_main_app`.
 % - Sensor Manager (which relies on the US-Common infrastructure, notably its
 % scheduler)
 % - Home Automation Server
+% - Security Manager
 
 
 -doc """
@@ -139,8 +140,13 @@ init( _Args=[ AppRunContext ] ) ->
 	%
 	HomeAutomationServerSpec = get_home_automation_bridge_spec( ExecTarget ),
 
+	% Sixth, a bridge in charge of the (US-Main) security manager:
+	SecurityManagerSpec = get_security_manager_bridge_spec( ExecTarget ),
+
+
 	ChildSpecs = [ CentralServerSpec, ContactDirectorySpec, CommGatewaySpec,
-				   SensorManagerSpec, HomeAutomationServerSpec ],
+				   SensorManagerSpec, HomeAutomationServerSpec,
+                   SecurityManagerSpec ],
 
 	%trace_bridge:debug_fmt( "Initialisation of the US-Main main supervisor "
 	%   "returning supervisor settings ~p and child specs ~p.",
@@ -262,3 +268,22 @@ get_home_automation_bridge_spec( _ExecTarget ) ->
 	   type => supervisor,
 
 	   modules => [ class_USHomeAutomationServer ] }.
+
+
+
+-doc "Returns the bridge spec for the US-Main security manager.".
+-spec get_security_manager_bridge_spec( execution_target() ) -> child_spec().
+get_security_manager_bridge_spec( ExecTarget ) ->
+
+	% Refer to get_config_bridge_spec/1 for comments:
+	#{ id => us_security_manager,
+
+	   start => { _Mod=class_USSecurityManager, _Fun=start_link, _Args=[] },
+
+	   restart => otp_utils:get_restart_setting( ExecTarget ),
+
+	   shutdown => infinity,
+
+	   type => supervisor,
+
+	   modules => [ class_USSecurityManager ] }.
