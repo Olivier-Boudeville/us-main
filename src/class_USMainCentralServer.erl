@@ -232,9 +232,6 @@ automated actions, etc. for the **US-Main** framework.
 -type config_table() :: app_facilities:config_table().
 
 
-%-type user_action_spec() :: us_action:user_action_spec().
--type action_result( T ) :: us_action:action_result( T ).
-
 -type config_server_pid() :: class_USConfigServer:config_server_pid().
 
 -type server_pid() :: class_USServer:server_pid().
@@ -653,11 +650,19 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
 	AutomatState = class_USHomeAutomationServer:manage_configuration(
         MainCfgTable, SensorState ),
 
-    % The US servers of this application, federated by this central one:
-    SrvClassnames = [ class_USCommunicationGateway, class_USContactDirectory,
-                      class_USHomeAutomationServer, class_USSensorManager ],
+    SecurityState = class_USSecurityManager:manage_configuration(
+        MainCfgTable, AutomatState ),
 
-    ActionState = executeOneway( AutomatState, manageAutomatedActions,
+    % The US servers of this application, federated by this central one; their
+    % respective order in the help action listing will be the same as this one:
+    %
+    % (to be added some day: class_USCredentialServer)
+    %
+    SrvClassnames = [ class_USSecurityManager, class_USHomeAutomationServer,
+                      class_USCommunicationGateway, class_USContactDirectory,
+                      class_USSensorManager ],
+
+    ActionState = executeOneway( SecurityState, manageAutomatedActions,
                                  [ MainCfgTable, SrvClassnames ] ),
 
 	FinalState = ActionState,
@@ -667,7 +672,9 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
 		++ class_USContactDirectory:get_licit_config_keys()
 		++ class_USSensorManager:get_licit_config_keys()
 		% Includes the Oceanic ones:
-		++ class_USHomeAutomationServer:get_licit_config_keys(),
+		++ class_USHomeAutomationServer:get_licit_config_keys()
+		++ class_USSecurityManager:get_licit_config_keys(),
+
 
 	case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
 
@@ -684,16 +691,6 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
 					 text_utils:binary_to_string( MainCfgFilePath ) } )
 
 	end.
-
-
-
-
--doc "Built-in help action request.".
--spec help( wooper:state() ) ->
-                    const_request_return( action_result( ustring() ) ).
-help( State ) ->
-    HelpText = "The following actions are supported by the US-Main server:",
-    wooper:const_return_result( { success, HelpText } ).
 
 
 -doc "Returns a textual description of this central server.".
