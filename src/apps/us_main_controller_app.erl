@@ -83,10 +83,12 @@ exec() ->
     BinTokens = text_utils:strings_to_binaries( AllArgs ),
 
 	app_facilities:display( "Will interact with the US-Main server resolved "
-        "through a ~ts: ~w, so that it executes action from tokens '~p'.",
+        "through a ~ts: ~w, so that it executes action from the following "
+        "tokens:~n ~p",
         [ naming_utils:lookup_info_to_string( LookupInfo ), MainSrvPid,
           BinTokens ] ),
 
+    TimeoutMs = 5000,
 
     % Now actions are managed on the US-Main side, notably as they may originate
     % from various means (e.g. SMS).
@@ -96,12 +98,41 @@ exec() ->
     receive
 
         { wooper_result, { action_outcome, { success, Msg } } } ->
-            trace_utils:info_fmt( "Triggered action succeeded and returned ~p.",
-                                  [ Msg ] );
+            %trace_utils:debug_fmt( "Triggered action succeeded, returned ~p.",
+            %                       [ Msg ] ),
+            io:format( Msg );
+
+        { wooper_result, { action_outcome, { error, action_not_found } } } ->
+            ActStr = case BinTokens of
+
+                [ ActBinName ] ->
+                    text_utils:format( "argument-less action named '~ts'",
+                                       [ ActBinName ] );
+
+                [ ActBinName, _SingleArg ] ->
+                    text_utils:format( "action named '~ts' and taking a single "
+                                       "argument", [ ActBinName ] );
+
+                [ ActBinName | Args ] ->
+                    text_utils:format(
+                        "action named '~ts' and taking ~B arguments",
+                        [ ActBinName, length( Args ) ] )
+
+            end,
+
+            io:format( "Error, no ~ts available; run the 'help' action for "
+                       "more information.~n", [ ActStr] );
 
         { wooper_result, { action_outcome, { error, ErrorReport } } } ->
             trace_utils:error_fmt( "Triggered action failed, and reported: ~p.",
                                    [ ErrorReport ] )
+
+    after TimeoutMs ->
+
+         io:format( "Error, no action outcome received after ~ts.",
+                    [ time_utils:duration_to_string( TimeoutMs ) ] ),
+
+         basic_utils:stop_on_failure( _StatusCode=1 )
 
     end,
 
