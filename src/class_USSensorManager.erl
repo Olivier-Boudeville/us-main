@@ -381,8 +381,8 @@ Specification of sensor measurements to be muted.
 
 At least currently, this mostly applies to temperature sensors.
 
-Corresponds to the legit settings expected as
-class_USMainCentralServer:user_muted_sensor_points(); may be for example:
+Corresponds to the legit settings expected as `user_muted_sensor_points/0`; may
+be for example:
 ```
 [{nct6792, isa, <<"0a20">>}, [<<"AUXTIN1">>]},
  {acpitz, acpi, <<"0">>}, all_points}]
@@ -789,41 +789,10 @@ data (e.g. regarding temperature, intrusion, etc.).
 
 
 
-
-% Type shorthands:
-
--type count() :: basic_utils:count().
-
--type ustring() :: text_utils:ustring().
--type bin_string() :: text_utils:bin_string().
--type indentation_level() :: indentation_level().
-
--type file_path() :: file_utils:file_path().
-
--type string_json() :: json_utils:string_json().
--type decoded_json() :: json_utils:decoded_json().
--type parser_state() :: json_utils:parser_state().
-
--type celsius() :: unit_utils:celsius().
--type rpm() :: unit_utils:rpm().
-
--type timestamp() :: time_utils:timestamp().
-
--type map_hashtable( K, V ) :: map_hashtable:map_hashtable( K, V ).
-
-
-% In state definition:
-%-type scheduler_pid() :: class_USScheduler:scheduler_pid().
-%-type task_id() :: class_USScheduler:task_id().
-
--type us_main_config_table() :: class_USMainCentralServer:us_main_config_table().
-
-
-
 % The class-specific attributes:
 %
-% (no more us_config_server_pid, scheduler_pid, comm_gateway_pid, etc. as
-% servers shall be resolved on the fly, for an increased robustness)
+% (no more us_config_server_pid, scheduler_pid, comm_gateway_pid, etc. as, for
+% an increased robustness, servers shall be resolved on the fly)
 %
 -define( class_attributes, [
 
@@ -870,6 +839,35 @@ data (e.g. regarding temperature, intrusion, etc.).
 %-define( default_sensor_poll_periodicity, 5 ).
 
 
+% Type shorthands:
+
+-type count() :: basic_utils:count().
+
+-type ustring() :: text_utils:ustring().
+-type bin_string() :: text_utils:bin_string().
+-type indentation_level() :: indentation_level().
+
+-type file_path() :: file_utils:file_path().
+
+-type string_json() :: json_utils:string_json().
+-type decoded_json() :: json_utils:decoded_json().
+-type parser_state() :: json_utils:parser_state().
+
+-type celsius() :: unit_utils:celsius().
+-type rpm() :: unit_utils:rpm().
+
+-type timestamp() :: time_utils:timestamp().
+
+-type map_hashtable( K, V ) :: map_hashtable:map_hashtable( K, V ).
+
+% In state definition:
+%-type scheduler_pid() :: class_USScheduler:scheduler_pid().
+%-type task_id() :: class_USScheduler:task_id().
+
+-type us_main_config_table() ::
+    class_USMainCentralServer:us_main_config_table().
+
+
 
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
@@ -877,12 +875,11 @@ data (e.g. regarding temperature, intrusion, etc.).
 % tree.
 
 
-
 -doc """
 Starts and links a supervision bridge for the sensor management.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
 -spec start_link() -> term().
@@ -899,7 +896,7 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 being executed.
+`start_link/0` being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
 						| 'ignore' | { 'error', Error :: term() }.
@@ -984,12 +981,11 @@ construct( State ) ->
 Constructs a minimal sensor manager in order to test whether the sensor JSON
 output stored in the specified file can be propertly interpreted.
 
-Such a file is typically obtained thanks to:
-	  `$ sensors --no-adapter -j > my_sensor_output.txt`
+Such a file is typically obtained thanks to `$ sensors --no-adapter -j >
+my_sensor_output.txt`.
 
 Useful to support sensors from third-party computers (transmitting such a file
 just suffice to update this module accordingly). Applies only for testing.
-
 """.
 -spec construct( wooper:state(), file_path() ) -> wooper:state().
 construct( State, SensorOutputFilePath ) ->
@@ -1003,7 +999,7 @@ construct( State, SensorOutputFilePath ) ->
 		?us_main_sensor_server_registration_name,
 		?us_main_sensor_server_registration_scope ),
 
-	% Internal state of the JSON parser (not of this manager):
+	% Internal state of the JSON parser (*not* a WOOPER state):
 	JSONParserState = initialise_json_support( SrvState ),
 
 	% Mostly bogus manager having some bogus (undefined) attributes:
@@ -1071,8 +1067,8 @@ readSensors( State ) ->
 
 
 -doc """
-Callback triggered, if this server enabled the trapping of exits, whenever a
-linked process terminates.
+Callback triggered, if this server enabled the trapping of EXIT messages,
+whenever a linked process terminates.
 """.
 -spec onWOOPERExitReceived( wooper:state(), pid(),
 		basic_utils:exit_reason() ) -> const_oneway_return().
@@ -1139,7 +1135,7 @@ init_sensors( State ) ->
 
 
 
--doc "Returns how 'sensors' shall be run.".
+-doc "Returns how `sensors` shall be run.".
 -spec get_sensor_execution_pair( wooper:state() ) ->
 										system_utils:execution_pair().
 get_sensor_execution_pair( State ) ->
@@ -1548,6 +1544,7 @@ categorise_sensor( RawSensorType ) ->
 	{ text_utils:string_to_atom( RawSensorType ), bus }.
 
 
+
 -doc "Returns the sensor interface corresponding to the specified string.".
 -spec get_interface( ustring() ) -> sensor_interface().
 get_interface( _InterfStr="isa" ) ->
@@ -1568,9 +1565,9 @@ get_interface( _InterfStr ) ->
 
 
 -doc """
-Parses specified JSON information regarding specified sensor, in order to detect
-initially the various measurement points that it supports, and returns the
-corresponding data table.
+Parses the specified JSON information regarding specified sensor, in order to
+detect initially the various measurement points that it supports, and returns
+the corresponding data table.
 """.
 -spec parse_initial_sensor_data( decoded_json(), sensor_category(), sensor_id(),
 			muted_points(), wooper:state() ) -> points_data_table().
