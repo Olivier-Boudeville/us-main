@@ -174,10 +174,10 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 being executed.
+`start_link/0` being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
-						| 'ignore' | { 'error', Error :: term() }.
+                      | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
 	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
@@ -251,6 +251,8 @@ destruct( State ) ->
 % Method section.
 
 
+% Base (non-action implementations) methods:
+
 -doc "Returns the current DEFCON.".
 -spec getDefcon( wooper:state() ) -> const_request_return( defcon() ).
 getDefcon( State ) ->
@@ -260,6 +262,7 @@ getDefcon( State ) ->
 -doc "Sets the current DEFCON, and acts accordingly.".
 -spec setDefcon( wooper:state(), defcon() ) -> oneway_return().
 setDefcon( State, NewDefcon ) ->
+
     vet_defcon( NewDefcon ),
     PrevDefcon = ?getAttr(defcon),
 
@@ -277,14 +280,17 @@ setDefcon( State, NewDefcon ) ->
             ?notice_fmt( "Restoring the best DEFCON, 5: ~ts (was: ~B).",
                          [ defcon_to_string( 5 ), PrevDefcon ] );
 
-        PrevBetterDefcon when PrevBetterDefcon > NewDefcon ->
-            ?alert_fmt( "Aggravating DEFCON, from ~B to ~B, which is ~ts. "
-                "Increasing countermeasures.", [ PrevBetterDefcon, NewDefcon,
+        % Preferring not flagging them as errors:
+
+        NewDefcon when NewDefcon < PrevDefcon ->
+            ?warning_fmt( "Aggravating DEFCON, from ~B to ~B, which is ~ts. "
+                "Increasing countermeasures.", [ PrevDefcon, NewDefcon,
                     defcon_to_string( NewDefcon ) ] );
 
-        PrevWorseDefcon when PrevWorseDefcon < NewDefcon ->
-            ?critical_fmt( "Improving DEFCON, from ~B to ~B, which is ~ts. "
-                "Loosening countermeasures.", [ PrevWorseDefcon, NewDefcon,
+        % _ -> would have sufficed
+        NewDefcon when NewDefcon > PrevDefcon ->
+            ?warning_fmt( "Improving DEFCON, from ~B to ~B, which is ~ts. "
+                "Loosening countermeasures.", [ PrevDefcon, NewDefcon,
                     defcon_to_string( NewDefcon ) ] )
 
     end,
@@ -318,26 +324,30 @@ onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 
 
 
-% Action implementation (see init_security/1):
+% Action implementation (see init_security/1).
+%
+% We use the recommended basic_utils:fallible*/* and akin conventions here.
 
 
 -doc "Returns a description of the current DEFCON (see the `defcon` action).".
--spec getDefconAction( wooper:state() ) -> const_request_return( ustring() ).
+-spec getDefconAction( wooper:state() ) ->
+                                const_request_return( successful( ustring() ) ).
 % As getDefcon/1 already exists:
 getDefconAction( State ) ->
 
     Str = text_utils:format(
-        "Current DEFCON is ~ts. Use the set_defcon/1 (or panic/0 or peace/0) "
-        "actions to change.", [ describe_defcon( ?getAttr(defcon) ) ] ),
+        "Current alert level is ~ts. Trigger the set_defcon/1 "
+        "(or panic/0 or peace/0) actions to change it.",
+        [ describe_defcon( ?getAttr(defcon) ) ] ),
 
-    wooper:const_return_result( Str ).
+    wooper:const_return_result( { ok, Str } ).
 
 
 
 -doc "Sets the specified DEFCON (see the `set_defcon` action).".
 % As setDefcon/2 already exists:
 -spec setDefconAction( wooper:state(), defcon() ) ->
-                                            request_return( ustring() ).
+                                request_return( string_fallible() ).
 setDefconAction( State, NewDefcon ) ->
 
     case is_defcon( NewDefcon ) of
@@ -345,18 +355,18 @@ setDefconAction( State, NewDefcon ) ->
         true ->
             SetState = executeOneway( State, setDefcon, NewDefcon ),
 
-            Str = text_utils:format( "DEFCON has been set to ~ts "
-                "(previous one was ~ts). Consider the panic/0 or "
+            Str = text_utils:format( "Alert level set to ~ts, knowing that the "
+                "previous one was ~ts. Consider triggering the panic/0 or "
                 "peace/0 actions if needed.",
                 [ describe_defcon( NewDefcon ),
                   describe_defcon( ?getAttr(defcon) ) ] ),
 
-            wooper:return_state_result( SetState, Str );
+            wooper:return_state_result( SetState, { ok, Str } );
 
         false ->
              Str = text_utils:format( "Invalid DEFCON specified ('~p'), hence "
                                       "not changed.", [ NewDefcon ] ),
-            wooper:const_return_result( Str )
+            wooper:const_return_result( { error, Str } )
 
     end.
 
@@ -366,19 +376,19 @@ setDefconAction( State, NewDefcon ) ->
 Sets the panic mode: goes immediately to the worst DEFCON (see the `panic`
 action).
 """.
--spec panic( wooper:state() ) -> request_return( ustring() ).
+-spec panic( wooper:state() ) -> request_return( successful( ustring() ) ).
 panic( State ) ->
 
     NewDefcon = 1,
 
     Str = text_utils:format( "Panic declared: setting immediately the worst "
-        "~ts. Use the peace/0 or set_defcon/1 actions to stop. "
-        "Previous status was ~ts.",
+        "alert level, ~ts. Trigger the peace/0 or set_defcon/1 actions "
+        "to stop. Previous alert level was ~ts.",
         [ describe_defcon( NewDefcon ), describe_defcon( ?getAttr(defcon) ) ] ),
 
     SetState = setAttribute( State, defcon, NewDefcon ),
 
-    wooper:return_state_result( SetState, Str ).
+    wooper:return_state_result( SetState, { ok, Str } ).
 
 
 
@@ -386,19 +396,20 @@ panic( State ) ->
 Sets the peace mode: goes immediately to the quietest DEFCON (see the `peace`
 action).
 """.
--spec peace( wooper:state() ) -> request_return( ustring() ).
+-spec peace( wooper:state() ) -> request_return( successful( ustring() ) ).
 peace( State ) ->
 
     NewDefcon = 5,
 
     Str = text_utils:format( "Peace declared: setting immediately the quietest "
-        "~ts. Use the set_defcon/1 or panic/0 actions to aggravate. "
-        "Previous status was ~ts.",
+        "alert level, ~ts. Trigger the set_defcon/1 or panic/0 actions "
+        "to aggravate. Previous alert level was ~ts.",
         [ describe_defcon( NewDefcon ), describe_defcon( ?getAttr(defcon) ) ] ),
 
     SetState = setAttribute( State, defcon, NewDefcon ),
 
-    wooper:return_state_result( SetState, Str ).
+    wooper:return_state_result( SetState, { ok, Str } ).
+
 
 
 
@@ -440,17 +451,17 @@ init_security( State ) ->
 
     UserActSpecs = [
 
-        % Action terseness is key:
-        { _ActName=defcon, _UserArgSpecs=[], _UseResSpec="string()",
-          "returns the current DEFCON", getDefconAction },
+        % As the terseness of action description is key:
+        { _ActName=defcon, _Desc="returns the current DEFCON",
+          _ReqName=getDefconAction },
 
         % Could/should be defcon():
-        { set_defcon, [ { dynamic, new_defcon, "integer()" } ],
-          "string()", "sets the current DEFCON", setDefconAction },
+        { set_defcon, "sets the current DEFCON", setDefconAction,
+          [ { dynamic, new_defcon, "integer()" } ] },
 
-        { panic, [], "string()", "sets immediately the worst DEFCON (1)" },
+        { panic, "sets immediately the worst DEFCON (1)" },
 
-        { peace, [], "string()", "sets immediately the quietest DEFCON (5)" } ],
+        { peace, "sets immediately the quietest DEFCON (5)" } ],
 
     ActionTable = us_action:register_action_specs( UserActSpecs,
         ?getAttr(action_table), wooper:get_classname( State ) ),

@@ -95,14 +95,23 @@ exec() ->
 
     MainSrvPid ! { performActionFromTokens, [ BinTokens ], self() },
 
+    % As all actions triggered on US-Main send outcomes of the
+    % basic_utils:string_fallible/0 type:
+
     receive
 
-        { wooper_result, { action_outcome, { success, Msg } } } ->
+        { wooper_result, { { action_done, { ok, Msg } }, MainSrvPid } } ->
             %trace_utils:debug_fmt( "Triggered action succeeded, returned ~p.",
             %                       [ Msg ] ),
-            io:format( Msg );
+            io:format( "~n~ts~n~n", [ Msg ] );
 
-        { wooper_result, { action_outcome, { error, action_not_found } } } ->
+        { wooper_result, { { action_done, { error, Msg } }, MainSrvPid } } ->
+            %trace_utils:debug_fmt( "Triggered action failed, returned ~p.",
+            %                       [ Msg ] ),
+            trace_utils:error_fmt( "~ts~n", [ Msg ] );
+
+        { wooper_result, { { action_failed, action_not_found },
+                           MainSrvPid } } ->
             ActStr = case BinTokens of
 
                 [ ActBinName ] ->
@@ -123,9 +132,14 @@ exec() ->
             io:format( "Error, no ~ts available; run the 'help' action for "
                        "more information.~n", [ ActStr] );
 
-        { wooper_result, { action_outcome, { error, ErrorReport } } } ->
-            trace_utils:error_fmt( "Triggered action failed, and reported: ~p.",
-                                   [ ErrorReport ] )
+        { wooper_result, { { action_failed, FailureReport },
+                           MainSrvPid } } ->
+            trace_utils:error_fmt(
+                "Triggered action failed, and reported:~n ~p",
+                [ FailureReport ] );
+
+        Any ->
+            trace_utils:error_fmt( "Received unexpected ~p.", [ Any ] )
 
     after TimeoutMs ->
 
