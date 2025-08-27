@@ -112,7 +112,7 @@ automated actions, etc. for the **US-Main** framework.
 
 
 % For us_common_actions_key:
--include("class_USServer.hrl").
+-include_lib("us_common/include/class_USServer.hrl").
 
 
 % All known, licit (top-level) base keys for the US-Main configuration file:
