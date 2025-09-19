@@ -52,7 +52,7 @@ exec() ->
 	%
 	erlang:process_flag( trap_exit, false ),
 
-	{ ActualTargetNodeName, CfgTable, FinalArgTable } =
+	{ ActualTargetNodeName, IsVerbose, CfgTable, FinalArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
 	list_table:is_empty( FinalArgTable ) orelse
@@ -85,7 +85,8 @@ exec() ->
 
 	end,
 
-	app_facilities:display( "Waiting for the trace listener to be closed." ),
+	IsVerbose andalso app_facilities:display(
+                        "Waiting for the trace listener to be closed." ),
 
 	% To troubleshoot problems in terms of overlapping partitions:
 	%wait( TraceListenerPid ),
@@ -93,7 +94,7 @@ exec() ->
 	receive
 
 		{ trace_listening_finished, TraceListenerPid } ->
-			app_facilities:display( "Trace listener closed." )
+			IsVerbose andalso app_facilities:display( "Trace listener closed." )
 
 	end,
 
