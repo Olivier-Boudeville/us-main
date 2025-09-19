@@ -4365,6 +4365,24 @@ get_server_pid() ->
 % Section dedicated to the implementation of actions.
 
 
+% actions:
+% alarm:
+%%  * ${start_alarm_opt}: starts the alarm (siren)
+%%  * ${stop_alarm_opt}: stops the alarm
+%%  * ${get_alarm_opt}: tells whether the alarm is currently activated (hence wit a roaring siren)
+
+%%  - regarding presence:
+%%  * ${declare_presence_opt}: declares that somebody is at home (hence for example deactivate alarm)
+%%  * ${declare_absence_opt}: declares that nobody is at home (hence for example activate alarm)
+%%  * ${get_presence_opt}: tells whether US-Main considers that somebody is at home
+
+%%  - regarding (presence-related) lighting:
+%%  * ${start_lighting_opt}: starts all registered presence lighting
+%%  * ${stop_lighting_opt}: stops all registered presence lighting
+%% """.
+
+
+
 -doc """
 Triggers (immediately) the specified operation onto the specified device.
 """.
@@ -4430,7 +4448,7 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
 
     class_USScheduler:get_server_pid() ! { registerTask,
         [ UserTaskCommand, StartTimestamp, _UserPeriodicity=DHMSPeriodicity,
-          SchedCount, _UserActPid=?getAttr(oc_srv_pid) ] },
+          SchedCount, _UserActPid=?getAttr(oc_srv_pid) ], self() },
 
     Res = receive
 
@@ -4440,12 +4458,11 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
                 ?debug( "Periodical device action already done." ) ),
             task_done;
 
-
         { wooper_result, { task_registered, TaskId } } ->
             cond_utils:if_defined( us_main_action, ?debug_fmt(
                 "Periodical device action registered as task #~B.",
                 [ TaskId ] ) ),
-            wooper:const_return_result( { success, task_done } ),
+
             TaskId
 
     end,
