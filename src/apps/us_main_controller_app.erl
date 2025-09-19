@@ -48,7 +48,7 @@ exec() ->
 	%
 	erlang:process_flag( trap_exit, false ),
 
-	{ ActualTargetNodeName, _CfgTable, ArgTable } =
+	{ ActualTargetNodeName, IsVerbose, _CfgTable, ArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
     % We do not want anymore a specific server to be entered, the US-Main
@@ -58,12 +58,16 @@ exec() ->
     %
     %UMLookupInfo = us_client:get_config_server_info( CfgTable ),
 
-	{ AllArgs, FinalArgTable } =
+	{ AllArgs, OptionArgTable } =
 		cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
+
+    FinalArgTable = OptionArgTable,
 
 	list_table:is_empty( FinalArgTable ) orelse
 		throw( { unexpected_arguments,
 				 list_table:enumerate( FinalArgTable ) } ),
+
+    IsVerbose andalso app_facilities:display( "(in verbose mode)" ),
 
 	% The US-Main central server is expected to run on the target node, so we
 	% cannot use our class_USMainCentralServer:get_server_pid/0 (as in the
@@ -82,7 +86,8 @@ exec() ->
 
     BinTokens = text_utils:strings_to_binaries( AllArgs ),
 
-	app_facilities:display( "Will interact with the US-Main server resolved "
+    IsVerbose andalso app_facilities:display(
+        "Will interact with the US-Main server resolved "
         "through a ~ts: ~w, so that it executes action from the following "
         "tokens:~n ~p",
         [ naming_utils:lookup_info_to_string( LookupInfo ), MainSrvPid,
@@ -103,12 +108,13 @@ exec() ->
         { wooper_result, { { action_done, { ok, Msg } }, MainSrvPid } } ->
             %trace_utils:debug_fmt( "Triggered action succeeded, returned ~p.",
             %                       [ Msg ] ),
-            io:format( "~n~ts~n~n", [ Msg ] );
+            % No newline before/after relevant:
+            io:format( "~ts", [ Msg ] );
 
         { wooper_result, { { action_done, { error, Msg } }, MainSrvPid } } ->
             %trace_utils:debug_fmt( "Triggered action failed, returned ~p.",
             %                       [ Msg ] ),
-            trace_utils:error_fmt( "~ts~n", [ Msg ] );
+            trace_utils:error_fmt( "~ts", [ Msg ] );
 
         { wooper_result, { { action_failed, action_not_found },
                            MainSrvPid } } ->
@@ -150,4 +156,4 @@ exec() ->
 
     end,
 
-	us_client:teardown().
+	us_client:teardown( IsVerbose ).
