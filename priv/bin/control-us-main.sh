@@ -4,11 +4,16 @@
 
 conf_opt="--config-filename"
 
+verbose_long_opt="--verbose"
+verbose_short_opt="-v"
+
 
 # The default US-Main configuration file *for remote access*:
 um_cfg_filename="us-main-remote-access.config"
 
-usage="Usage: $(basename $0) [-h|--help] [${conf_opt} US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME] ACTION [ACTION_ARGS]: controls the target US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified action (possibly with arguments).
+usage="Usage: $(basename $0) [-h|--help] [${conf_opt} US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME] [${verbose_long_opt}|${verbose_short_opt}] ACTION [ACTION_ARGS]: controls the target US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute), by issuing the specified action (possibly with arguments).
+
+  ${verbose_long_opt} or ${verbose_short_opt}: enable verbose mode
 
 Use the 'help' action to list all available ones.
 
@@ -24,6 +29,8 @@ Example of use: './$(basename $0) ${conf_opt} us-main-remote-access-for-developm
 # configuration file specified, this script just forwards the action tokens as
 # they are to the corresponding US server.
 
+
+verbose=1
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
@@ -57,6 +64,15 @@ ${usage}" 1>&2
 fi
 
 
+if [ "$1" = "${verbose_short_opt}" ] || [ "$1" = "${verbose_long_opt}" ]; then
+
+	shift
+	verbose=0
+	echo "(verbose mode activated)"
+
+fi
+
+
 
 full_action="$*"
 
@@ -70,7 +86,7 @@ ${usage}" 1>&2
 fi
 
 
-echo "Read configuration file '${um_cfg_filename}' and full action tokens '${full_action}'."
+[ $verbose -eq 1 ] || echo "Read configuration file '${um_cfg_filename}' and full action tokens '${full_action}'."
 
 
 # In priv/bin:
@@ -91,7 +107,7 @@ fi
 # Sets a relevant located_um_cfg_file absolute path:
 find_us_main_config_file "${um_cfg_filename}"
 
-echo "Using the US-Main remote access configuration file resolved as '${located_um_cfg_file}'."
+[ $verbose -eq 1 ] || echo "Using the US-Main remote access configuration file resolved as '${located_um_cfg_file}'."
 
 
 # Sets: um_cfg_base_content, um_erl_epmd_port, epmd_opt, remote_vm_cookie:
@@ -105,8 +121,15 @@ app_dir="${script_dir}/../../src/apps/"
 cd "${app_dir}"
 
 
+verbose_str=""
+
+if [ $verbose -eq 0 ]; then
+	verbose_str="--verbose"
+fi
+
+
 # The (full) action shall be interpreted as a plain, extra one:
 
-#echo make -s us_main_controller_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
+#echo make -s us_main_controller_silent_exec CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" ${verbose_str} --target-cookie \"${remote_vm_cookie}\" ${epmd_opt}"
 
-make -s us_main_controller_exec ${epmd_opt} CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" --target-cookie ${remote_vm_cookie}"
+make -s us_main_controller_silent_exec ${epmd_opt} CMD_LINE_OPT="\"${full_action}\" --config-file \"${located_um_cfg_file}\" ${verbose_str} --target-cookie ${remote_vm_cookie}"
