@@ -38,6 +38,20 @@
       }
     },
 
+    {
+	  "_comment": "The value for the src_dirs entry for this layer can be generated/updated by executing: 'make list-src-dirs' from the root of this layer, and copying them verbatim below (relative paths already correct). The same applies for extra_src_dirs, with 'make list-extra-src-dirs'",
+      "name": "oceanic",
+      "dir": "../../oceanic",
+      "src_dirs": ["./src", "./src/scripts"],
+      "extra_src_dirs": ["test"],
+      "include_dirs": [
+        "include"
+      ],
+
+      "macros": {
+        "oceanic_debug_mode": "true"
+      }
+    },
 
     {
 	  "_comment": "The value for the src_dirs entry for this layer can be generated/updated by executing: 'make list-src-dirs' from the root of this layer, and copying them verbatim below (relative paths already correct). The same applies for extra_src_dirs, with 'make list-extra-src-dirs'",
