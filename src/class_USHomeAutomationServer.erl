@@ -2279,19 +2279,33 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
     BuiltinActSpecs = [
 
         { _ActName=devices,
-          _UserDesc="list all known home automation devices",
+          _UserDesc="lists all known home automation devices",
           _ReqName=listDevices },
 
-        { actuators, "list all known home automation actuator devices",
-          listActuators },
-
-        { sensors, "list all known home automation sensor devices",
+        { sensors, "lists all known home automation sensor devices",
           listSensors },
 
-        { commands, "list all known home automation command devices",
-          listCommandDevices }
+        { commands, "lists all known home automation command devices",
+          listCommandDevices },
 
-    ],
+        { actuators, "lists all known home automation actuator devices",
+          listActuators },
+
+        { presence, "tells whether somebody is considered at home", isPresent },
+
+        { at_home, "declares that somebody is present at home",
+          declarePresent },
+
+        { away, "declares that nobody is present at home", declareNotPresent },
+
+        { is_presence_simulated, "tells whether presence simulation is enabled",
+          isPresenceSimulationEnabled },
+
+        { enable_presence_simulation, "enables the presence simulation",
+          enablePresenceSimulation },
+
+        { disable_presence_simulation, "disables the presence simulation",
+          disablePresenceSimulation } ],
 
     AllActSpecs = BuiltinActSpecs ++ UserActSpecs,
 
@@ -3499,7 +3513,7 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
 
 
--doc "Records the existence of a device not expected to be already known.".
+-doc "Records the existence of a device not expected to be already detected.".
 -spec record_new_device( device_event(), wooper:state() ) -> wooper:state().
 record_new_device( DeviceEvent, State ) ->
 
@@ -4776,6 +4790,128 @@ listActuators( State ) ->
 
 
 
+-doc "Tells whether somebody is considered at home (built-in action).".
+-spec isPresent( wooper:state() ) ->
+                        const_request_return( successful( ustring() ) ).
+isPresent( State ) ->
+    Str = "Considering that " ++ case ?getAttr(actual_presence) of
+
+        true ->
+            "somebody";
+
+        false ->
+            "nobody"
+
+    end ++ " is at home.",
+
+    wooper:const_return_result( { ok, Str } ).
+
+
+
+-doc "Declares that somebody is present at home (built-in action).".
+-spec declarePresent( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+declarePresent( State ) ->
+
+    case ?getAttr(actual_presence) of
+
+        true ->
+            Str = "Somebody was already considered at home.",
+            wooper:const_return_result( { ok, Str } );
+
+        false ->
+            SetState = setAttribute( State, actual_presence, true ),
+            ApplyState = apply_presence_simulation( SetState ),
+            wooper:return_state_result( ApplyState,
+                { ok, "Now somebody is considered at home." } )
+
+    end.
+
+
+
+-doc "Declares that nobody is present at home (built-in action).".
+-spec declareNotPresent( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+declareNotPresent( State ) ->
+
+    case ?getAttr(actual_presence) of
+
+        true ->
+            SetState = setAttribute( State, actual_presence, false ),
+            ApplyState = apply_presence_simulation( SetState ),
+            wooper:return_state_result( ApplyState,
+                { ok, "Now nobody is considered at home." } );
+
+        false ->
+            Str = "Nobody was already considered at home.",
+            wooper:const_return_result( { ok, Str } )
+
+    end.
+
+
+
+-doc "Tells whether somebody is considered at home (built-in action).".
+-spec isPresenceSimulationEnabled( wooper:state() ) ->
+                        const_request_return( successful( ustring() ) ).
+isPresenceSimulationEnabled( State ) ->
+    Str = "Presence simulation is currently " ++
+            case ?getAttr(presence_simulation_enabled) of
+
+        true ->
+            "enabled";
+
+        false ->
+            "disabled"
+
+    end ++ ".",
+
+    wooper:const_return_result( { ok, Str } ).
+
+
+
+-doc "Enables the presence simulation (built-in action).".
+-spec enablePresenceSimulation( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+enablePresenceSimulation( State ) ->
+
+    case ?getAttr(presence_simulation_enabled) of
+
+        true ->
+            Str = "Presence simulation was already enabled.",
+            wooper:const_return_result( { ok, Str } );
+
+        false ->
+            SetState = setAttribute( State, presence_simulation_enabled, true ),
+            ApplyState = apply_presence_simulation( SetState ),
+            wooper:return_state_result( ApplyState,
+                { ok, "Presence simulation is now enabled." } )
+
+    end.
+
+
+
+-doc "Disables the presence simulation (built-in action).".
+-spec disablePresenceSimulation( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+disablePresenceSimulation( State ) ->
+
+    case ?getAttr(presence_simulation_enabled) of
+
+        true ->
+            SetState = setAttribute( State, presence_simulation_enabled,
+                                     false ),
+            ApplyState = apply_presence_simulation( SetState ),
+            wooper:return_state_result( ApplyState,
+                { ok, "Presence simulation is now disabled." } );
+
+        false ->
+            Str = "Presence simulation was already disabled.",
+            wooper:const_return_result( { ok, Str } )
+
+    end.
+
+
+
 % actions:
 % alarm:
 %%  * ${start_alarm_opt}: starts the alarm (siren)
@@ -5710,6 +5846,14 @@ device_state_to_short_string( #device_state{
         oceanic_text:interpret_briefly_power_report( OutputPower ), ReportStr,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
+device_state_to_short_string( #device_state{
+		name=BinName,
+		type=smart_plug,
+        last_seen=MaybeLastSeenTimestamp,
+		current_status=undefined } ) ->
+
+	text_utils:format( "'~ts', a yet not detected smart plug~ts", [ BinName,
+        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 device_state_to_short_string( #device_state{
 		name=BinName,
