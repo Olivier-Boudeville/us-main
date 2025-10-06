@@ -522,8 +522,7 @@ events.
 	AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
 	PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
 	presence_simulation_user_settings(),
-    HAActionSpecs :: [ user_action_spec() ],
-	oceanic_settings() }.
+    HAActionSpecs :: [ user_action_spec() ], oceanic_settings() }.
 
 
 
@@ -2272,40 +2271,45 @@ get_programmed_presence( _Slots=[ { _StartPscTime, StopPscTime } | _T ],
 
 
 -doc "Initialises the automated actions for home automation.".
--spec init_automated_actions( [ user_action_spec() ], wooper:state() ) ->
+-spec init_automated_actions( user_action_specs(), wooper:state() ) ->
                                                 wooper:state().
 init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
 
-    BuiltinActSpecs = [
+    BuiltinActSpecs =
 
-        { _ActName=devices,
-          _UserDesc="lists all known home automation devices",
-          _ReqName=listDevices },
+        [ { _Header="Home Automation Device management", [
+            { _ActName=devices,
+              _UserDesc="lists all known home automation devices",
+              _ReqName=listDevices },
 
-        { sensors, "lists all known home automation sensor devices",
-          listSensors },
+            { sensors, "lists all known home automation sensor devices",
+              listSensors },
 
-        { commands, "lists all known home automation command devices",
-          listCommandDevices },
+            { commands, "lists all known home automation command devices",
+              listCommandDevices },
 
-        { actuators, "lists all known home automation actuator devices",
-          listActuators },
+            { actuators, "lists all known home automation actuator devices",
+              listActuators } ] },
 
-        { presence, "tells whether somebody is considered at home", isPresent },
+          { "Presence management", [
+            { presence, "tells whether somebody is considered at home",
+              isPresent },
 
-        { at_home, "declares that somebody is present at home",
-          declarePresent },
+            { at_home, "declares that somebody is present at home",
+              declarePresent },
 
-        { away, "declares that nobody is present at home", declareNotPresent },
+            { away, "declares that nobody is present at home",
+              declareNotPresent },
 
-        { is_presence_simulated, "tells whether presence simulation is enabled",
-          isPresenceSimulationEnabled },
+            { is_presence_simulated,
+              "tells whether presence simulation is enabled",
+              isPresenceSimulationEnabled },
 
-        { enable_presence_simulation, "enables the presence simulation",
-          enablePresenceSimulation },
+            { enable_presence_simulation, "enables the presence simulation",
+              enablePresenceSimulation },
 
-        { disable_presence_simulation, "disables the presence simulation",
-          disablePresenceSimulation } ],
+            { disable_presence_simulation, "disables the presence simulation",
+              disablePresenceSimulation } ] } ],
 
     AllActSpecs = BuiltinActSpecs ++ UserActSpecs,
 
@@ -2313,10 +2317,12 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
                 "specifications:~n ~p", [ AllActSpecs ] ),
 
 
-    RegActTable = us_action:register_action_specs( AllActSpecs,
-        ?getAttr(action_table), wooper:get_classname( State ) ),
+    { RegActTable, RegHdTable } = us_action:register_action_specs( AllActSpecs,
+        ?getAttr(action_table), ?getAttr(header_table),
+        wooper:get_classname( State ) ),
 
-    setAttribute( State, action_table, RegActTable );
+    setAttributes( State, [ { action_table, RegActTable },
+                            { header_table, RegHdTable } ] );
 
 init_automated_actions( Other, State ) ->
     ?error_fmt( "Invalid automated actions for home automation "

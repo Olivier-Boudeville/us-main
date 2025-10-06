@@ -446,10 +446,10 @@ get_server_pid() ->
 init_security( State ) ->
 
     % We just define our action table; inherited
-    % class_USServer:notifyAutomatedActions/2 will manage them automatically, so
-    % that the central server can request and get them (asynchronously).
+    % class_USServer:requestAutomatedActions/2 will manage them automatically,
+    % so that the central server can request and get them (asynchronously).
 
-    UserActSpecs = [
+    UserActSpecs = [ { "Security Management", [
 
         % As the terseness of action description is key:
         { _ActName=defcon, _Desc="returns the current DEFCON",
@@ -461,12 +461,14 @@ init_security( State ) ->
 
         { panic, "sets immediately the worst DEFCON (1)" },
 
-        { peace, "sets immediately the quietest DEFCON (5)" } ],
+        { peace, "sets immediately the quietest DEFCON (5)" } ] } ],
 
-    ActionTable = us_action:register_action_specs( UserActSpecs,
-        ?getAttr(action_table), wooper:get_classname( State ) ),
+    { ActionTable, HeaderTable } = us_action:register_action_specs(
+        UserActSpecs, ?getAttr(action_table), ?getAttr(header_table),
+        wooper:get_classname( State ) ),
 
-    setAttribute( State, action_table, ActionTable ).
+    setAttributes( State, [ { action_table, ActionTable },
+                            { header_table, HeaderTable } ] ).
 
 
 
