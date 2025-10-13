@@ -27,7 +27,7 @@
 % registration is preferred.
 %
 -define( default_us_main_central_server_registration_name,
-		 us_main_central_server ).
+         us_main_central_server ).
 
 % As they should not clash:
 -define( default_us_main_central_server_registration_scope, local_only ).
@@ -42,7 +42,7 @@
 
 
 -define( us_main_communication_server_registration_name,
-		 us_main_communication_server ).
+         us_main_communication_server ).
 
 
 % A local instance expected on each node, possibly in link with another one
@@ -60,7 +60,7 @@
 
 
 -define( us_main_home_automation_server_registration_name,
-		 us_main_home_automation_server ).
+         us_main_home_automation_server ).
 
 % Local, as one instance of such server per host may run:
 -define( us_main_home_automation_server_registration_scope, local_only ).

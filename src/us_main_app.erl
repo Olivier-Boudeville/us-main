@@ -72,36 +72,36 @@ release.
 -spec exec() -> void().
 exec() ->
 
-	% Expecting Myriad to be already available in this branch:
-	trace_bridge:info( "Starting the US-Main application natively "
-					   "(e.g. not as an OTP release)." ),
+    % Expecting Myriad to be already available in this branch:
+    trace_bridge:info( "Starting the US-Main application natively "
+                       "(e.g. not as an OTP release)." ),
 
-	cond_utils:if_defined( us_main_debug_execution,
-		trace_bridge:debug_fmt( "Initially, the ~ts",
-								[ code_utils:get_code_path_as_string() ] ) ),
+    cond_utils:if_defined( us_main_debug_execution,
+        trace_bridge:debug_fmt( "Initially, the ~ts",
+                                [ code_utils:get_code_path_as_string() ] ) ),
 
-	% Not in an OTP context here, yet we need OTP applications (e.g. jsx) to be
-	% available (e.g. w.r.t. their .app and BEAMs being found, their starting to
-	% be done, etc.); we just not want US-Main to be launched the same way:
+    % Not in an OTP context here, yet we need OTP applications (e.g. jsx) to be
+    % available (e.g. w.r.t. their .app and BEAMs being found, their starting to
+    % be done, etc.); we just not want US-Main to be launched the same way:
 
-	% Base build root directory from which prerequisite applications may be
-	% found:
-	%
-	BuildRootDir = "..",
+    % Base build root directory from which prerequisite applications may be
+    % found:
+    %
+    BuildRootDir = "..",
 
-	% For all (direct and indirect) OTP prerequisites: updating ebin paths so
-	% that the corresponding *.app and BEAM files are found, checking that
-	% applications are compiled and preparing their starting; no application
-	% blacklisting done here.
-	%
-	% Includes the us_main application itself:
+    % For all (direct and indirect) OTP prerequisites: updating ebin paths so
+    % that the corresponding *.app and BEAM files are found, checking that
+    % applications are compiled and preparing their starting; no application
+    % blacklisting done here.
+    %
+    % Includes the us_main application itself:
 
-	OrderedAppNames =
-		otp_utils:prepare_for_execution( _ThisApp=us_main, BuildRootDir ),
+    OrderedAppNames =
+        otp_utils:prepare_for_execution( _ThisApp=us_main, BuildRootDir ),
 
-	otp_utils:start_applications( OrderedAppNames, _RestartType=temporary ),
+    otp_utils:start_applications( OrderedAppNames, _RestartType=temporary ),
 
-	trace_bridge:debug( "US-Main started (as native)." ).
+    trace_bridge:debug( "US-Main started (as native)." ).
 
 
 
@@ -120,35 +120,35 @@ OTP release / rebar configuration.
 """.
 start( StartType, StartArgs ) ->
 
-	% Myriad may be already available in this branch as well, though:
-	io:format( "Starting the us_main application "
-		"(start type: ~p, arguments: ~p)...~n", [ StartType, StartArgs ] ),
+    % Myriad may be already available in this branch as well, though:
+    io:format( "Starting the us_main application "
+        "(start type: ~p, arguments: ~p)...~n", [ StartType, StartArgs ] ),
 
-	% To debug any dependency-related 'undef' problem, or to ensure
-	% concurrently-emitted messages can be seen (otherwise many outputs may be
-	% lost):
-	%
-	%io:format( "Current code path:~n~p~n", [ code:get_path() ] ),
-	%io:format( "undef interpretation: ~ts~n",
-	%           [ code_utils:interpret_undef_exception( M, F, A ) ] ),
-	%
-	%timer:sleep( 2000 ),
+    % To debug any dependency-related 'undef' problem, or to ensure
+    % concurrently-emitted messages can be seen (otherwise many outputs may be
+    % lost):
+    %
+    %io:format( "Current code path:~n~p~n", [ code:get_path() ] ),
+    %io:format( "undef interpretation: ~ts~n",
+    %           [ code_utils:interpret_undef_exception( M, F, A ) ] ),
+    %
+    %timer:sleep( 2000 ),
 
-	%basic_utils:display( "Prerequisites started; loaded applications:~n~p~n",
-	%                     [ application:loaded_applications() ] ),
+    %basic_utils:display( "Prerequisites started; loaded applications:~n~p~n",
+    %                     [ application:loaded_applications() ] ),
 
-	% See http://erlang.org/doc/design_principles/applications.html:
-	us_main_sup:start_link( as_otp_release ).
+    % See http://erlang.org/doc/design_principles/applications.html:
+    us_main_sup:start_link( as_otp_release ).
 
 
 
 -doc "Stops the US-Main application.".
 stop( _State ) ->
 
-	% In native context, explicit stopping should be done, with the same
-	% blacklisting.
+    % In native context, explicit stopping should be done, with the same
+    % blacklisting.
 
-	trace_bridge:info( "Stopping the us_main application." ).
+    trace_bridge:info( "Stopping the us_main application." ).
 
 
 
@@ -159,4 +159,4 @@ stop( _State ) ->
 -doc "Starts required applications (not used currently).".
 -spec start_application( application_name() ) -> void().
 start_application( App ) ->
-	otp_utils:start_application( App ).
+    otp_utils:start_application( App ).

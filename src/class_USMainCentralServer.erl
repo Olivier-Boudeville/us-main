@@ -28,7 +28,7 @@ automated actions, etc. for the **US-Main** framework.
 
 
 -define( class_description,
-		 "Singleton central server holding the configuration information, "
+         "Singleton central server holding the configuration information, "
          "managing the automated actions, etc. for the US-Main framework" ).
 
 
@@ -69,7 +69,7 @@ automated actions, etc. for the **US-Main** framework.
 
 -doc "Checked more precisely as a position() in the home automation server.".
 -type user_server_location() ::
-	{ LatDegrees :: float(), LongDegrees :: float() }.
+    { LatDegrees :: float(), LongDegrees :: float() }.
 
 
 -type main_central_server_pid() :: server_pid().
@@ -103,7 +103,7 @@ automated actions, etc. for the **US-Main** framework.
 
 % The key to define any specific registration name for this US-Main server:
 -define( us_main_central_server_registration_name_key,
-		 us_main_central_server_registration_name ).
+         us_main_central_server_registration_name ).
 
 -define( us_main_username_key, us_main_username ).
 -define( us_main_app_base_dir_key, us_main_app_base_dir ).
@@ -119,9 +119,9 @@ automated actions, etc. for the **US-Main** framework.
 % (other keys are in their respective server classes)
 %
 -define( known_us_main_central_config_keys, [ ?us_main_epmd_port_key,
-	?us_main_central_server_registration_name_key,
-	?us_main_username_key, ?us_main_app_base_dir_key,
-	?us_main_data_dir_key, ?us_main_log_dir_key, ?us_actions_key ] ).
+    ?us_main_central_server_registration_name_key,
+    ?us_main_username_key, ?us_main_app_base_dir_key,
+    ?us_main_data_dir_key, ?us_main_log_dir_key, ?us_actions_key ] ).
 
 
 
@@ -178,20 +178,20 @@ automated actions, etc. for the **US-Main** framework.
 -define( class_attributes, [
 
     { muted_sensor_measurements, user_muted_sensor_points(),
-	  "A list expected to contain muted sensor measurement points; "
-	  "to be vetted by the sensor manager when it will request it" },
+      "A list expected to contain muted sensor measurement points; "
+      "to be vetted by the sensor manager when it will request it" },
 
-	% Multi-purpose information (not only for home-automation):
-	{ server_location, option( user_server_location() ),
-	  "the user-specified location of this US-Main server" },
+    % Multi-purpose information (not only for home-automation):
+    { server_location, option( user_server_location() ),
+      "the user-specified location of this US-Main server" },
 
-	% Home-automation specific:
-	{ home_automation_core_settings, home_automation_core_settings(),
-	  "any home automation core settings read (and not specifically checked) "
-	  "on behalf of the house automation server" },
+    % Home-automation specific:
+    { home_automation_core_settings, home_automation_core_settings(),
+      "any home automation core settings read (and not specifically checked) "
+      "on behalf of the house automation server" },
 
-	{ contact_files, [ bin_file_path() ], "a list of the known contact files "
-	  "(as absolute paths), whence contact information may be read" } ] ).
+    { contact_files, [ bin_file_path() ], "a list of the known contact files "
+      "(as absolute paths), whence contact information may be read" } ] ).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -237,10 +237,10 @@ automated actions, etc. for the **US-Main** framework.
 -type server_pid() :: class_USServer:server_pid().
 
 -type user_muted_sensor_points() ::
-	class_USSensorManager:user_muted_sensor_points().
+    class_USSensorManager:user_muted_sensor_points().
 
 -type home_automation_settings() ::
-	class_USHomeAutomationServer:home_automation_settings().
+    class_USHomeAutomationServer:home_automation_settings().
 
 
 
@@ -268,11 +268,11 @@ initialisation.
 -spec start_link( application_run_context() ) -> term().
 start_link( AppRunContext ) ->
 
-	% Apparently not displayed in a release context, yet executed:
-	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the US-Main central server." ),
+    % Apparently not displayed in a release context, yet executed:
+    trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+                        "the US-Main central server." ),
 
-	supervisor_bridge:start_link( { local, ?bridge_name }, _Module=?MODULE,
+    supervisor_bridge:start_link( { local, ?bridge_name }, _Module=?MODULE,
                                   _InitArgs=[ AppRunContext ] ).
 
 
@@ -282,17 +282,17 @@ Callback to initialise this supervisor bridge, typically in answer to
 `start_link/2` above being executed.
 """.
 -spec init( list() ) -> { 'ok', pid(), State :: term() }
-							| 'ignore' | { 'error', Error :: term() }.
+                            | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[ AppRunContext ] ) ->
 
-	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
-		"its central server (application run context: ~ts).",
-		[ self(), AppRunContext ] ),
+    trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
+        "its central server (application run context: ~ts).",
+        [ self(), AppRunContext ] ),
 
-	% Not specifically synchronous:
-	CtrSrvPid = ?MODULE:new_link( AppRunContext ),
+    % Not specifically synchronous:
+    CtrSrvPid = ?MODULE:new_link( AppRunContext ),
 
-	{ ok, CtrSrvPid, _InitialBridgeState=CtrSrvPid }.
+    { ok, CtrSrvPid, _InitialBridgeState=CtrSrvPid }.
 
 
 
@@ -300,18 +300,18 @@ init( _Args=[ AppRunContext ] ) ->
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=CtrSrvPid ) when is_pid( CtrSrvPid ) ->
 
-	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
-		"the central server (reason: ~w, central server: ~w).",
-		[ Reason, CtrSrvPid ] ),
+    trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+        "the central server (reason: ~w, central server: ~w).",
+        [ Reason, CtrSrvPid ] ),
 
-	% Synchronicity needed, otherwise a potential race condition exists, leading
-	% this process to be killed by its OTP supervisor instead of being normally
-	% stopped:
-	%
-	wooper:delete_synchronously_instance( CtrSrvPid ),
+    % Synchronicity needed, otherwise a potential race condition exists, leading
+    % this process to be killed by its OTP supervisor instead of being normally
+    % stopped:
+    %
+    wooper:delete_synchronously_instance( CtrSrvPid ),
 
-	trace_bridge:debug_fmt( "US-Main central server ~w terminated.",
-							[ CtrSrvPid ] ).
+    trace_bridge:debug_fmt( "US-Main central server ~w terminated.",
+                            [ CtrSrvPid ] ).
 
 
 
@@ -323,32 +323,32 @@ Constructs the US-Main central server.
 -spec construct( wooper:state(), application_run_context() ) -> wooper:state().
 construct( State, AppRunContext ) ->
 
-	% First the direct mother classes, then this class-specific actions:
-	SrvState = class_USCentralServer:construct( State, _USAppShortName="main",
+    % First the direct mother classes, then this class-specific actions:
+    SrvState = class_USCentralServer:construct( State, _USAppShortName="main",
         _ServerInit=?trace_categorize("Main central server"), AppRunContext ),
 
-	CfgState = load_and_apply_configuration( SrvState ),
+    CfgState = load_and_apply_configuration( SrvState ),
 
-	% Done rather late on purpose, so that the existence of this trace file can
-	% be seen as a sign that the initialisation went well (used by
-	% start-us-main-{native-build,release}.sh).
-	%
-	% Now that the log directory is known, we can properly redirect the traces:
+    % Done rather late on purpose, so that the existence of this trace file can
+    % be seen as a sign that the initialisation went well (used by
+    % start-us-main-{native-build,release}.sh).
+    %
+    % Now that the log directory is known, we can properly redirect the traces:
     executeConstOneway( CfgState, finaliseTraceSetup ),
 
-	?send_info_fmt( CfgState, "Constructed: ~ts.", [ to_string( CfgState ) ] ),
+    ?send_info_fmt( CfgState, "Constructed: ~ts.", [ to_string( CfgState ) ] ),
 
-	CfgState.
+    CfgState.
 
 
 
 -doc "Overridden destructor.".
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
-	?debug( "Deletion initiated." ),
+    ?debug( "Deletion initiated." ),
 
-	?info( "Deleted." ),
-	State.
+    ?info( "Deleted." ),
+    State.
 
 
 
@@ -361,17 +361,17 @@ Returns basic, general main configuration settings (typically for the US-Main
 supervisor).
 """.
 -spec getMainConfigSettings( wooper:state() ) ->
-								const_request_return( general_main_settings() ).
+                                const_request_return( general_main_settings() ).
 getMainConfigSettings( State ) ->
 
-	% (not used currently).
+    % (not used currently).
 
-	GenMainSettings = #general_main_settings{},
+    GenMainSettings = #general_main_settings{},
 
-	?debug_fmt( "Returning the general main configuration settings:~n  ~p",
-				[ GenMainSettings ] ),
+    ?debug_fmt( "Returning the general main configuration settings:~n  ~p",
+                [ GenMainSettings ] ),
 
-	wooper:const_return_result( GenMainSettings ).
+    wooper:const_return_result( GenMainSettings ).
 
 
 
@@ -379,7 +379,7 @@ getMainConfigSettings( State ) ->
 -spec getSensorSettings( wooper:state() ) ->
                             const_request_return( user_muted_sensor_points() ).
 getSensorSettings( State ) ->
-	wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
+    wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
 
 
 
@@ -391,49 +391,49 @@ Returns suitable home automation settings, read from the configuration
                             const_request_return( home_automation_settings() ).
 getHomeAutomationSettings( State ) ->
 
-	CoreSettingTuple = ?getAttr(home_automation_core_settings),
+    CoreSettingTuple = ?getAttr(home_automation_core_settings),
 
-	FullSettingTuple = list_to_tuple( [ ?getAttr(server_location),
-		?getAttr(app_base_directory) | tuple_to_list( CoreSettingTuple ) ] ),
+    FullSettingTuple = list_to_tuple( [ ?getAttr(server_location),
+        ?getAttr(app_base_directory) | tuple_to_list( CoreSettingTuple ) ] ),
 
-	wooper:const_return_result( FullSettingTuple ).
+    wooper:const_return_result( FullSettingTuple ).
 
 
 
 -doc "Returns suitable contact settings (typically for the contact directory).".
 -spec getContactSettings( wooper:state() ) -> const_request_return(
-	{ bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
+    { bin_directory_path(), execution_context(), [ bin_file_path() ] } ).
 getContactSettings( State ) ->
 
-	ContactSettings = { ?getAttr(config_base_directory),
-						?getAttr(execution_context), ?getAttr(contact_files) },
+    ContactSettings = { ?getAttr(config_base_directory),
+                        ?getAttr(execution_context), ?getAttr(contact_files) },
 
-	wooper:const_return_result( ContactSettings ).
+    wooper:const_return_result( ContactSettings ).
 
 
 
 -doc "Callback triggered whenever a linked process exits.".
 -spec onWOOPERExitReceived( wooper:state(), pid(),
-						basic_utils:exit_reason() ) -> const_oneway_return().
+                        basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, _StoppedPid, _ExitType=normal ) ->
 
-	% Not even a trace sent for that, as too many of them.
-	%
-	%?notice_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+    % Not even a trace sent for that, as too many of them.
+    %
+    %?notice_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
 
-	wooper:const_return();
+    wooper:const_return();
 
 
 onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
-	% Typically: "Received exit message '{{nocatch,
-	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
-	%       FunName,Arity,Args,AtomCause}}, [...]}"
+    % Typically: "Received exit message '{{nocatch,
+    %   {wooper_oneway_failed,<0.44.0>,class_XXX,
+    %       FunName,Arity,Args,AtomCause}}, [...]}"
 
-	?error_fmt( "Received and ignored an exit message '~p' from ~w.",
-				[ ExitType, CrashedPid ] ),
+    ?error_fmt( "Received and ignored an exit message '~p' from ~w.",
+                [ ExitType, CrashedPid ] ),
 
-	wooper:const_return().
+    wooper:const_return().
 
 
 
@@ -444,16 +444,16 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 -doc "Returns the version of the US application being used.".
 -spec get_us_app_version() -> static_return( three_digit_version() ).
 get_us_app_version() ->
-	wooper:return_static(
-		basic_utils:parse_version( get_us_app_version_string() ) ).
+    wooper:return_static(
+        basic_utils:parse_version( get_us_app_version_string() ) ).
 
 
 
 -doc "Returns the version of the US application being used, as a string.".
 -spec get_us_app_version_string() -> static_return( ustring() ).
 get_us_app_version_string() ->
-	% As defined (uniquely) in GNUmakevars.inc:
-	wooper:return_static( ?us_app_version ).
+    % As defined (uniquely) in GNUmakevars.inc:
+    wooper:return_static( ?us_app_version ).
 
 
 
@@ -473,11 +473,11 @@ live process anymore).
 -spec get_server_pid () -> static_return( main_central_server_pid() ).
 get_server_pid() ->
 
-	MainCtrPid = class_USServer:resolve_server_pid(
+    MainCtrPid = class_USServer:resolve_server_pid(
         _RegName=?default_us_main_central_server_registration_name,
         _RegScope=?default_us_main_central_server_registration_scope ),
 
-	wooper:return_static( MainCtrPid ).
+    wooper:return_static( MainCtrPid ).
 
 
 
@@ -488,39 +488,39 @@ the other servers.
 -spec create_mockup_for_test() -> static_return( server_pid() ).
 create_mockup_for_test() ->
 
-	% Clearer than a Y-combinator:
-	CfgPid = ?myriad_spawn_link( fun() -> us_main_mockup_srv() end ),
+    % Clearer than a Y-combinator:
+    CfgPid = ?myriad_spawn_link( fun() -> us_main_mockup_srv() end ),
 
-	CfgRegName = ?default_us_main_central_server_registration_name,
-	CfgRegScope = ?default_us_main_central_server_registration_scope,
+    CfgRegName = ?default_us_main_central_server_registration_name,
+    CfgRegScope = ?default_us_main_central_server_registration_scope,
 
-	naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
+    naming_utils:register_as( CfgPid, CfgRegName, CfgRegScope ),
 
-	trace_bridge:info_fmt( "Created a mock-up US-Main central server ~w, "
-		"registered (~ts) as '~ts'.", [ CfgPid, CfgRegScope, CfgRegName ] ),
+    trace_bridge:info_fmt( "Created a mock-up US-Main central server ~w, "
+        "registered (~ts) as '~ts'.", [ CfgPid, CfgRegScope, CfgRegName ] ),
 
 
-	wooper:return_static( CfgPid ).
+    wooper:return_static( CfgPid ).
 
 
 
 us_main_mockup_srv() ->
 
-	%trace_utils:debug( "Mock-up US-Main central server in main loop." ),
+    %trace_utils:debug( "Mock-up US-Main central server in main loop." ),
 
-	receive
+    receive
 
-		{ getSensorSettings, [], RequesterPid } ->
-			RequesterPid ! { wooper_result, _MutMeasurements=[] },
-			us_main_mockup_srv();
+        { getSensorSettings, [], RequesterPid } ->
+            RequesterPid ! { wooper_result, _MutMeasurements=[] },
+            us_main_mockup_srv();
 
-		UnexpectedMsg ->
-			trace_bridge:error_fmt( "The mock-up US-Main central server "
-				"~w received an unexpected (ignored) message: ~p.",
-				[ self(), UnexpectedMsg ] ),
-			us_main_mockup_srv()
+        UnexpectedMsg ->
+            trace_bridge:error_fmt( "The mock-up US-Main central server "
+                "~w received an unexpected (ignored) message: ~p.",
+                [ self(), UnexpectedMsg ] ),
+            us_main_mockup_srv()
 
-	end.
+    end.
 
 
 
@@ -538,33 +538,33 @@ information from it.
 -spec load_and_apply_configuration( wooper:state() ) -> wooper:state().
 load_and_apply_configuration( State ) ->
 
-	{ CfgSrvRegName, CfgSrvLookupScope, CfgSrvPid } =
+    { CfgSrvRegName, CfgSrvLookupScope, CfgSrvPid } =
         class_USConfigServer:get_us_config_registration_info(
             _CreateIfNeeded=false, State ),
 
-	% This central server is not supposed to read more the US configuration
-	% file; it should request it to the overall configuration server, about all
-	% the extra information it needs, to avoid duplicated, possibly inconsistent
-	% reading/interpretation (and in order to declare itself in the same move):
-	%
-	CfgSrvPid ! { getUSMainRuntimeSettings, [], self() },
+    % This central server is not supposed to read more the US configuration
+    % file; it should request it to the overall configuration server, about all
+    % the extra information it needs, to avoid duplicated, possibly inconsistent
+    % reading/interpretation (and in order to declare itself in the same move):
+    %
+    CfgSrvPid ! { getUSMainRuntimeSettings, [], self() },
 
     RegState = setAttribute( State, us_config_lookup_info,
                              { CfgSrvRegName, CfgSrvLookupScope } ),
 
-	receive
+    receive
 
-		{ wooper_result, { BinCfgDir, ExecContext, MaybeMainCfgFilename } } ->
+        { wooper_result, { BinCfgDir, ExecContext, MaybeMainCfgFilename } } ->
 
-			StoreState = setAttributes( RegState, [
-				{ execution_context, ExecContext },
-				{ config_base_directory, BinCfgDir },
-				{ log_directory, ?default_log_base_dir } ] ),
+            StoreState = setAttributes( RegState, [
+                { execution_context, ExecContext },
+                { config_base_directory, BinCfgDir },
+                { log_directory, ?default_log_base_dir } ] ),
 
-			load_main_config( BinCfgDir, MaybeMainCfgFilename, CfgSrvPid,
+            load_main_config( BinCfgDir, MaybeMainCfgFilename, CfgSrvPid,
                               StoreState )
 
-	end.
+    end.
 
 
 
@@ -574,87 +574,88 @@ configuration file, as identified from the US one), on behalf of the various
 services that it offers.
 """.
 -spec load_main_config( bin_directory_path(), option( bin_file_path() ),
-	config_server_pid(), wooper:state() ) -> wooper:state().
+    config_server_pid(), wooper:state() ) -> wooper:state().
 load_main_config( BinCfgBaseDir, _MaybeBinMainCfgFilename=undefined,
                   CfgSrvPid, State ) ->
 
-	DefaultBinMainCfgFilename = ?default_us_main_cfg_filename,
+    DefaultBinMainCfgFilename = ?default_us_main_cfg_filename,
 
-	?info_fmt( "No configuration filename known of the overall US central "
-		"server (i.e. none defined in its own configuration file), "
-		"hence defaulting to '~ts'.", [ DefaultBinMainCfgFilename ] ),
+    ?info_fmt( "No configuration filename known of the overall US central "
+        "server (i.e. none defined in its own configuration file), "
+        "hence defaulting to '~ts'.", [ DefaultBinMainCfgFilename ] ),
 
-	load_main_config( BinCfgBaseDir, DefaultBinMainCfgFilename, CfgSrvPid,
+    load_main_config( BinCfgBaseDir, DefaultBinMainCfgFilename, CfgSrvPid,
                       State );
 
 
 load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
 
-	MainCfgFilePath = file_utils:ensure_path_is_absolute( BinMainCfgFilename,
-		_BasePath=BinCfgBaseDir ),
+    MainCfgFilePath = file_utils:ensure_path_is_absolute( BinMainCfgFilename,
+        _BasePath=BinCfgBaseDir ),
 
-	case file_utils:is_existing_file_or_link( MainCfgFilePath ) of
+    case file_utils:is_existing_file_or_link( MainCfgFilePath ) of
 
-		true ->
-			?info_fmt(
+        true ->
+            ?info_fmt(
                 "Reading the US-Main configuration file, found as '~ts'.",
-				[ MainCfgFilePath ] );
+                [ MainCfgFilePath ] );
 
-		false ->
-			% Possibly user/group permission issue:
-			?error_fmt( "No US-Main configuration file found or accessible "
-				"(e.g. symbolic link to an inaccessible file); tried '~ts'.",
-				[ MainCfgFilePath ] ),
+        false ->
+            % Possibly user/group permission issue:
+            ?error_fmt( "No US-Main configuration file found or accessible "
+                "(e.g. symbolic link to an inaccessible file); tried '~ts'.",
+                [ MainCfgFilePath ] ),
 
-			throw( { us_main_config_file_not_found,
-					 text_utils:binary_to_string( MainCfgFilePath ) } )
+            throw( { us_main_config_file_not_found,
+                     text_utils:binary_to_string( MainCfgFilePath ) } )
 
-	end,
+    end,
 
-	% Checks that only pairs are found:
-	MainCfgTable = table:new_from_unique_entries(
-		file_utils:read_etf_file( MainCfgFilePath ) ),
+    % Checks that only pairs are found:
+    MainCfgTable = table:new_from_unique_entries(
+        file_utils:read_etf_file( MainCfgFilePath ) ),
 
-	?debug_fmt( "Read US-Main configuration ~ts",
-				[ table:to_string( MainCfgTable ) ] ),
+    ?debug_fmt( "Read US-Main configuration ~ts",
+                [ table:to_string( MainCfgTable ) ] ),
 
-	EpmdState = executeOneway( State, manageEPMDPort,
+    EpmdState = executeOneway( State, manageEPMDPort,
         [ MainCfgTable, _PortKey=?us_main_epmd_port_key,
           _DefPort=?default_us_main_epmd_port, CfgSrvPid ] ),
 
-	RegState = executeOneway( EpmdState, manageRegistrations,
+    RegState = executeOneway( EpmdState, manageRegistrations,
         [ MainCfgTable, ?default_us_main_central_server_registration_name,
           ?default_us_main_central_server_registration_scope ] ),
 
-	UserState = executeOneway( RegState, manageSystemUser,
+    UserState = executeOneway( RegState, manageSystemUser,
         [ MainCfgTable, _UsernameKey=?us_main_username_key ] ),
 
-	AppState = executeOneway( UserState, manageAppBaseDirectories,
+    AppState = executeOneway( UserState, manageAppBaseDirectories,
         [ MainCfgTable, _BaseDirKey=?us_main_app_base_dir_key,
           _BaseDirEnvVarName=?us_main_app_env_variable ] ),
 
-	DataState = executeOneway( AppState, manageDataDirectory,
+    DataState = executeOneway( AppState, manageDataDirectory,
         [ MainCfgTable, _DataDirKey=?us_main_data_dir_key,
           _DefaultDataBaseDir=?default_data_base_dir ] ),
 
-	LogState = executeOneway( DataState, manageLogDirectory,
+    LogState = executeOneway( DataState, manageLogDirectory,
         [ MainCfgTable, _LogDirKey=?us_main_log_dir_key,
           _DefaultLogDir=?default_log_base_dir ] ),
 
-	ContactState = class_USContactDirectory:manage_configuration( MainCfgTable,
-																  LogState ),
+    ContactState = class_USContactDirectory:manage_configuration( MainCfgTable,
+                                                                  LogState ),
 
-	SensorState = class_USSensorManager:manage_configuration( MainCfgTable,
-															  ContactState ),
+    SensorState = class_USSensorManager:manage_configuration( MainCfgTable,
+                                                              ContactState ),
 
-	AutomatState = class_USHomeAutomationServer:manage_configuration(
+    AutomatState = class_USHomeAutomationServer:manage_configuration(
         MainCfgTable, SensorState ),
 
     SecurityState = class_USSecurityManager:manage_configuration(
         MainCfgTable, AutomatState ),
 
-    % The US servers of this application, federated by this central one; their
-    % respective order in the help action listing will be the same as this one:
+    % The US servers of this application, federated by this central one; the
+    % respective order of their header in the help action listing will be the
+    % same as this one:
     %
     % (to be added some day: class_USCredentialServer)
     %
@@ -665,32 +666,32 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
     ActionState = executeOneway( SecurityState, manageAutomatedActions,
                                  [ MainCfgTable, SrvClassnames ] ),
 
-	FinalState = ActionState,
+    FinalState = ActionState,
 
     % US-Main also has its own key for (non home-automation) actions:
-	LicitKeys = ?known_us_main_central_config_keys
-		++ class_USContactDirectory:get_licit_config_keys()
-		++ class_USSensorManager:get_licit_config_keys()
-		% Includes the Oceanic ones:
-		++ class_USHomeAutomationServer:get_licit_config_keys()
-		++ class_USSecurityManager:get_licit_config_keys(),
+    LicitKeys = ?known_us_main_central_config_keys
+        ++ class_USContactDirectory:get_licit_config_keys()
+        ++ class_USSensorManager:get_licit_config_keys()
+        % Includes the Oceanic ones:
+        ++ class_USHomeAutomationServer:get_licit_config_keys()
+        ++ class_USSecurityManager:get_licit_config_keys(),
 
 
-	case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
+    case list_utils:difference( table:keys( MainCfgTable ), LicitKeys ) of
 
-		[] ->
-			FinalState;
+        [] ->
+            FinalState;
 
-		UnexpectedKeys ->
-			?error_fmt( "Unknown configuration key(s) in '~ts': ~ts~n"
+        UnexpectedKeys ->
+            ?error_fmt( "Unknown configuration key(s) in '~ts': ~ts~n"
                 "Licit ones are: ~ts",
-				[ MainCfgFilePath, text_utils:terms_to_string( UnexpectedKeys ),
-				  text_utils:terms_to_string( LicitKeys ) ] ),
+                [ MainCfgFilePath, text_utils:terms_to_string( UnexpectedKeys ),
+                  text_utils:terms_to_string( LicitKeys ) ] ),
 
-			throw( { invalid_configuration_keys, UnexpectedKeys,
-					 text_utils:binary_to_string( MainCfgFilePath ) } )
+            throw( { invalid_configuration_keys, UnexpectedKeys,
+                     text_utils:binary_to_string( MainCfgFilePath ) } )
 
-	end.
+    end.
 
 
 -doc "Returns a textual description of this central server.".

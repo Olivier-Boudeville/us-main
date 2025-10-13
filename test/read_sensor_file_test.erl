@@ -39,32 +39,32 @@ Such a file is typically obtained thanks to:
 -spec run() -> no_return().
 run() ->
 
-	?test_start,
+    ?test_start,
 
-	test_facilities:start( ?MODULE ),
+    test_facilities:start( ?MODULE ),
 
-	test_facilities:display( "Testing the sensor-related services." ),
+    test_facilities:display( "Testing the sensor-related services." ),
 
-	SensorDataFilename = "test_sensor_output.txt",
+    SensorDataFilename = "test_sensor_output.txt",
 
-	case file_utils:is_existing_file_or_link( SensorDataFilename ) of
+    case file_utils:is_existing_file_or_link( SensorDataFilename ) of
 
-		true ->
+        true ->
 
-			% As used by the sensor manager:
-			class_USMainCentralServer:create_mockup_for_test(),
+            % As used by the sensor manager:
+            class_USMainCentralServer:create_mockup_for_test(),
 
-			SensorManagerPid =
-				class_USSensorManager:new_link( SensorDataFilename ),
+            SensorManagerPid =
+                class_USSensorManager:new_link( SensorDataFilename ),
 
-			% Hence processed just after the completion of the constructor:
-			wooper:delete_synchronously_instance( SensorManagerPid );
+            % Hence processed just after the completion of the constructor:
+            wooper:delete_synchronously_instance( SensorManagerPid );
 
-		false ->
-			test_facilities:display_fmt( "Warning: no '~ts' file available, "
-				"hence no testing of the corresponding, arbitrary sensor "
-				"output data.", [ SensorDataFilename ] )
+        false ->
+            test_facilities:display_fmt( "Warning: no '~ts' file available, "
+                "hence no testing of the corresponding, arbitrary sensor "
+                "output data.", [ SensorDataFilename ] )
 
-	end,
+    end,
 
-	?test_stop.
+    ?test_stop.

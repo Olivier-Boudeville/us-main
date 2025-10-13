@@ -47,82 +47,82 @@ connect to the VM hosting that instance.
 -spec exec() -> no_return().
 exec() ->
 
-	% No app_start here, hence we need the following (see
-	% traces_for_apps:app_start/2 for a detailed explanation):
-	%
-	erlang:process_flag( trap_exit, false ),
+    % No app_start here, hence we need the following (see
+    % traces_for_apps:app_start/2 for a detailed explanation):
+    %
+    erlang:process_flag( trap_exit, false ),
 
-	{ ActualTargetNodeName, IsVerbose, CfgTable, FinalArgTable } =
+    { ActualTargetNodeName, IsVerbose, CfgTable, FinalArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
-	list_table:is_empty( FinalArgTable ) orelse
-		throw( { unexpected_arguments,
-				 list_table:enumerate( FinalArgTable ) } ),
+    list_table:is_empty( FinalArgTable ) orelse
+        throw( { unexpected_arguments,
+                 list_table:enumerate( FinalArgTable ) } ),
 
-	AggregatorName = ?trace_aggregator_name,
+    AggregatorName = ?trace_aggregator_name,
 
-	%app_facilities:display( "Looking up aggregator by name: ~ts.",
-	%                        [ AggregatorName ] ),
+    %app_facilities:display( "Looking up aggregator by name: ~ts.",
+    %                        [ AggregatorName ] ),
 
-	% The trace aggregator is expected to run on the target node, but to be
-	% registered there only locally, to avoid clashing with any other
-	% aggregator:
-	%
-	AggregatorPid = naming_utils:get_locally_registered_pid_for(
-		AggregatorName, ActualTargetNodeName ),
+    % The trace aggregator is expected to run on the target node, but to be
+    % registered there only locally, to avoid clashing with any other
+    % aggregator:
+    %
+    AggregatorPid = naming_utils:get_locally_registered_pid_for(
+        AggregatorName, ActualTargetNodeName ),
 
-	%app_facilities:display( "Creating now a local trace listener." ),
+    %app_facilities:display( "Creating now a local trace listener." ),
 
-	TraceListenerPid = case us_client:get_tcp_port_range( CfgTable ) of
+    TraceListenerPid = case us_client:get_tcp_port_range( CfgTable ) of
 
-		undefined ->
-			class_TraceListener:synchronous_new_link( AggregatorPid,
-				_CloseListenerPid=self() );
+        undefined ->
+            class_TraceListener:synchronous_new_link( AggregatorPid,
+                _CloseListenerPid=self() );
 
-		{ MinTCPPort, MaxTCPPort } ->
-			class_TraceListener:synchronous_new_link( AggregatorPid,
-				MinTCPPort, MaxTCPPort, _CloseListenerPid=self() )
+        { MinTCPPort, MaxTCPPort } ->
+            class_TraceListener:synchronous_new_link( AggregatorPid,
+                MinTCPPort, MaxTCPPort, _CloseListenerPid=self() )
 
-	end,
+    end,
 
-	IsVerbose andalso app_facilities:display(
+    IsVerbose andalso app_facilities:display(
                         "Waiting for the trace listener to be closed." ),
 
-	% To troubleshoot problems in terms of overlapping partitions:
-	%wait( TraceListenerPid ),
+    % To troubleshoot problems in terms of overlapping partitions:
+    %wait( TraceListenerPid ),
 
-	receive
+    receive
 
-		{ trace_listening_finished, TraceListenerPid } ->
-			IsVerbose andalso app_facilities:display( "Trace listener closed." )
+        { trace_listening_finished, TraceListenerPid } ->
+            IsVerbose andalso app_facilities:display( "Trace listener closed." )
 
-	end,
+    end,
 
-	us_client:teardown().
+    us_client:teardown().
 
 
 
 % With some monitoring:
 wait( TraceListenerPid ) ->
 
-	receive
+    receive
 
-		{ trace_listening_finished, TraceListenerPid } ->
-			app_facilities:display( "Trace listener closed." )
+        { trace_listening_finished, TraceListenerPid } ->
+            app_facilities:display( "Trace listener closed." )
 
-	after 1000 ->
+    after 1000 ->
 
-		Nodes = nodes(),
+        Nodes = nodes(),
 
-		%TestNode = 'us_main_controller_exec-xxx@yyy',
+        %TestNode = 'us_main_controller_exec-xxx@yyy',
 
-		%trace_utils:debug_fmt( "Testing node '~ts': ~ts.",
-		%                       [ TestNode, net_adm:ping( TestNode ) ] ),
+        %trace_utils:debug_fmt( "Testing node '~ts': ~ts.",
+        %                       [ TestNode, net_adm:ping( TestNode ) ] ),
 
-		global:sync(),
+        global:sync(),
 
-		app_facilities:display("Known nodes: ~w / ~w.", [ Nodes, nodes() ] ),
+        app_facilities:display("Known nodes: ~w / ~w.", [ Nodes, nodes() ] ),
 
-		wait( TraceListenerPid )
+        wait( TraceListenerPid )
 
-	end.
+    end.

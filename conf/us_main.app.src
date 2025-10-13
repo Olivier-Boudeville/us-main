@@ -49,7 +49,7 @@
   {licenses, ["US-Main is licensed by its author (Olivier Boudeville) under the GNU Affero General Public License (AGPL), version 3.0 or later"]},
 
   {links, [ {"Official website", "http://us-main.esperide.org" },
-			{"Github", "https://github.com/Olivier-Boudeville/us-main"} ]}
+            {"Github", "https://github.com/Olivier-Boudeville/us-main"} ]}
 
   %{exclude_files, []}
 

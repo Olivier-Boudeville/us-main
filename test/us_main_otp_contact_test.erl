@@ -35,83 +35,83 @@ Module in charge of the testing of the **US-Main contact services**.
 -doc "Actual test.".
 test_us_main_contact_management( OrderedAppNames ) ->
 
-	test_facilities:display( "Testing the contact-related services; for that "
-							 "starting the US-Main OTP active application." ),
+    test_facilities:display( "Testing the contact-related services; for that "
+                             "starting the US-Main OTP active application." ),
 
-	% We did not trap EXIT messages, as we wanted this test to crash (thanks to
-	% the links below) in case of problem (and not to receive an EXIT message
-	% bound not to be read, as it happened when no US configuration file was
-	% found).
-	%
-	% However such tests may crash even when stopping (normally) applications,
-	% as apparently an OTP application has its child processes terminated with
-	% reason 'shutdown' (not 'normal').
-	%
-	% So now this test process traps EXIT messages, and ensures that none
-	% besides {'EXIT',P,shutdown}, P being the PID of a US-Common process, is
-	% received (actually for US-Common no such message is received, unlike for
-	% the WOOPER counterpart test case).
-	%
-	false = erlang:process_flag( trap_exit, true ),
+    % We did not trap EXIT messages, as we wanted this test to crash (thanks to
+    % the links below) in case of problem (and not to receive an EXIT message
+    % bound not to be read, as it happened when no US configuration file was
+    % found).
+    %
+    % However such tests may crash even when stopping (normally) applications,
+    % as apparently an OTP application has its child processes terminated with
+    % reason 'shutdown' (not 'normal').
+    %
+    % So now this test process traps EXIT messages, and ensures that none
+    % besides {'EXIT',P,shutdown}, P being the PID of a US-Common process, is
+    % received (actually for US-Common no such message is received, unlike for
+    % the WOOPER counterpart test case).
+    %
+    false = erlang:process_flag( trap_exit, true ),
 
-	% We now link to the US-Main contact manager.
+    % We now link to the US-Main contact manager.
 
-	% No ?test_start/?test_stop here, as we start/stop Traces through
-	% OTP-related operations.
-	%
-	% If in batch mode (not in a release, hence no sys.config read here, so only
-	% the --batch command-line option matters here), the trace aggregator will
-	% record that a trace supervisor is wanted later (iff renamed), otherwise
-	% (not in batch mode), no trace supervisor is wanted at all.
-	%
-	otp_utils:start_applications( OrderedAppNames ),
+    % No ?test_start/?test_stop here, as we start/stop Traces through
+    % OTP-related operations.
+    %
+    % If in batch mode (not in a release, hence no sys.config read here, so only
+    % the --batch command-line option matters here), the trace aggregator will
+    % record that a trace supervisor is wanted later (iff renamed), otherwise
+    % (not in batch mode), no trace supervisor is wanted at all.
+    %
+    otp_utils:start_applications( OrderedAppNames ),
 
-	ContactDirectoryPid = class_USContactDirectory:get_server_pid(),
+    ContactDirectoryPid = class_USContactDirectory:get_server_pid(),
 
-	% The top-level user process may not be aware that an OTP application fails
-	% (e.g. because its main process crashed), which is a problem for a test. So
-	% here we link explicitly this test process to the US-Main contact manager,
-	% to have a chance of detecting issues:
-	%
-	erlang:link( ContactDirectoryPid ),
-
-
-	% 5 seconds:
-	WaitDurationMs = 5*1000,
-
-	test_facilities:display( "Waiting for ~ts. Not much can be done in the "
-		"meantime except perhaps looking at the corresponding trace file "
-		"(in src/traces_via_otp.traces).",
-		[ time_utils:duration_to_string( WaitDurationMs ) ] ),
-
-	timer:sleep( WaitDurationMs ),
-
-	test_facilities:display( "The test waiting just finished." ),
+    % The top-level user process may not be aware that an OTP application fails
+    % (e.g. because its main process crashed), which is a problem for a test. So
+    % here we link explicitly this test process to the US-Main contact manager,
+    % to have a chance of detecting issues:
+    %
+    erlang:link( ContactDirectoryPid ),
 
 
-	?test_info( "Successful test (not fully ended yet) of the US-Main OTP "
-				"application." ),
+    % 5 seconds:
+    WaitDurationMs = 5*1000,
 
-	% Including US-Main:
-	?test_info( "Stopping all user applications." ),
-	otp_utils:stop_user_applications( OrderedAppNames ),
+    test_facilities:display( "Waiting for ~ts. Not much can be done in the "
+        "meantime except perhaps looking at the corresponding trace file "
+        "(in src/traces_via_otp.traces).",
+        [ time_utils:duration_to_string( WaitDurationMs ) ] ),
 
-	% Not able to use Traces anymore:
-	trace_utils:debug_fmt( "Waiting for the termination of the US-Main "
-						   "contact directory (~w).", [ ContactDirectoryPid ] ),
+    timer:sleep( WaitDurationMs ),
 
-	receive
+    test_facilities:display( "The test waiting just finished." ),
 
-		{ 'EXIT', ContactDirectoryPid, normal } ->
-			ok
 
-	end,
+    ?test_info( "Successful test (not fully ended yet) of the US-Main OTP "
+                "application." ),
 
-	% None expected to be left:
-	basic_utils:check_no_pending_message(),
+    % Including US-Main:
+    ?test_info( "Stopping all user applications." ),
+    otp_utils:stop_user_applications( OrderedAppNames ),
 
-	test_facilities:display(
-		"Successful end of test of the US-Main OTP application." ).
+    % Not able to use Traces anymore:
+    trace_utils:debug_fmt( "Waiting for the termination of the US-Main "
+                           "contact directory (~w).", [ ContactDirectoryPid ] ),
+
+    receive
+
+        { 'EXIT', ContactDirectoryPid, normal } ->
+            ok
+
+    end,
+
+    % None expected to be left:
+    basic_utils:check_no_pending_message(),
+
+    test_facilities:display(
+        "Successful end of test of the US-Main OTP application." ).
 
 
 
@@ -126,19 +126,19 @@ available as prerequisite, fully-built OTP applications.
 -spec run() -> no_return().
 run() ->
 
-	test_facilities:start( ?MODULE ),
+    test_facilities:start( ?MODULE ),
 
-	% Build root directory from which sibling prerequisite applications may be
-	% found:
-	%
-	BuildRootDir = "..",
+    % Build root directory from which sibling prerequisite applications may be
+    % found:
+    %
+    BuildRootDir = "..",
 
-	OrderedAppNames = otp_utils:prepare_for_execution( _ThisApp=us_main,
-													   BuildRootDir ),
+    OrderedAppNames = otp_utils:prepare_for_execution( _ThisApp=us_main,
+                                                       BuildRootDir ),
 
-	trace_bridge:info_fmt( "Resulting applications to start, in order: ~w.",
-						   [ OrderedAppNames ] ),
+    trace_bridge:info_fmt( "Resulting applications to start, in order: ~w.",
+                           [ OrderedAppNames ] ),
 
-	test_us_main_contact_management( OrderedAppNames ),
+    test_us_main_contact_management( OrderedAppNames ),
 
-	test_facilities:stop().
+    test_facilities:stop().

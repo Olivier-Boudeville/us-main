@@ -112,7 +112,7 @@ See [https://en.wikipedia.org/wiki/DEFCON] and appreciate
 %
 -define( class_attributes, [
 
-	{ defcon, defcon(), "the current DEFCON" } ] ).
+    { defcon, defcon(), "the current DEFCON" } ] ).
 
 
 
@@ -163,12 +163,12 @@ initialisation.
 -spec start_link() -> term().
 start_link() ->
 
-	% Apparently not displayed in a release context, yet executed:
-	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the security management." ),
+    % Apparently not displayed in a release context, yet executed:
+    trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+                        "the security management." ),
 
-	supervisor_bridge:start_link( { local, ?bridge_name },
-		_Module=?MODULE, _InitArgs=[] ).
+    supervisor_bridge:start_link( { local, ?bridge_name },
+        _Module=?MODULE, _InitArgs=[] ).
 
 
 
@@ -180,33 +180,33 @@ Callback to initialise this supervisor bridge, typically in answer to
                       | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
-	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
-						   "the security management.", [ self() ] ),
+    trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
+                           "the security management.", [ self() ] ),
 
-	% Not specifically synchronous:
-	SecurityManagerPid = ?MODULE:new_link(),
+    % Not specifically synchronous:
+    SecurityManagerPid = ?MODULE:new_link(),
 
-	{ ok, SecurityManagerPid, _InitialBridgeState=SecurityManagerPid }.
+    { ok, SecurityManagerPid, _InitialBridgeState=SecurityManagerPid }.
 
 
 
 -doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=SecurityManagerPid )
-								when is_pid( SecurityManagerPid ) ->
+                                when is_pid( SecurityManagerPid ) ->
 
-	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
-		"the security management (reason: ~w, security manager: ~w).",
-		[ Reason, SecurityManagerPid ] ),
+    trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+        "the security management (reason: ~w, security manager: ~w).",
+        [ Reason, SecurityManagerPid ] ),
 
-	% Synchronicity needed, otherwise a potential race condition exists, leading
-	% this process to be killed by its OTP supervisor instead of being normally
-	% stopped:
-	%
-	wooper:delete_synchronously_instance( SecurityManagerPid ),
+    % Synchronicity needed, otherwise a potential race condition exists, leading
+    % this process to be killed by its OTP supervisor instead of being normally
+    % stopped:
+    %
+    wooper:delete_synchronously_instance( SecurityManagerPid ),
 
-	trace_bridge:debug_fmt( "US-Main security manager ~w terminated.",
-						   [ SecurityManagerPid ] ).
+    trace_bridge:debug_fmt( "US-Main security manager ~w terminated.",
+                           [ SecurityManagerPid ] ).
 
 
 
@@ -218,21 +218,21 @@ terminate( Reason, _BridgeState=SecurityManagerPid )
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 
-	% First the direct mother classes, then this class-specific actions:
-	SrvState = class_USServer:construct( State,
-		?trace_categorize("Security manager"),
-		?us_main_security_server_registration_name,
-		?us_main_security_server_registration_scope ),
+    % First the direct mother classes, then this class-specific actions:
+    SrvState = class_USServer:construct( State,
+        ?trace_categorize("Security manager"),
+        ?us_main_security_server_registration_name,
+        ?us_main_security_server_registration_scope ),
 
-	InitSecurityState = init_security( SrvState ),
+    InitSecurityState = init_security( SrvState ),
 
     % Start cool:
     SetState = setAttribute( InitSecurityState, defcon, 5 ),
 
-	?send_notice_fmt( SetState, "Constructed: ~ts.",
+    ?send_notice_fmt( SetState, "Constructed: ~ts.",
                       [ to_string( SetState ) ] ),
 
-	SetState.
+    SetState.
 
 
 
@@ -240,11 +240,11 @@ construct( State ) ->
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
-	?debug_fmt( "Deletion initiated, while state is: ~ts.",
-				[ to_string( State ) ] ),
+    ?debug_fmt( "Deletion initiated, while state is: ~ts.",
+                [ to_string( State ) ] ),
 
-	?info( "Deleted." ),
-	State.
+    ?info( "Deleted." ),
+    State.
 
 
 
@@ -305,22 +305,22 @@ Callback triggered, if this server enabled the trapping of EXIT messages,
 whenever a linked process terminates.
 """.
 -spec onWOOPERExitReceived( wooper:state(), pid(),
-		basic_utils:exit_reason() ) -> const_oneway_return().
+        basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
-	?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
-	wooper:const_return();
+    ?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+    wooper:const_return();
 
 onWOOPERExitReceived( State, CrashPid, ExitType ) ->
 
-	% Typically: "Received exit message '{{nocatch,
-	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
-	%      FunName,Arity,Args,AtomCause}}, [...]}"
+    % Typically: "Received exit message '{{nocatch,
+    %   {wooper_oneway_failed,<0.44.0>,class_XXX,
+    %      FunName,Arity,Args,AtomCause}}, [...]}"
 
-	% Redundant information yet useful for console outputs:
-	?warning_fmt( "US Security Manager ~w received and ignored following exit "
-				  "message from ~w:~n  ~p", [ self(), CrashPid, ExitType ] ),
+    % Redundant information yet useful for console outputs:
+    ?warning_fmt( "US Security Manager ~w received and ignored following exit "
+                  "message from ~w:~n  ~p", [ self(), CrashPid, ExitType ] ),
 
-	wooper:const_return().
+    wooper:const_return().
 
 
 
@@ -429,11 +429,11 @@ live process anymore).
 -spec get_server_pid () -> static_return( security_manager_pid() ).
 get_server_pid() ->
 
-	ManagerPid = class_USServer:resolve_server_pid(
+    ManagerPid = class_USServer:resolve_server_pid(
         _RegName=?us_main_security_server_registration_name,
         _RegScope=?us_main_security_server_registration_scope ),
 
-	wooper:return_static( ManagerPid ).
+    wooper:return_static( ManagerPid ).
 
 
 
@@ -463,12 +463,12 @@ init_security( State ) ->
 
         { peace, "sets immediately the quietest DEFCON (5)" } ] } ],
 
-    { ActionTable, HeaderTable } = us_action:register_action_specs(
-        UserActSpecs, ?getAttr(action_table), ?getAttr(header_table),
+    { ActionTable, HeaderInfo } = us_action:register_action_specs(
+        UserActSpecs, ?getAttr(action_table), ?getAttr(header_info),
         wooper:get_classname( State ) ),
 
     setAttributes( State, [ { action_table, ActionTable },
-                            { header_table, HeaderTable } ] ).
+                            { header_info, HeaderInfo } ] ).
 
 
 
@@ -506,7 +506,7 @@ Returns the known security-related keys in the US-Main configuration files.
 """.
 -spec get_licit_config_keys() -> [ list_table:key() ].
 get_licit_config_keys() ->
-	[ ?us_main_security_key ].
+    [ ?us_main_security_key ].
 
 
 -doc """
@@ -516,24 +516,24 @@ configuration files.
 Note that the specified state is the one of a US-Main configuration server.
 """.
 -spec manage_configuration( us_main_config_table(), wooper:state() ) ->
-										wooper:state().
+                                        wooper:state().
 manage_configuration( ConfigTable, State ) ->
 
-	case table:lookup_entry( ?us_main_security_key, ConfigTable ) of
+    case table:lookup_entry( ?us_main_security_key, ConfigTable ) of
 
-		key_not_found ->
-			?info( "No user settings regarding security." ),
-			[];
+        key_not_found ->
+            ?info( "No user settings regarding security." ),
+            [];
 
-		{ value, SecuritySettings } ->
-			?warning_fmt( "Ignoring security settings ~p'.",
+        { value, SecuritySettings } ->
+            ?warning_fmt( "Ignoring security settings ~p'.",
                           [ SecuritySettings ] )
 
-	end,
+    end,
 
-	% Not specifically checked at this level, will be done by the security
-	% manager:
-	%
+    % Not specifically checked at this level, will be done by the security
+    % manager:
+    %
     State.
 
 

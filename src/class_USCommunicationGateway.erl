@@ -31,8 +31,8 @@ Such gateways rely on a contact directory.
 
 
 -define( class_description, "US server in charge of managing the "
-	"communication of the US infrastructure, typically with "
-	"associated users." ).
+    "communication of the US infrastructure, typically with "
+    "associated users." ).
 
 
 % Determines what are the direct mother classes of this class (if any):
@@ -100,11 +100,11 @@ Such gateways rely on a contact directory.
 %
 -define( class_attributes, [
 
-	{ sms_support_operational, boolean(), "tells whether an actual SMS "
-	  "support is enabled and operational, notably to be able to send them" },
+    { sms_support_operational, boolean(), "tells whether an actual SMS "
+      "support is enabled and operational, notably to be able to send them" },
 
-	{ parent_comm_gateway_lookup_info, option( lookup_info() ),
-	  "the lookup naming information  of any parent, authoritative gateway "
+    { parent_comm_gateway_lookup_info, option( lookup_info() ),
+      "the lookup naming information  of any parent, authoritative gateway "
       "(e.g. able to send SMSs)" } ] ).
 
 
@@ -138,12 +138,12 @@ initialisation.
 -spec start_link() -> term().
 start_link() ->
 
-	% Apparently not displayed in a release context, yet executed:
-	trace_bridge:debug( "Starting the US-Main supervisor bridge for "
-						"the communication gateway." ),
+    % Apparently not displayed in a release context, yet executed:
+    trace_bridge:debug( "Starting the US-Main supervisor bridge for "
+                        "the communication gateway." ),
 
-	supervisor_bridge:start_link( { local, ?bridge_name },
-								  _Module=?MODULE, _InitArgs=[] ).
+    supervisor_bridge:start_link( { local, ?bridge_name },
+                                  _Module=?MODULE, _InitArgs=[] ).
 
 
 
@@ -152,36 +152,36 @@ Callback to initialise this supervisor bridge, typically in answer to
 start_link/0 above being executed.
 """.
 -spec init( [] ) -> { 'ok', pid(), State :: term() }
-					| 'ignore' | { 'error', Error :: term() }.
+                    | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
-	trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
-						   "the communication gateway.", [ self() ] ),
+    trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
+                           "the communication gateway.", [ self() ] ),
 
-	% Not specifically synchronous:
-	CommGatewayPid = ?MODULE:new_link(),
+    % Not specifically synchronous:
+    CommGatewayPid = ?MODULE:new_link(),
 
-	{ ok, CommGatewayPid, _InitialBridgeState=CommGatewayPid }.
+    { ok, CommGatewayPid, _InitialBridgeState=CommGatewayPid }.
 
 
 
 -doc "Callback to terminate this supervisor bridge.".
 -spec terminate( Reason :: 'shutdown' | term(), State :: term() ) -> void().
 terminate( Reason, _BridgeState=CommGatewayPid )
-								when is_pid( CommGatewayPid ) ->
+                                when is_pid( CommGatewayPid ) ->
 
-	trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
-		"the communication gateway (reason: ~w, communication gateway: ~w).",
-		[ Reason, CommGatewayPid ] ),
+    trace_bridge:info_fmt( "Terminating the US-Main supervisor bridge for "
+        "the communication gateway (reason: ~w, communication gateway: ~w).",
+        [ Reason, CommGatewayPid ] ),
 
-	% Synchronicity needed, otherwise a potential race condition exists, leading
-	% this process to be killed by its OTP supervisor instead of being normally
-	% stopped:
-	%
-	wooper:delete_synchronously_instance( CommGatewayPid ),
+    % Synchronicity needed, otherwise a potential race condition exists, leading
+    % this process to be killed by its OTP supervisor instead of being normally
+    % stopped:
+    %
+    wooper:delete_synchronously_instance( CommGatewayPid ),
 
-	trace_bridge:debug_fmt( "US-Main communication gateway ~w terminated.",
-							[ CommGatewayPid ] ).
+    trace_bridge:debug_fmt( "US-Main communication gateway ~w terminated.",
+                            [ CommGatewayPid ] ).
 
 
 
@@ -192,23 +192,23 @@ terminate( Reason, _BridgeState=CommGatewayPid )
 -spec construct( wooper:state() ) -> wooper:state().
 construct( State ) ->
 
-	% First the direct mother classes, then this class-specific actions:
-	% (traps EXITs)
-	%
-	SrvState = class_USServer:construct( State,
-		?trace_categorize("Communication gateway"),
-		?us_main_communication_server_registration_name,
-		?us_main_communication_server_registration_scope ),
+    % First the direct mother classes, then this class-specific actions:
+    % (traps EXITs)
+    %
+    SrvState = class_USServer:construct( State,
+        ?trace_categorize("Communication gateway"),
+        ?us_main_communication_server_registration_name,
+        ?us_main_communication_server_registration_scope ),
 
-	InitCommState = init_communications( SrvState ),
+    InitCommState = init_communications( SrvState ),
 
-	SetState = setAttribute( InitCommState, parent_comm_gateway_lookup_info,
+    SetState = setAttribute( InitCommState, parent_comm_gateway_lookup_info,
                              undefined ),
 
-	?send_notice_fmt( SetState, "Constructed: ~ts.",
-					  [ to_string( SetState ) ] ),
+    ?send_notice_fmt( SetState, "Constructed: ~ts.",
+                      [ to_string( SetState ) ] ),
 
-	SetState.
+    SetState.
 
 
 
@@ -216,11 +216,11 @@ construct( State ) ->
 -spec destruct( wooper:state() ) -> wooper:state().
 destruct( State ) ->
 
-	?debug_fmt( "Deletion initiated, while state is: ~ts.",
-				[ to_string( State ) ] ),
+    ?debug_fmt( "Deletion initiated, while state is: ~ts.",
+                [ to_string( State ) ] ),
 
-	?info( "Deleted." ),
-	State.
+    ?info( "Deleted." ),
+    State.
 
 
 
@@ -233,23 +233,23 @@ Callback triggered, if this server enabled the trapping of exits, whenever a
 linked process terminates.
 """.
 -spec onWOOPERExitReceived( wooper:state(), pid(),
-		basic_utils:exit_reason() ) -> const_oneway_return().
+        basic_utils:exit_reason() ) -> const_oneway_return().
 onWOOPERExitReceived( State, StoppedPid, _ExitType=normal ) ->
-	?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
-	wooper:const_return();
+    ?info_fmt( "Ignoring normal exit from process ~w.", [ StoppedPid ] ),
+    wooper:const_return();
 
 onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
 
-	% Typically: "Received exit message '{{nocatch,
-	%   {wooper_oneway_failed,<0.44.0>,class_XXX,
-	%       FunName,Arity,Args,AtomCause}}, [...]}"
+    % Typically: "Received exit message '{{nocatch,
+    %   {wooper_oneway_failed,<0.44.0>,class_XXX,
+    %       FunName,Arity,Args,AtomCause}}, [...]}"
 
-	% Redundant information yet useful for console outputs:
-	?warning_fmt( "US Communication Gateway  ~w received and ignored "
-		"following exit message from ~w:~n  ~p",
-		[ self(), CrashedPid, ExitType ] ),
+    % Redundant information yet useful for console outputs:
+    ?warning_fmt( "US Communication Gateway  ~w received and ignored "
+        "following exit message from ~w:~n  ~p",
+        [ self(), CrashedPid, ExitType ] ),
 
-	wooper:const_return().
+    wooper:const_return().
 
 
 
@@ -269,11 +269,11 @@ anymore).
 -spec get_server_pid() -> static_return( gateway_pid() ).
 get_server_pid() ->
 
-	GatewayPid = class_USServer:resolve_server_pid(
+    GatewayPid = class_USServer:resolve_server_pid(
         _RegName=?us_main_communication_server_registration_name,
         _RegScope=?us_main_communication_server_registration_scope ),
 
-	wooper:return_static( GatewayPid ).
+    wooper:return_static( GatewayPid ).
 
 
 
@@ -284,49 +284,49 @@ get_server_pid() ->
 -spec init_communications( wooper:state() ) ->  wooper:state().
 init_communications( State ) ->
 
-	mobile:start(),
+    mobile:start(),
 
-	?debug( "Testing whether a usable Ceylan-Mobile exists." ),
+    ?debug( "Testing whether a usable Ceylan-Mobile exists." ),
 
-	SMSSupportEnabled = case mobile:is_available() of
+    SMSSupportEnabled = case mobile:is_available() of
 
-		true ->
+        true ->
 
-			case mobile:has_actual_device() of
+            case mobile:has_actual_device() of
 
-				true ->
+                true ->
 
-					% Also an early test that Mobile is available and functional
-					% indeed:
-					%
-					MobInfo = mobile:get_textual_information(),
+                    % Also an early test that Mobile is available and functional
+                    % indeed:
+                    %
+                    MobInfo = mobile:get_textual_information(),
 
-					?info_fmt( "SMS communication via Ceylan-Mobile "
-						"initialised (available, and reported as connected to "
-						"an actual device); mobile information: ~ts.",
-						[ MobInfo ] ),
+                    ?info_fmt( "SMS communication via Ceylan-Mobile "
+                        "initialised (available, and reported as connected to "
+                        "an actual device); mobile information: ~ts.",
+                        [ MobInfo ] ),
 
-					true;
+                    true;
 
-				false ->
-					?warning( "No SMS communication will be available: "
-						"Ceylan-Mobile found operational yet not connected "
-						"to an actual device (just emulated)." ),
-					mobile:stop(),
-					false
+                false ->
+                    ?warning( "No SMS communication will be available: "
+                        "Ceylan-Mobile found operational yet not connected "
+                        "to an actual device (just emulated)." ),
+                    mobile:stop(),
+                    false
 
-			end;
+            end;
 
 
-		false ->
-			?info( "No SMS communication will be available, no Ceylan-Mobile "
-				   "found available." ),
-			mobile:stop(),
-			false
+        false ->
+            ?info( "No SMS communication will be available, no Ceylan-Mobile "
+                   "found available." ),
+            mobile:stop(),
+            false
 
-	end,
+    end,
 
-	setAttribute( State, sms_support_enabled, SMSSupportEnabled ).
+    setAttribute( State, sms_support_enabled, SMSSupportEnabled ).
 
 
 
@@ -334,15 +334,15 @@ init_communications( State ) ->
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
 
-	ParentGatewayStr = case ?getAttr(parent_comm_gateway_lookup_info) of
+    ParentGatewayStr = case ?getAttr(parent_comm_gateway_lookup_info) of
 
-		undefined ->
-			"not referencing any parent communication gateway";
+        undefined ->
+            "not referencing any parent communication gateway";
 
-		LI ->
-			text_utils:format( "referencing a parent communication gateway "
+        LI ->
+            text_utils:format( "referencing a parent communication gateway "
                 "based on a ~ts", [ naming_utils:lookup_info_to_string( LI ) ] )
 
-	end,
+    end,
 
-	text_utils:format( "US communication gateway, ~ts", [ ParentGatewayStr ] ).
+    text_utils:format( "US communication gateway, ~ts", [ ParentGatewayStr ] ).

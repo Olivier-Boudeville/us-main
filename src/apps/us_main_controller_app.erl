@@ -43,12 +43,12 @@ connect to the VM hosting that instance.
 -spec exec() -> no_return().
 exec() ->
 
-	% No app_start here, hence we need the following (see
-	% traces_for_apps:app_start/2 for a detailed explanation):
-	%
-	erlang:process_flag( trap_exit, false ),
+    % No app_start here, hence we need the following (see
+    % traces_for_apps:app_start/2 for a detailed explanation):
+    %
+    erlang:process_flag( trap_exit, false ),
 
-	{ ActualTargetNodeName, IsVerbose, _CfgTable, ArgTable } =
+    { ActualTargetNodeName, IsVerbose, _CfgTable, ArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
     % We do not want anymore a specific server to be entered, the US-Main
@@ -58,25 +58,25 @@ exec() ->
     %
     %UMLookupInfo = us_client:get_config_server_info( CfgTable ),
 
-	{ AllArgs, OptionArgTable } =
-		cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
+    { AllArgs, OptionArgTable } =
+        cmd_line_utils:extract_optionless_command_arguments( ArgTable ),
 
     FinalArgTable = OptionArgTable,
 
-	list_table:is_empty( FinalArgTable ) orelse
-		throw( { unexpected_arguments,
-				 list_table:enumerate( FinalArgTable ) } ),
+    list_table:is_empty( FinalArgTable ) orelse
+        throw( { unexpected_arguments,
+                 list_table:enumerate( FinalArgTable ) } ),
 
     IsVerbose andalso app_facilities:display( "(in verbose mode)" ),
 
-	% The US-Main central server is expected to run on the target node, so we
-	% cannot use our class_USMainCentralServer:get_server_pid/0 (as in the
-	% general case we are on a remote host):
+    % The US-Main central server is expected to run on the target node, so we
+    % cannot use our class_USMainCentralServer:get_server_pid/0 (as in the
+    % general case we are on a remote host):
     %
     %LookupInfo = UMLookupInfo,
 
-	CfgLookupScope = naming_utils:registration_to_lookup_scope(
-		?default_us_main_central_server_registration_scope ),
+    CfgLookupScope = naming_utils:registration_to_lookup_scope(
+        ?default_us_main_central_server_registration_scope ),
 
     LookupInfo = { ?default_us_main_central_server_registration_name,
                    CfgLookupScope },
@@ -156,4 +156,4 @@ exec() ->
 
     end,
 
-	us_client:teardown( IsVerbose ).
+    us_client:teardown( IsVerbose ).

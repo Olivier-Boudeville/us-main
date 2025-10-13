@@ -34,29 +34,29 @@ Reads and interprets specified ETF text file containing **contact information**.
 -spec run() -> no_return().
 run() ->
 
-	?test_start,
+    ?test_start,
 
-	test_facilities:start( ?MODULE ),
+    test_facilities:start( ?MODULE ),
 
-	test_facilities:display( "Testing the contact directory services." ),
+    test_facilities:display( "Testing the contact directory services." ),
 
-	ContactFilename = "test_contact_directory.etf",
+    ContactFilename = "test_contact_directory.etf",
 
-	case file_utils:is_existing_file_or_link( ContactFilename ) of
+    case file_utils:is_existing_file_or_link( ContactFilename ) of
 
-		true ->
+        true ->
 
-			ContactDirPid =
-				class_USContactDirectory:new_link( ContactFilename ),
+            ContactDirPid =
+                class_USContactDirectory:new_link( ContactFilename ),
 
-			% Hence processed just after the completion of the constructor:
-			wooper:delete_synchronously_instance( ContactDirPid );
+            % Hence processed just after the completion of the constructor:
+            wooper:delete_synchronously_instance( ContactDirPid );
 
-		false ->
-			test_facilities:display_fmt( "Warning: no '~ts' file available, "
-				"hence no testing of the corresponding, arbitrary contact "
-				"information.", [ ContactFilename ] )
+        false ->
+            test_facilities:display_fmt( "Warning: no '~ts' file available, "
+                "hence no testing of the corresponding, arbitrary contact "
+                "information.", [ ContactFilename ] )
 
-	end,
+    end,
 
-	?test_stop.
+    ?test_stop.
