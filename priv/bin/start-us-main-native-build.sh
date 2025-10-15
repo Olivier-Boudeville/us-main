@@ -87,7 +87,7 @@ Example: '$0 /opt/test/universal-server' is to read /opt/test/universal-server/u
 
 The ${kill_prior_opt} option allows killing any previous US-Main instance (useful with systemctl, with which a possibly lingering one may be reported by EPMD).
 
-This script must be run as root."
+This script may or may not be as root (if not, ensure that no prior instance runs with a different user than the current one, that no log directory owned by others is in the way, etc.)."
 
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -116,14 +116,15 @@ ${usage}" 1>&2
 fi
 
 
-if [ ! $(id -u) -eq 0 ]; then
-
-	# As operations like chown will have to be performed:
-	echo "  Error, this script must be run as root.
-${usage}" 1>&2
-	exit 5
-
-fi
+# Untrue:
+#if [ ! $(id -u) -eq 0 ]; then
+#
+#	# As operations like chown will have to be performed:
+#	echo "  Error, this script must be run as root.
+#${usage}" 1>&2
+#	exit 5
+#
+#fi
 
 
 # XDG_CONFIG_DIRS defined, so that the US server as well can look it up (not
