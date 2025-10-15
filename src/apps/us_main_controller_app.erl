@@ -105,16 +105,24 @@ exec() ->
 
     receive
 
+        % The action could be done, and it succeeded:
         { wooper_result, { { action_done, { ok, Msg } }, MainSrvPid } } ->
             %trace_utils:debug_fmt( "Triggered action succeeded, returned ~p.",
             %                       [ Msg ] ),
             % No newline before/after relevant:
             io:format( "~ts", [ Msg ] );
 
+        % The action could be done, yet it failed internally:
         { wooper_result, { { action_done, { error, Msg } }, MainSrvPid } } ->
             %trace_utils:debug_fmt( "Triggered action failed, returned ~p.",
             %                       [ Msg ] ),
             trace_utils:error_fmt( "~ts", [ Msg ] );
+
+        % From there the triggering of that action failed:
+        { wooper_result, { { action_failed, FailureReport }, MainSrvPid } } ->
+            io:format( "Error: ~ts",
+                [ us_action:interpret_failure_report( FailureReport ) ] );
+
 
         { wooper_result, { { action_failed, action_not_found },
                            MainSrvPid } } ->
@@ -145,7 +153,8 @@ exec() ->
                 [ FailureReport ] );
 
         Any ->
-            trace_utils:error_fmt( "Received unexpected ~p.", [ Any ] )
+            trace_utils:error_fmt( "Received an unexpected message:~n ~p",
+                                   [ Any ] )
 
     after TimeoutMs ->
 
