@@ -418,6 +418,15 @@ For that, the correspondance between a US role (e.g. ``administrator``) and actu
 
 
 
+.. _`enocean gateway`:
+
+Enocean Gateway
+===============
+
+If enabling house automation services (such as an alarm or a presence simulation), Enocean devices (sensors, actuators) will have to be used by US-Main. This requires a proper Enocean gateway to be available (plugged-in and configured), as explained `in this section <https://oceanic.esperide.org/#testing-ceylan-oceanic-in-two-steps>`_ of Ceylan-Oceanic.
+
+
+
 
 .. _`network infrastructure tracker`:
 
