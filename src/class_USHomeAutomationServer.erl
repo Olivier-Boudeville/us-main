@@ -1055,11 +1055,16 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
             { OcPid, SrcEurid };
 
         { false, ReasonStr, ErrorTerm } ->
+            % An home automation server is created by the US-Main server
+            % unconditionally (the US-Main configuration file is not yet located
+            % and parsed), so the message must not suggest it was or was not
+            % requested.
+            %
             % No house automation can be done then (newline needed, otherwise
             % bad formatting):
             %
             ?send_warning_fmt( SrvState,
-                "The Oceanic support will not be available. ~ts~n"
+                "No Oceanic support will be available: ~ts~n"
                 "(error term: ~p).", [ ReasonStr, ErrorTerm ] ),
 
             { undefined, undefined }
