@@ -230,5 +230,5 @@ fi
 sleep 1
 
 # At least this script:
-echo "Resulting US-Main processes found, afterwards: $(ps -edf | grep us_main | grep -v grep)"
-echo "Resulting EPMD entries found: $(${epmd} -names)"
+printf "Resulting US-Main processes found, afterwards:\n$(ps -edf | grep us_main | grep -v grep)\n"
+printf "\nResulting EPMD entries found:\n$(${epmd} -names)\n"
