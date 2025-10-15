@@ -264,7 +264,7 @@ if [ ! -x "${make}" ]; then
 fi
 
 
-display_and_log "Securing sudoer rights for the upcoming operations that require it."
+display_and_log "Securing sudoer rights for the upcoming operations that require it (typically writing in a non-user directory)."
 if ! sudo echo; then
 
 	echo "  Error, sudo failed." 1>&2
@@ -337,7 +337,7 @@ if [ $do_clone -eq 0 ]; then
 	#
 	display_and_log " - cloning US-Main"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/us-main" us_main; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/us-main" us_main; then
 
 		echo " Error, unable to obtain US-Main." 1>&2
 		exit 40
@@ -367,7 +367,7 @@ if [ $do_clone -eq 0 ]; then
 	# Superseded by the built-in 'json' parser:
 	# display_and_log " - cloning jsx"
 
-	# if ! ${git} clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
+	# if ! "${git}" clone ${clone_opts} https://github.com/talentdeficit/jsx.git; then
 
 	#   echo " Error, unable to obtain jsx parser." 1>&2
 	#   exit 38
@@ -377,7 +377,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning our fork of erlang-serial (for TTY control)"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/erlang-serial"; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/erlang-serial"; then
 
 		echo " Error, unable to obtain erlang-serial." 1>&2
 		exit 34
@@ -387,7 +387,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-Myriad"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Myriad" myriad; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-Myriad" myriad; then
 
 		echo " Error, unable to obtain Ceylan-Myriad." 1>&2
 		exit 20
@@ -401,7 +401,7 @@ if [ $do_clone -eq 0 ]; then
 	# To avoid "Already on 'master'":
 	if [ "${myriad_branch}" != "master" ]; then
 
-		cd myriad && ${git} switch "${myriad_branch}" 1>>"${log_file}" && cd ..
+		cd myriad && "${git}" switch "${myriad_branch}" 1>>"${log_file}" && cd ..
 		if [ ! $? -eq 0 ]; then
 
 			echo " Error, unable to switch to Ceylan-Myriad branch '${myriad_branch}'." 1>&2
@@ -414,7 +414,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-Oceanic (for Enocean support)"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Oceanic" oceanic; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-Oceanic" oceanic; then
 
 		echo " Error, unable to obtain Ceylan-Oceanic." 1>&2
 		exit 33
@@ -424,7 +424,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-Seaplus (for Erlang/C integration)"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Seaplus" seaplus; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-Seaplus" seaplus; then
 
 		echo " Error, unable to obtain Ceylan-Seaplus." 1>&2
 		exit 32
@@ -434,7 +434,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-Mobile (for SMS management)"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Mobile" mobile; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-Mobile" mobile; then
 
 		echo " Error, unable to obtain Ceylan-Mobile." 1>&2
 		exit 31
@@ -444,7 +444,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-WOOPER"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-WOOPER" wooper; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-WOOPER" wooper; then
 
 		echo " Error, unable to obtain Ceylan-WOOPER." 1>&2
 		exit 25
@@ -454,7 +454,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning Ceylan-Traces"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/Ceylan-Traces" traces; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/Ceylan-Traces" traces; then
 
 		echo " Error, unable to obtain Ceylan-Traces." 1>&2
 		exit 30
@@ -464,7 +464,7 @@ if [ $do_clone -eq 0 ]; then
 
 	display_and_log " - cloning US-Common"
 
-	if ! ${git} clone ${clone_opts} "${our_github_base}/us-common" us_common; then
+	if ! "${git}" clone ${clone_opts} "${our_github_base}/us-common" us_common; then
 
 		echo " Error, unable to obtain US-Common." 1>&2
 		exit 35
@@ -483,7 +483,7 @@ if [ ${do_build} -eq 0 ]; then
 	display_and_log "Building these packages as $(id -un), with Erlang $(erl -eval '{ok, V} = file:read_file( filename:join([code:root_dir(), "releases", erlang:system_info(otp_release), "OTP_VERSION"]) ), io:fwrite(V), halt().' -noshell) and following Ceylan options: ${ceylan_opts}, from '$(pwd)':"
 
 	echo " - building erlang-serial"
-	cd erlang-serial && ${make} 1>>"${log_file}" && DESTDIR=. ${make} install 1>>"${log_file}"
+	cd erlang-serial && "${make}" 1>>"${log_file}" && DESTDIR=. "${make}" install 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of our fork of erlang-serial failed." 1>&2
 		exit 65
@@ -514,7 +514,7 @@ if [ ${do_build} -eq 0 ]; then
 	# our any vanilla good old build system (i.e. not on rebar3).
 
 	display_and_log " - building Ceylan-Myriad"
-	cd myriad && ${make} all ${ceylan_opts} 1>>"${log_file}"
+	cd myriad && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Myriad failed." 1>&2
 		exit 50
@@ -523,7 +523,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	# Our build; uses Myriad's sibling tree:
 	display_and_log " - building Ceylan-WOOPER"
-	cd wooper && ${make} ${ceylan_opts} all 1>>"${log_file}"
+	cd wooper && "${make}" ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-WOOPER failed." 1>&2
 		exit 55
@@ -532,7 +532,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	# Our build; uses Myriad's and WOOPER's sibling trees:
 	display_and_log " - building Ceylan-Traces"
-	cd traces && ${make} ${ceylan_opts} all 1>>"${log_file}"
+	cd traces && "${make}" ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Traces failed." 1>&2
 		exit 60
@@ -542,7 +542,7 @@ if [ ${do_build} -eq 0 ]; then
 
 
 	display_and_log " - building Ceylan-Oceanic"
-	cd oceanic && ${make} ${ceylan_opts} all 1>>"${log_file}"
+	cd oceanic && "${make}" ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Oceanic failed." 1>&2
 		exit 70
@@ -550,7 +550,7 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	display_and_log " - building Ceylan-Seaplus"
-	cd seaplus && ${make} ${ceylan_opts} all 1>>"${log_file}"
+	cd seaplus && "${make}" ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Seaplus failed." 1>&2
 		exit 75
@@ -558,7 +558,7 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	display_and_log " - building Ceylan-Mobile"
-	cd mobile && ${make} ${ceylan_opts} all 1>>"${log_file}"
+	cd mobile && "${make}" ${ceylan_opts} all 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Mobile failed." 1>&2
 		exit 80
@@ -571,7 +571,7 @@ if [ ${do_build} -eq 0 ]; then
 	# trees:
 	#
 	display_and_log " - building US-Common"
-	cd us_common && ${make} all ${ceylan_opts} 1>>"${log_file}"
+	cd us_common && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of US-Common failed." 1>&2
 		exit 85
@@ -586,7 +586,7 @@ if [ ${do_build} -eq 0 ]; then
 	cd us_main
 
 	# Our build; uses Ceylan's sibling trees:
-	if ! ${make} all ${ceylan_opts} 1>>"${log_file}"; then
+	if ! "${make}" all ${ceylan_opts} 1>>"${log_file}"; then
 		echo " Error, the build of US-Main failed." 1>&2
 		exit 95
 	fi
@@ -742,7 +742,7 @@ if [ $do_launch -eq 0 ]; then
 
 	display_and_log "   Running US-Main native application (as '$(id -un)' initially, from '${us_main_dir}'))"
 
-	# Simplest: cd src && ${make} us_main_exec
+	# Simplest: cd src && "${make}" us_main_exec
 
 	cd "${us_main_dir}" || exit 80
 
@@ -810,7 +810,7 @@ if [ $do_launch -eq 0 ]; then
 
 else
 
-	display_and_log "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service')"
+	display_and_log "(no auto-launch enabled; one may execute, as root, 'systemctl daemon-reload && systemctl restart us-main-as-native-build.service; sleep 5; systemctl status us-main-as-native-build.service'; otherwise, notably for debugging purposes, just run - still as root: 'us_main/priv/bin/start-us-main-native-build.sh --kill-prior-instance'; in both cases, the US-Main configuration will be looked up in /etc/xdg/universal-server)"
 
     display_and_log "Any prior US-Main instance that would still linger could be removed thanks to our 'kill-us-main.sh' script. Use 'journalctl -eu us-main-as-native-build.service' to consult the corresponding systemd-level logs."
 
