@@ -123,35 +123,6 @@ exec() ->
             io:format( "Error: ~ts",
                 [ us_action:interpret_failure_report( FailureReport ) ] );
 
-
-        { wooper_result, { { action_failed, action_not_found },
-                           MainSrvPid } } ->
-            ActStr = case BinTokens of
-
-                [ ActBinName ] ->
-                    text_utils:format( "argument-less action named '~ts'",
-                                       [ ActBinName ] );
-
-                [ ActBinName, _SingleArg ] ->
-                    text_utils:format( "action named '~ts' and taking a single "
-                                       "argument", [ ActBinName ] );
-
-                [ ActBinName | Args ] ->
-                    text_utils:format(
-                        "action named '~ts' and taking ~B arguments",
-                        [ ActBinName, length( Args ) ] )
-
-            end,
-
-            io:format( "Error, no ~ts available; run the 'help' action for "
-                       "more information.~n", [ ActStr] );
-
-        { wooper_result, { { action_failed, FailureReport },
-                           MainSrvPid } } ->
-            trace_utils:error_fmt(
-                "Triggered action failed, and reported:~n ~p",
-                [ FailureReport ] );
-
         Any ->
             trace_utils:error_fmt( "Received an unexpected message:~n ~p",
                                    [ Any ] )
