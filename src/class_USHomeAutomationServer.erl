@@ -4806,7 +4806,7 @@ listActuators( State ) ->
 -spec isPresent( wooper:state() ) ->
                         const_request_return( successful( ustring() ) ).
 isPresent( State ) ->
-    Str = "Considering that " ++ case ?getAttr(actual_presence) of
+    Str = "Considering currently that " ++ case ?getAttr(actual_presence) of
 
         true ->
             "somebody";
@@ -5873,7 +5873,22 @@ device_state_to_short_string( #device_state{
         last_seen=MaybeLastSeenTimestamp,
         current_status=Status } ) ->
     text_utils:format( "'~ts' module reports ~p~ts", [ BinName, Status,
-       last_seen_info_to_string( MaybeLastSeenTimestamp ) ] ).
+       last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        type=undefined,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts' device of unknown type (status: ~p)~ts",
+       [ BinName, Status,
+         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+% Try to never fail:
+device_state_to_short_string( DevState ) ->
+    trace_bridge:error_fmt( "Unmatched device state: ~p", [ DevState ] ),
+    text_utils:format( "device of unexpected state: ~p", [ DevState ] ).
+
 
 
 
