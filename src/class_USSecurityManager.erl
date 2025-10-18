@@ -383,7 +383,7 @@ panic( State ) ->
 
     Str = text_utils:format( "Panic declared: setting immediately the worst "
         "alert level, ~ts. Trigger the peace/0 or set_defcon/1 actions "
-        "to stop. Previous alert level was ~ts.",
+        "to de-escalate. Previous alert level was ~ts.",
         [ describe_defcon( NewDefcon ), describe_defcon( ?getAttr(defcon) ) ] ),
 
     SetState = setAttribute( State, defcon, NewDefcon ),
