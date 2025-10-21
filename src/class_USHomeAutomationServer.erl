@@ -470,8 +470,8 @@ A (higher-level) status of a device, based on its type, as known by this server.
     last_event :: option( device_event() ),
 
     % Records any last time this device was seen by Oceanic (separate from
-    % last_event, as for example a device being lost is not a device (Enocean)
-    % event as such)
+    % last_event, as for example a "device being lost" message is not a device
+    % event as such):
     %
     last_seen :: option( timestamp() ),
 
@@ -484,7 +484,7 @@ A (higher-level) status of a device, based on its type, as known by this server.
     % Tells whether this device (e.g. a smart plug) has been taught to this
     % gateway, i.e. if a teach-in procedure apparently succeeded with no further
     % teach-out (therefore this gateway is expected to be registered to this
-    % device)
+    % device):
     %
     taught = false :: boolean()
 
@@ -3551,12 +3551,15 @@ record_new_device( DeviceEvent, State ) ->
 
     DevState = #device_state{
         eurid=DevEurid,
-        name=oceanic:get_best_device_name_from( DeviceEvent ),
+        name=oceanic:get_best_device_name_from( DeviceEvent, DevType ),
         type=DevType,
         eep_ids=set_utils:singleton_maybe( MaybeEepId ),
         initial_event=DeviceEvent,
         last_event=DeviceEvent,
-        last_seen=oceanic:get_last_seen_info( DeviceEvent ),
+
+        % No: last_seen=oceanic:get_last_seen_info( DeviceEvent ),
+        last_seen=oceanic:get_timestamp( DeviceEvent ),
+
         availability=online,
         current_status=get_status_from_event( DeviceEvent, InitStatus ) },
 
@@ -3722,7 +3725,8 @@ process_device_event( DeviceEvent, State ) ->
         { value, DevState=#device_state{ current_status=PrevStatus } } ->
 
             NewDevState = DevState#device_state{
-                last_seen=oceanic:get_last_seen_info( DeviceEvent ),
+                last_seen=oceanic:update_last_seen_info( DeviceEvent,
+                    DevState#device_state.last_seen ),
                 availability=online,
                 current_status=get_status_from_event( DeviceEvent,
                                                       PrevStatus ) },
@@ -5744,7 +5748,7 @@ device_state_to_string( #device_state{
 Returns a short textual description of the specified device state.
 
 Typically useful to report compact statuses on limited text interfaces (command
-line, SMS, etc.)  .
+line, SMS, etc.).
 """.
 -spec device_state_to_short_string( device_state() ) -> ustring().
 device_state_to_short_string( #device_state{
@@ -5864,7 +5868,10 @@ device_state_to_short_string( #device_state{
         last_seen=MaybeLastSeenTimestamp,
         current_status=undefined } ) ->
 
-    text_utils:format( "'~ts', a yet not detected smart plug~ts", [ BinName,
+    % Generally the status cannot be decoded if the EEP of the smart plug is not
+    % known a priori:
+    %
+    text_utils:format( "'~ts', whose status is unknown~ts", [ BinName,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 device_state_to_short_string( #device_state{
