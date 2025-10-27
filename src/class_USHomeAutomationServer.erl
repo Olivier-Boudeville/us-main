@@ -856,6 +856,7 @@ Full settings gathered regarding the home automation server.
 -type user_device_designator()  :: oceanic:user_device_designator().
 -type device_description() :: oceanic:device_description().
 -type device_event() :: oceanic:device_event().
+-type unresolved_device_event() :: oceanic:unresolved_device_event().
 -type device_event_type() :: oceanic:device_event_type().
 -type device_operation() :: oceanic:device_operation().
 -type back_online_info() :: oceanic:back_online_info().
@@ -3429,7 +3430,7 @@ clear_any_presence_task( Psc, _SchedPid, _State ) ->
 % Some helpers.
 
 
-%-spec execute_command( device_id(), cowooper:state() ) -> wooper:state().
+%-spec execute_command( device_id(), wooper:state() ) -> wooper:state().
 
 
 
@@ -3523,6 +3524,75 @@ onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
     wooper:const_return().
 
 
+
+-doc """
+Handles a notification sent by the specified Oceanic server regarding the first
+receiving of a telegram from an unresolved device (typically not configured and
+of an EEP that could not be determined), whose telegrams thus cannot be (at
+least fully) decoded.
+""".
+-spec onEnoceanUnresolvedDeviceFirstSeen( wooper:state(),
+    unresolved_device_event(), device_description(), oceanic_server_pid() ) ->
+            oneway_return().
+onEnoceanUnresolvedDeviceFirstSeen(
+        State,
+        UnresolvedDevEvent=#unresolved_device_event{ source_eurid=Eurid },
+        BinDevDesc, OcSrvPid ) ->
+
+    % Check:
+    OcSrvPid = ?getAttr(oc_srv_pid),
+
+    % Longer description when first seen:
+    Msg = text_utils:format( "The device of EURID ~ts, not declared in the "
+        "configuration and that cannot be resolved, "
+        "has been detected for the first time, based on the following "
+        "event: ~ts.~n~nFull device information: ~ts.",
+        [ oceanic_text:eurid_to_string( Eurid ),
+          oceanic_text:device_event_to_string( UnresolvedDevEvent ),
+          BinDevDesc ] ),
+
+    BinDevName = get_trace_emitter_name_for_unresolved( Eurid ),
+
+    class_TraceEmitter:send_named_emitter( notice, State, Msg, BinDevName ),
+
+    RecState = record_new_device( UnresolvedDevEvent, State ),
+
+    % Not relevant here:
+    %PresState = manage_presence_switching( DeviceEvent, RecState ),
+    %AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
+
+    wooper:return_state( RecState ).
+
+
+
+-doc """
+Handles a notification sent by the specified Oceanic server regarding the
+receiving of new telegrams (after the first one) from an unresolved device
+(typically not configured and of an EEP that could not be determined), whose
+telegrams thus cannot be (at least fully) decoded.
+""".
+-spec onEnoceanUnresolvedDevice( wooper:state(), unresolved_device_event(),
+        oceanic_server_pid() ) -> const_oneway_return().
+onEnoceanUnresolvedDevice( State,
+        UnresolvedDevEvent=#unresolved_device_event{ source_eurid=Eurid },
+        OcSrvPid ) ->
+
+    % Check:
+    OcSrvPid = ?getAttr(oc_srv_pid),
+
+    % Verbose, yet needed so that this event is reported in the traces at least
+    % once:
+    %
+    %cond_utils:if_defined( us_main_debug_home_automation,
+    %   begin
+    Msg = oceanic_text:device_event_to_short_string( UnresolvedDevEvent ),
+
+    BinDevName = get_trace_emitter_name_for_unresolved( Eurid ),
+
+    class_TraceEmitter:send_named_emitter( info, State, Msg, BinDevName ),
+    %   end),
+
+    wooper:const_return().
 
 
 -doc "Records the existence of a device not expected to be already detected.".
@@ -3641,7 +3711,7 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
     % Check:
     OcSrvPid = ?getAttr(oc_srv_pid),
 
-    % Verbose yet needed so that this event is reported in the traces at least
+    % Verbose, yet needed so that this event is reported in the traces at least
     % once:
     %
     %cond_utils:if_defined( us_main_debug_home_automation,
@@ -3855,6 +3925,11 @@ get_status_from_event( _DeviceEvent=#double_rocker_switch_event{},
                        PrevStatus={ _OutputPower, _PowerFailureDetected,
                             _SwitchedOffDueToOvercurrent, _HardwareStatus,
                             _LocalControlEnabled } ) ->
+    PrevStatus;
+
+% Remaining 'undefined':
+get_status_from_event( _DeviceEvent=#unresolved_device_event{},
+                       PrevStatus ) ->
     PrevStatus;
 
 get_status_from_event( OtherDeviceEvent, PrevStatus ) ->
@@ -4227,6 +4302,17 @@ Returns a suitable name for a trace emitter for the specified device.
 -spec get_trace_emitter_name_from( device_name() ) -> bin_string().
 get_trace_emitter_name_from( BinDevName ) ->
     text_utils:bin_concatenate( <<"Devices.">>, BinDevName ).
+
+
+-doc """
+Returns a suitable name for a trace emitter for the unresolved device of
+specified EURID.
+""".
+-spec get_trace_emitter_name_for_unresolved( eurid() ) -> bin_string().
+get_trace_emitter_name_for_unresolved( Eurid ) ->
+    text_utils:bin_format( "Devices.~ts (unresolved)",
+                           [ oceanic_text:eurid_to_string( Eurid ) ] ).
+
 
 
 
@@ -5765,7 +5851,7 @@ device_state_to_short_string( #device_state{
         type=thermometer,
         last_seen=MaybeLastSeenTimestamp,
         current_status=Temperature } ) ->
-    text_utils:format( "'~ts' reports ~ts~ts",
+    text_utils:format( "~ts reports ~ts~ts",
         [ BinName, oceanic_text:temperature_to_string( Temperature ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5774,7 +5860,7 @@ device_state_to_short_string( #device_state{
         type=thermo_hygro_sensor,
         last_seen=MaybeLastSeenTimestamp,
         current_status={ Temperature, RelHumidity } } ) ->
-    text_utils:format( "'~ts' reports ~ts and ~ts~ts",
+    text_utils:format( "~ts reports ~ts and ~ts~ts",
         [ BinName, oceanic_text:temperature_to_string( Temperature ),
           oceanic_text:relative_humidity_to_string( RelHumidity ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
@@ -5784,7 +5870,7 @@ device_state_to_short_string( #device_state{
         type=opening_detector,
         last_seen=MaybeLastSeenTimestamp,
         current_status=ContactStatus } ) ->
-    text_utils:format( "'~ts' is in ~ts state~ts",
+    text_utils:format( "~ts is in ~ts state~ts",
         [ BinName,
           oceanic_text:get_contact_status_description( ContactStatus ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
@@ -5794,7 +5880,7 @@ device_state_to_short_string( #device_state{
         type=push_button,
         last_seen=MaybeLastSeenTimestamp,
         current_status=ButtonState } ) ->
-    text_utils:format( "'~ts' reports being ~ts~ts", [ BinName,
+    text_utils:format( "~ts reports being ~ts~ts", [ BinName,
         oceanic_text:get_button_state_description( ButtonState ),
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5832,7 +5918,7 @@ device_state_to_short_string( #device_state{
 
     end,
 
-    text_utils:format( "'~ts' has ~ts~ts", [ BinName, PressStr,
+    text_utils:format( "~ts has ~ts~ts", [ BinName, PressStr,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 
@@ -5858,7 +5944,7 @@ device_state_to_short_string( #device_state{
     ReportStr = text_utils:join_maybe( _Sep=", ",
                                        [ MaybePfStr, MaybeOcStr, MaybeHSStr ] ),
 
-    text_utils:format( "'~ts' ~ts~ts~ts", [ BinName,
+    text_utils:format( "~ts ~ts~ts~ts", [ BinName,
         oceanic_text:interpret_briefly_power_report( OutputPower ), ReportStr,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5879,15 +5965,24 @@ device_state_to_short_string( #device_state{
         type=in_wall_module,
         last_seen=MaybeLastSeenTimestamp,
         current_status=Status } ) ->
-    text_utils:format( "'~ts' module reports ~p~ts", [ BinName, Status,
+    text_utils:format( "~ts module reports ~p~ts", [ BinName, Status,
        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 device_state_to_short_string( #device_state{
         name=BinName,
         type=undefined,
         last_seen=MaybeLastSeenTimestamp,
+        current_status=undefined } ) ->
+    text_utils:format( "'~ts' device of unknown type~ts",
+       [ BinName, last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+% Not expected to have a status:
+device_state_to_short_string( #device_state{
+        name=BinName,
+        type=undefined,
+        last_seen=MaybeLastSeenTimestamp,
         current_status=Status } ) ->
-    text_utils:format( "'~ts' device of unknown type (status: ~p)~ts",
+    text_utils:format( "~ts device of unknown type (status: ~p)~ts",
        [ BinName, Status,
          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
