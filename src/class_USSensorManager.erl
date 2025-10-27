@@ -813,7 +813,7 @@ data (e.g. regarding temperature, intrusion, etc.).
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
--define( trace_emitter_categorization, "US.US-Main.Sensors" ).
+-define( trace_emitter_categorization, "US.US-Main.HostSensors" ).
 
 
 % Exported helpers:
