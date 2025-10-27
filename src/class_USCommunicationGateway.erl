@@ -245,7 +245,7 @@ onWOOPERExitReceived( State, CrashedPid, ExitType ) ->
     %       FunName,Arity,Args,AtomCause}}, [...]}"
 
     % Redundant information yet useful for console outputs:
-    ?warning_fmt( "US Communication Gateway  ~w received and ignored "
+    ?warning_fmt( "US Communication Gateway ~w received and ignored "
         "following exit message from ~w:~n  ~p",
         [ self(), CrashedPid, ExitType ] ),
 
