@@ -386,6 +386,8 @@ A (higher-level) status of a device, based on its type, as known by this server.
 """.
 -type device_status() :: thermometer_status()
                        | thermo_hygro_sensor_status()
+                       | motion_detector_status()
+                       | motion_detector_with_illumination_status()
                        | opening_detector_status()
                        | push_button_status()
                        | double_rocker_status()
@@ -399,6 +401,18 @@ A (higher-level) status of a device, based on its type, as known by this server.
 
 -doc "State of a thermo-hygro sensor.".
 -type thermo_hygro_sensor_status() :: { temperature(), relative_humidity() }.
+
+
+-doc "State of a standard motion detector.".
+-type motion_detector_status() :: { MotionDetected :: boolean(),
+    MaybeVoltage :: option( unit_utils:volts() ) }.
+
+
+-doc "State of a motion detector with illumination.".
+-type motion_detector_with_illumination_status() ::
+    { MotionDetected :: boolean(), MaybeVoltage :: option( unit_utils:volts() ),
+      MaybeIlluminance :: option( unit_utils:lux() ) }.
+
 
 
 -doc "State of an opening detector (single contact).".
@@ -3657,6 +3671,16 @@ guess_type_from_eep( _EepId=thermo_hygro_high ) ->
     thermo_hygro_sensor;
 
 
+guess_type_from_eep( _EepId=motion_detector ) ->
+    motion_detector;
+
+guess_type_from_eep( _EepId=occupancy_detector ) ->
+    motion_detector;
+
+guess_type_from_eep( _EepId=motion_detector_with_illumination ) ->
+    motion_detector;
+
+
 guess_type_from_eep( _EepId=push_button ) ->
     push_button;
 
@@ -3828,6 +3852,20 @@ get_status_from_event( _DeviceEvent=#thermo_hygro_event{
                             temperature=Temperature,
                             relative_humidity=RelHumidity }, _PrevStatus ) ->
     { Temperature, RelHumidity };
+
+
+get_status_from_event( _DeviceEvent=#motion_detector_event{
+                            motion_detected=MotionDetected,
+                            supply_voltage=MaybeVoltage }, _PrevStatus ) ->
+    { MotionDetected, MaybeVoltage };
+
+get_status_from_event( _DeviceEvent=#motion_detector_event_with_illumination{
+                            motion_detected=MotionDetected,
+                            illuminance=MaybeIlluminance,
+                            supply_voltage=MaybeVoltage }, _PrevStatus ) ->
+    { MotionDetected, MaybeVoltage, MaybeIlluminance };
+
+
 
 get_status_from_event( _DeviceEvent=#single_input_contact_event{
                             contact=ContactStatus }, _PrevStatus ) ->
@@ -5851,7 +5889,7 @@ device_state_to_short_string( #device_state{
         type=thermometer,
         last_seen=MaybeLastSeenTimestamp,
         current_status=Temperature } ) ->
-    text_utils:format( "~ts reports ~ts~ts",
+    text_utils:format( "'~ts' reports ~ts~ts",
         [ BinName, oceanic_text:temperature_to_string( Temperature ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5860,17 +5898,62 @@ device_state_to_short_string( #device_state{
         type=thermo_hygro_sensor,
         last_seen=MaybeLastSeenTimestamp,
         current_status={ Temperature, RelHumidity } } ) ->
-    text_utils:format( "~ts reports ~ts and ~ts~ts",
+    text_utils:format( "'~ts' reports ~ts and ~ts~ts",
         [ BinName, oceanic_text:temperature_to_string( Temperature ),
           oceanic_text:relative_humidity_to_string( RelHumidity ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        type=motion_detector,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status={ MotionDetected, MaybeVoltage } } ) ->
+
+    % Only relevant information wanted:
+    VoltStr = case MaybeVoltage of
+
+        undefined ->
+            "";
+
+        Voltage ->
+            "and " ++ oceanic_text:maybe_voltage_to_string( Voltage )
+
+    end,
+
+    text_utils:format( "'~ts' reports ~ts~ts~ts",
+        [ BinName, oceanic_text:motion_detection_to_string( MotionDetected ),
+          VoltStr, last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        type=motion_detector,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status={ MotionDetected, MaybeVoltage, MaybeIlluminance } } ) ->
+
+    % Only relevant information wanted:
+    VoltStr = case MaybeVoltage of
+
+        undefined ->
+            "";
+
+        Voltage ->
+            ", " ++ oceanic_text:maybe_voltage_to_string( Voltage )
+
+    end,
+
+    text_utils:format( "'~ts' reports ~ts~ts and ~ts~ts",
+        [ BinName, oceanic_text:motion_detection_to_string( MotionDetected ),
+          VoltStr, oceanic_text:maybe_illuminance_to_string( MaybeIlluminance ),
+          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
 
 device_state_to_short_string( #device_state{
         name=BinName,
         type=opening_detector,
         last_seen=MaybeLastSeenTimestamp,
         current_status=ContactStatus } ) ->
-    text_utils:format( "~ts is in ~ts state~ts",
+    text_utils:format( "'~ts' is in ~ts state~ts",
         [ BinName,
           oceanic_text:get_contact_status_description( ContactStatus ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
@@ -5880,7 +5963,7 @@ device_state_to_short_string( #device_state{
         type=push_button,
         last_seen=MaybeLastSeenTimestamp,
         current_status=ButtonState } ) ->
-    text_utils:format( "~ts reports being ~ts~ts", [ BinName,
+    text_utils:format( "'~ts' reports being ~ts~ts", [ BinName,
         oceanic_text:get_button_state_description( ButtonState ),
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5918,7 +6001,7 @@ device_state_to_short_string( #device_state{
 
     end,
 
-    text_utils:format( "~ts has ~ts~ts", [ BinName, PressStr,
+    text_utils:format( "'~ts' has ~ts~ts", [ BinName, PressStr,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 
@@ -5944,7 +6027,7 @@ device_state_to_short_string( #device_state{
     ReportStr = text_utils:join_maybe( _Sep=", ",
                                        [ MaybePfStr, MaybeOcStr, MaybeHSStr ] ),
 
-    text_utils:format( "~ts ~ts~ts~ts", [ BinName,
+    text_utils:format( "'~ts' ~ts~ts~ts", [ BinName,
         oceanic_text:interpret_briefly_power_report( OutputPower ), ReportStr,
         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
@@ -5965,7 +6048,7 @@ device_state_to_short_string( #device_state{
         type=in_wall_module,
         last_seen=MaybeLastSeenTimestamp,
         current_status=Status } ) ->
-    text_utils:format( "~ts module reports ~p~ts", [ BinName, Status,
+    text_utils:format( "'~ts' module reports ~p~ts", [ BinName, Status,
        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
 device_state_to_short_string( #device_state{
@@ -5982,7 +6065,7 @@ device_state_to_short_string( #device_state{
         type=undefined,
         last_seen=MaybeLastSeenTimestamp,
         current_status=Status } ) ->
-    text_utils:format( "~ts device of unknown type (status: ~p)~ts",
+    text_utils:format( "'~ts' device of unknown type (status: ~p)~ts",
        [ BinName, Status,
          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
