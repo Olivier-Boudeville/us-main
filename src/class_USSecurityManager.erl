@@ -364,8 +364,8 @@ setDefconAction( State, NewDefcon ) ->
             wooper:return_state_result( SetState, { ok, Str } );
 
         false ->
-             Str = text_utils:format( "Invalid DEFCON specified ('~p'), hence "
-                                      "not changed.", [ NewDefcon ] ),
+            Str = text_utils:format( "Invalid DEFCON specified ('~p'), hence "
+                                     "not changed.", [ NewDefcon ] ),
             wooper:const_return_result( { error, Str } )
 
     end.
@@ -465,7 +465,7 @@ init_security( State ) ->
 
     { ActionTable, HeaderInfo } = us_action:register_action_specs(
         UserActSpecs, ?getAttr(action_table), ?getAttr(header_info),
-        wooper:get_classname( State ) ),
+        ?getAttr(typedef_table), wooper:get_classname( State ) ),
 
     setAttributes( State, [ { action_table, ActionTable },
                             { header_info, HeaderInfo } ] ).
