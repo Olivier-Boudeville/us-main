@@ -1042,7 +1042,7 @@ performed, specified as a complete list of presence user settings; any specified
 source identifier will be used for the sent telegrams (in general this should be
 the base identifier of the gateway, which is the default).
 
-(most complete constructor)
+(only actual constructor)
 """.
 -spec construct( wooper:state(), device_path(),
         option( presence_simulation_user_settings() ),
@@ -1125,6 +1125,13 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
     end,
 
+    % First possible moment to read all oceanic_* configuration keys, and before
+    % the definition of alarm and all, which would otherwise log unknown
+    % devices:
+    %
+    MaybeOcSrvPid =:= undefined orelse
+        oceanic:add_configuration_settings( OcSettings, MaybeOcSrvPid ),
+
     AlarmState = init_alarm( AlarmTriggerListenEvSpecs,
         AlarmActuatorEmitEvSpecs, MaybeOcSrvPid, SrvState ),
 
@@ -1184,9 +1191,6 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
     ActionState = init_automated_actions( UserActSpecs, AlarmState ),
 
-    % To read all oceanic_* configuration keys:
-    MaybeOcSrvPid =:= undefined orelse
-        oceanic:add_configuration_settings( OcSettings, MaybeOcSrvPid ),
 
     % Geographical location:
     MaybeSrvLoc = case MaybeUserSrvLoc of
@@ -2341,6 +2345,9 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
             { actuators, "lists all known home automation actuator devices",
               listActuators },
 
+            { describe, "describes the specified device", describeDevice,
+              [ { dynamic, dev_designator, "string()" } ] },
+
             { activate, "activates the specified device", activateDevice,
               [ { dynamic, dev_designator, "string()" } ] },
 
@@ -2371,7 +2378,6 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
 
     ?debug_fmt( "Initialising automated actions, based on their user "
                 "specifications:~n ~p", [ AllActSpecs ] ),
-
 
     { RegActTable, RegHdInfo } = us_action:register_action_specs( AllActSpecs,
         ?getAttr(action_table), ?getAttr(header_info), ?getAttr(typedef_table),
@@ -3730,7 +3736,7 @@ recompute_splitters( DevTable ) ->
     DevDesignators = [ get_best_device_designator( DS )
                                 || DS <- ToSplitDevStates ],
 
-    trace_utils:debug_fmt( "Device designators: ~p", [ DevDesignators ] ),
+    %trace_utils:debug_fmt( "Device designators: ~p", [ DevDesignators ] ),
 
     DevSpellTree = spell_tree:create( DevDesignators ),
 
@@ -4523,9 +4529,9 @@ manage_presence_switching( DevEvent, State ) ->
 
         false ->
             cond_utils:if_defined( us_main_debug_home_automation,
-                send_psc_trace_fmt( debug, "The following event does not "
-                    "match any of the presence switching ones "
-                    "(which are ~ts): ~ts",
+                send_psc_trace_fmt( debug, "The received event does not "
+                    "match any of the presence switching ones, which are: ~ts"
+                    "This event corresponds to: ~ts",
                     [ oceanic_text:canon_listened_event_specs_to_string(
                         CLESs ),
                       oceanic_text:device_event_to_string( DevEvent ) ],
@@ -5080,6 +5086,45 @@ listActuators( State ) ->
 
 
 
+-doc "Describes the specified device.".
+-spec describeDevice( wooper:state(), ustring() ) ->
+                                const_request_return( string_fallible() ).
+describeDevice( State, DevDesignator ) ->
+
+    DevSpellTree = ?getAttr(device_spell_tree),
+
+    case spell_tree:resolve( DevDesignator, DevSpellTree ) of
+
+        undefined ->
+            SplitStrs = lists:sort( [ spell_tree:splitter_to_string( SP )
+                || SP <- spell_tree:get_splitters( DevSpellTree ) ] ),
+
+            Str = text_utils:format( "Unknown device designator specified "
+                "('~p'); known ones are: ~ts", [ DevDesignator,
+                text_utils:strings_to_string( SplitStrs ) ] ),
+
+            wooper:const_return_result( { error, Str } );
+
+        DevDesigStr ->
+            Eurid = table:get_value(
+                _K=text_utils:string_to_binary( DevDesigStr ),
+                ?getAttr(dev_splitter_table) ),
+
+            cond_utils:if_defined( us_main_debug_actions,?debug_fmt(
+                "Device designator '~ts' converted to '~ts', i.e. ~ts.",
+                [ DevDesignator, DevDesigStr,
+                  oceanic_text:eurid_to_string( Eurid ) ] ) ),
+
+            DescStr = device_state_to_string(
+                table:get_value( Eurid, ?getAttr(device_table) ) ),
+
+            wooper:const_return_result( { ok,
+                text_utils:uppercase_initial_letter( DescStr ) } )
+
+    end.
+
+
+
 -doc "Activates the specified device.".
 -spec activateDevice( wooper:state(), ustring() ) ->
                                 const_request_return( string_fallible() ).
@@ -5103,6 +5148,11 @@ activateDevice( State, DevDesignator ) ->
             Eurid = table:get_value(
                 _K=text_utils:string_to_binary( DevDesigStr ),
                 ?getAttr(dev_splitter_table) ),
+
+            cond_utils:if_defined( us_main_debug_actions,?debug_fmt(
+                "Device designator '~ts' converted to '~ts', i.e. ~ts.",
+                [ DevDesignator, DevDesigStr,
+                  oceanic_text:eurid_to_string( Eurid ) ] ) ),
 
             oceanic:trigger_actuator( _CEES={ Eurid, switch_on },
                                       ?getAttr(oc_srv_pid) ),
@@ -5304,7 +5354,7 @@ Triggers (immediately) the specified operation onto the specified device.
     device_operation() ) -> const_request_return( action_outcome() ).
 actOnDevice( State, UserDevDesig, DevOp ) ->
 
-    cond_utils:if_defined( us_main_action, ?debug_fmt( "Triggering the "
+    cond_utils:if_defined( us_main_debug_actions, ?debug_fmt( "Triggering the "
         "'~ts' operation on device designated by ~w.",
         [ DevOp, UserDevDesig ] ) ),
 
@@ -5377,7 +5427,7 @@ This is a request, as actions only trigger such methods, for synchronisation.
 schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
                                   DHMSPeriodicity, SchedCount ) ->
 
-    cond_utils:if_defined( us_main_action, ?debug_fmt( "Scheduling a "
+    cond_utils:if_defined( us_main_debug_actions, ?debug_fmt( "Scheduling a "
         "periodical '~ts' operation on device designated by ~w, "
         "starting from ~w, for a DHMS periodicity of ~w and "
         "a schedule count of ~w.",
@@ -5410,12 +5460,12 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, DevOp, StartExtTimestamp,
 
         % Surprising:
         { wooper_result, task_done } ->
-            cond_utils:if_defined( us_main_action,
+            cond_utils:if_defined( us_main_debug_actions,
                 ?debug( "Periodical device action already done." ) ),
             task_done;
 
         { wooper_result, { task_registered, TaskId } } ->
-            cond_utils:if_defined( us_main_action, ?debug_fmt(
+            cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
                 "Periodical device action registered as task #~B.",
                 [ TaskId ] ) ),
 
@@ -6078,6 +6128,41 @@ last_seen_info_to_string( LastSeenTimestamp, Now ) ->
 
 
 
+-doc """
+Returns a textual description of any specified last-seen timestamp of the
+specified device type.
+""".
+-spec last_seen_info_with_type_to_string( option( timestamp() ),
+                                          device_type() ) -> ustring().
+last_seen_info_with_type_to_string( MaybeTimestamp, DevType ) ->
+    last_seen_info_with_type_to_string( MaybeTimestamp,
+        _Now=time_utils:get_timestamp(), DevType ).
+
+
+-doc """
+Returns a textual description of any specified last-seen timestamp of the
+specified device type, relying on the second timestamp to define "now".
+""".
+-spec last_seen_info_with_type_to_string( option( timestamp() ),
+        option( timestamp() ), device_type() ) -> ustring().
+last_seen_info_with_type_to_string( _MaybeLastSeenTimestamp=undefined,
+                                    _MaybeNow, DevType ) ->
+    text_utils:format( " [~ts, never seen]",
+                       [ oceanic_text:device_type_to_string( DevType ) ] );
+
+last_seen_info_with_type_to_string( LastSeenTimestamp, _MaybeNow=undefined,
+                                    DevType ) ->
+    last_seen_info_with_type_to_string( LastSeenTimestamp,
+        _Now=time_utils:get_timestamp(), DevType );
+
+last_seen_info_with_type_to_string( LastSeenTimestamp, Now, DevType ) ->
+    DurSec = time_utils:get_duration( LastSeenTimestamp, Now ),
+    text_utils:format( " [~ts, last seen about ~ts ago]",
+        [ oceanic_text:device_type_to_string( DevType ),
+          time_utils:duration_to_synthetic_string( 1000 * DurSec ) ] ).
+
+
+
 -doc "Returns a textual description of the specified device state.".
 -spec device_state_to_string( device_state() ) -> ustring().
 device_state_to_string( #device_state{
@@ -6113,13 +6198,13 @@ device_state_to_string( #device_state{
 
     end,
 
-    text_utils:format( "device '~ts' (EURID: ~ts~ts~ts) of ~ts type "
+    text_utils:format( "device '~ts' (EURID: ~ts~ts~ts), a ~ts "
         "(detected EEPs: ~ts), which currently is considered ~ts "
         "and whose status is ~p~ts",
         [ BinName, oceanic_text:eurid_to_string( Eurid ), ShortStr, SplitStr,
-          MaybeType,
+          oceanic_text:device_type_to_string( MaybeType ),
           text_utils:atoms_to_listed_string( set_utils:to_list( EepIds ) ),
-          AvailStatus, Status,
+          AvailStatus, status_to_string( Status, MaybeType ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] ).
 
 
@@ -6145,57 +6230,190 @@ device_state_to_short_string( #device_state{
 device_state_to_short_string( #device_state{
         name=BinName,
         splitter=MaybeSplitter,
-        type=thermometer,
+        type=DevType=thermometer,
         last_seen=MaybeLastSeenTimestamp,
-        current_status=Temperature } ) ->
+        current_status=Status } ) ->
     text_utils:format( "'~ts'~ts reports ~ts~ts",
         [ BinName, splitter_to_string( MaybeSplitter ),
-          oceanic_text:temperature_to_string( Temperature ),
+          status_to_string( Status, DevType ),
+          last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                              DevType ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=thermo_hygro_sensor,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts reports ~ts~ts",
+        [ BinName, splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=motion_detector,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts reports ~ts~ts",
+        [ BinName, splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=opening_detector,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts is in ~ts state~ts",
+        [ BinName, splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=push_button,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts reports being ~ts~ts", [ BinName,
+        splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=double_rocker,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+
+    text_utils:format( "'~ts'~ts has ~ts~ts", [ BinName,
+        splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=smart_plug,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=undefined } ) ->
+
+    % Generally the status cannot be decoded if the EEP of the smart plug is not
+    % known a priori:
+    %
+    text_utils:format( "'~ts'~ts, whose status is unknown~ts", [ BinName,
+        splitter_to_string( MaybeSplitter ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=smart_plug,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+
+    text_utils:format( "'~ts'~ts ~ts~ts", [ BinName,
+        splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=DevType=in_wall_module,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts module reports ~ts~ts", [ BinName,
+        splitter_to_string( MaybeSplitter ),
+        status_to_string( Status, DevType ),
+        last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
+                                            DevType ) ] );
+
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=undefined,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=undefined } ) ->
+    text_utils:format( "'~ts'~ts device of unknown type and status~ts",
+        [ BinName, splitter_to_string( MaybeSplitter ),
+        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+
+% Not expected to have a status:
+device_state_to_short_string( #device_state{
+        name=BinName,
+        splitter=MaybeSplitter,
+        type=undefined,
+        last_seen=MaybeLastSeenTimestamp,
+        current_status=Status } ) ->
+    text_utils:format( "'~ts'~ts device of unknown type, of ~ts~ts",
+        [ BinName, splitter_to_string( MaybeSplitter ),
+          status_to_string( Status, _DevType=undefined ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
-device_state_to_short_string( #device_state{
+% Try to never fail:
+device_state_to_short_string( DevState=#device_state{
         name=BinName,
         splitter=MaybeSplitter,
-        type=thermo_hygro_sensor,
+        type=OtherType,
         last_seen=MaybeLastSeenTimestamp,
-        current_status={ Temperature, RelHumidity } } ) ->
-    text_utils:format( "'~ts'~ts reports ~ts and ~ts~ts",
+        current_status=Status } ) ->
+
+    trace_bridge:error_fmt( "Unmatched device state: ~p", [ DevState ] ),
+
+    text_utils:format( "'~ts'~ts, a device of unexpected type, of ~ts~ts",
         [ BinName, splitter_to_string( MaybeSplitter ),
-          oceanic_text:temperature_to_string( Temperature ),
-          oceanic_text:relative_humidity_to_string( RelHumidity ),
-          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+          status_to_string( Status, OtherType ),
+          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] ).
 
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=motion_detector,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status={ MotionDetected, MaybeVoltage } } ) ->
 
-    % Only relevant information wanted:
-    VoltStr = case MaybeVoltage of
+-doc "Returns a textual description of the specified device splitter.".
+-spec splitter_to_string( option( splitter() ) ) -> ustring().
+splitter_to_string( _MaybeSplitter=undefined ) ->
+    "";
 
-        undefined ->
-            "";
+splitter_to_string( Splitter ) ->
+    % Better than " ( '~ts')" or " (designated by '~ts')":
+    text_utils:format( " (i.e. '~ts')",
+                       [ spell_tree:splitter_to_string( Splitter ) ] ).
 
-        Voltage ->
-            "and " ++ oceanic_text:maybe_voltage_to_string( Voltage )
 
-    end,
 
-    text_utils:format( "'~ts'~ts reports ~ts~ts~ts",
-        [ BinName, splitter_to_string( MaybeSplitter ),
-          oceanic_text:motion_detection_to_string( MotionDetected ),
-          VoltStr, last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+-doc """
+Returns a textual description of the specified status of a device of any
+specified type.
+""".
+-spec status_to_string( device_status(), option( device_type() ) ) -> ustring().
+status_to_string( _DevStatus=Temperature, _DevType=thermometer ) ->
+    oceanic_text:temperature_to_string( Temperature );
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=motion_detector,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status={ MotionDetected, MaybeVoltage, MaybeIlluminance } } ) ->
+status_to_string( _DevStatus={ Temperature, RelHumidity },
+                  _DevType=thermo_hygro_sensor ) ->
+    text_utils:format( "~ts and ~ts",
+        [ oceanic_text:temperature_to_string( Temperature ),
+          oceanic_text:relative_humidity_to_string( RelHumidity ) ] );
 
+
+status_to_string(
+        _DevStatus={ MotionDetected, MaybeVoltage, MaybeIlluminance },
+        _DevType=motion_detector ) ->
     % Only relevant information wanted:
     VoltStr = case MaybeVoltage of
 
@@ -6206,42 +6424,19 @@ device_state_to_short_string( #device_state{
             ", " ++ oceanic_text:maybe_voltage_to_string( Voltage )
 
     end,
+    text_utils:format( "~ts~ts and ~ts",
+        [ oceanic_text:motion_detection_to_string( MotionDetected ),
+          VoltStr,
+          oceanic_text:maybe_illuminance_to_string( MaybeIlluminance ) ] );
 
-    text_utils:format( "'~ts'~ts reports ~ts~ts and ~ts~ts",
-        [ BinName, splitter_to_string( MaybeSplitter ),
-          oceanic_text:motion_detection_to_string( MotionDetected ),
-          VoltStr, oceanic_text:maybe_illuminance_to_string( MaybeIlluminance ),
-          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+status_to_string( _DevStatus=ContactStatus, _DevType=opening_detector ) ->
+    oceanic_text:get_contact_status_description( ContactStatus );
 
+status_to_string( _DevStatus=ButtonState, _DevType=push_button ) ->
+    oceanic_text:get_button_state_description( ButtonState );
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=opening_detector,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=ContactStatus } ) ->
-    text_utils:format( "'~ts'~ts is in ~ts state~ts",
-        [ BinName, splitter_to_string( MaybeSplitter ),
-          oceanic_text:get_contact_status_description( ContactStatus ),
-          last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
-
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=push_button,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=ButtonState } ) ->
-    text_utils:format( "'~ts'~ts reports being ~ts~ts", [ BinName,
-        splitter_to_string( MaybeSplitter ),
-        oceanic_text:get_button_state_description( ButtonState ),
-        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
-
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=double_rocker,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status={ AIState, AOState, BIState, BOState } } ) ->
+status_to_string( _DevStatus={ AIState, AOState, BIState, BOState },
+                  _DevType=double_rocker ) ->
 
     PressedButs = case AIState of
         is_pressed -> [ "AI" ];
@@ -6257,7 +6452,7 @@ device_state_to_short_string( #device_state{
         is_released -> []
     end,
 
-    PressStr = case PressedButs of
+    case PressedButs of
 
         [] ->
             "no button pressed";
@@ -6269,21 +6464,12 @@ device_state_to_short_string( #device_state{
             text_utils:format( "the ~ts buttons pressed",
                                [ text_utils:strings_to_string( ButNames ) ] )
 
-    end,
-
-    text_utils:format( "'~ts'~ts has ~ts~ts", [ BinName,
-        splitter_to_string( MaybeSplitter ), PressStr,
-        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+    end;
 
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=smart_plug,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status={ OutputPower, PowerFailureDetected,
-            SwitchedOffDueToOvercurrent, HardwareStatus,
-            _LocalControlEnabled } } ) ->
+status_to_string( _DevStatus={ OutputPower, PowerFailureDetected,
+        SwitchedOffDueToOvercurrent, HardwareStatus, _LocalControlEnabled },
+        _DevType=smart_plug ) ->
 
     % Only report (briefly) extraordinary elements:
 
@@ -6296,74 +6482,31 @@ device_state_to_short_string( #device_state{
     MaybeHSStr = oceanic_text:interpret_briefly_hardware_status(
         HardwareStatus ),
 
-    ReportStr = text_utils:join_maybe( _Sep=", ",
-                                       [ MaybePfStr, MaybeOcStr, MaybeHSStr ] ),
+    ReportStr = case text_utils:join_maybe( _Sep=", ",
+            [ MaybePfStr, MaybeOcStr, MaybeHSStr ] ) of
 
-    text_utils:format( "'~ts'~ts ~ts~ts~ts", [ BinName,
-        splitter_to_string( MaybeSplitter ),
-        oceanic_text:interpret_briefly_power_report( OutputPower ), ReportStr,
-        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+        "" ->
+            "";
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=smart_plug,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=undefined } ) ->
+        Str ->
+            ", with " ++ Str
 
-    % Generally the status cannot be decoded if the EEP of the smart plug is not
-    % known a priori:
-    %
-    text_utils:format( "'~ts'~ts, whose status is unknown~ts", [ BinName,
-        splitter_to_string( MaybeSplitter ),
-        last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
+    end,
 
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=in_wall_module,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=Status } ) ->
-    text_utils:format( "'~ts'~ts module reports ~p~ts", [ BinName, Status,
-       splitter_to_string( MaybeSplitter ),
-       last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
-
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=undefined,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=undefined } ) ->
-    text_utils:format( "'~ts'~ts device of unknown type~ts",
-       [ BinName, splitter_to_string( MaybeSplitter ),
-         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
-
-% Not expected to have a status:
-device_state_to_short_string( #device_state{
-        name=BinName,
-        splitter=MaybeSplitter,
-        type=undefined,
-        last_seen=MaybeLastSeenTimestamp,
-        current_status=Status } ) ->
-    text_utils:format( "'~ts'~ts device of unknown type (status: ~p)~ts",
-       [ BinName, splitter_to_string( MaybeSplitter ), Status,
-         last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
-
-% Try to never fail:
-device_state_to_short_string( DevState ) ->
-    trace_bridge:error_fmt( "Unmatched device state: ~p", [ DevState ] ),
-    text_utils:format( "device of unexpected state: ~p", [ DevState ] ).
+    text_utils:format( "~ts~ts",
+        [ oceanic_text:interpret_briefly_power_report( OutputPower ),
+          ReportStr ] );
 
 
+%status_to_string( _DevStatus=, _DevType=in_wall_module ) ->
+%    text_utils:format( "~", [  ] );
 
--doc "Returns a textual description of the specified device splitter.".
--spec splitter_to_string( option( splitter() ) ) -> ustring().
-splitter_to_string( _MaybeSplitter=undefined ) ->
-    "";
+status_to_string( DevStatus, _DevType=undefined ) ->
+    text_utils:format( "unknown status (~p)", [ DevStatus ] );
 
-splitter_to_string( Splitter ) ->
-    text_utils:format( " (designated by '~ts')",
-                       [ spell_tree:splitter_to_string( Splitter ) ] ).
+status_to_string( DevStatus, DevType ) ->
+    text_utils:format( "unknown ~ts status (~p)",
+        [ oceanic_text:device_type_to_string( DevType ), DevStatus ] ).
 
 
 
