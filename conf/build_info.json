@@ -23,8 +23,8 @@
 
     {
       "_comment": "The value for the src_dirs entry for this layer can be generated/updated by executing: 'make list-src-dirs' from the root of this layer, and copying them verbatim below (relative paths already correct). The same applies for extra_src_dirs, with 'make list-extra-src-dirs'",
-      "name": "../../us_common",
-      "dir": "..",
+      "name": "us_common",
+      "dir": "../../us_common",
       "src_dirs": ["./src"],
       "extra_src_dirs": ["test"],
       "include_dirs": [
