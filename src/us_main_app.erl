@@ -27,10 +27,10 @@ application.
 
 Typically triggered:
 
- - through OTP/rebar3, by ebin/us_main.app (as obtained from
-  conf/us_main.app.src; see start/2)
+ - through OTP/rebar3, by `ebin/us_main.app` (as obtained from
+  `conf/us_main.app.src`; see `start/2`)
 
- - directly, with the help of Myriad's otp_utils (see exec/0)
+ - directly, with the help of Myriad's `otp_utils` (see `exec/0`)
 """.
 
 
