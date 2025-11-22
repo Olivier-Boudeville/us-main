@@ -170,7 +170,7 @@ The reported type for a sensor, like "coretemp", "k10temp", "acpitz", "nvme",
 
 
 
--doc "Atom-based version of a raw sensor type (e.g. 'coretemp').".
+-doc "Atom-based version of a raw sensor type (e.g. `coretemp`).".
 -type atom_sensor_type() :: atom().
 
 
@@ -3235,12 +3235,17 @@ examine_temperature( PointNameBin, CurrentTemp,
                         "alarm high threshold (~ts) at measurement "
                         "point ~ts, which reported ~ts (critical high "
                         "threshold of ~ts not reached yet). "
-                        "Check fans and room temperature.",
+                        "Check fans and room temperature.~n~ts~n~ts~n~ts",
                         [ sensor_id_to_string( SensorId ),
                           unit_utils:temperature_to_string( AlarmHigh ),
                           PointNameBin,
                           unit_utils:temperature_to_string( CurrentTemp ),
-                          unit_utils:temperature_to_string( CritHigh ) ] ),
+                          unit_utils:temperature_to_string( CritHigh ),
+                          system_utils:report_main_system_metrics(),
+                          system_utils:interpret_top_cumulated_cpu_processes(),
+                          % Even if vaguely related:
+                          system_utils:interpret_top_memory_using_processes()
+                        ] ),
 
                     Now = time_utils:get_timestamp(),
 
@@ -3357,10 +3362,15 @@ examine_fan_speed( PointNameBin, CurrentSpeed,
                     ?alert_fmt( "Fan speed monitored by ~ts at measurement "
                         "point ~ts is now ~ts, and just exceeded the alarm "
                         "high threshold (~ts); check that the cause is not "
-                        "a skyrocketing temperature.",
+                        "a skyrocketing temperature.~n~ts~n~ts~n~ts",
                         [ sensor_id_to_string( SensorId ), PointNameBin,
                           unit_utils:rpm_to_string( CurrentSpeed ),
-                          unit_utils:rpm_to_string( MaybeAlarmLowSpeed ) ] );
+                          unit_utils:rpm_to_string( MaybeAlarmLowSpeed ),
+                          system_utils:interpret_top_instant_cpu_processes(),
+                          system_utils:interpret_top_cumulated_cpu_processes(),
+                          % Even if vaguely related:
+                          system_utils:interpret_top_memory_using_processes()
+                        ] );
 
                 { insufficient_speed, nominal } ->
                     ?warning_fmt( "Fan speed monitored by ~ts at measurement "
