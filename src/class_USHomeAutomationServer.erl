@@ -507,8 +507,10 @@ A (higher-level) status of a device, based on its type, as known by this server.
     %
     last_seen :: option( timestamp() ),
 
-    % Records any last reported availability status of this device:
-    % (device might be just configured)
+    % Records any last reported availability status of this device: online,
+    % lost, unreachable.
+    %
+    % (device might be as well only configured)
     %
     availability :: option( availability_status() ),
 
@@ -3835,7 +3837,7 @@ record_new_device( DeviceEvent, State ) ->
 
             end,
 
-            #device_state{
+            BaseDevState#device_state{
 
                 name=basic_utils:set_option( MaybePrevName,
                     oceanic:get_best_device_name_from( DeviceEvent, DevType ) ),
@@ -4272,6 +4274,47 @@ onEnoceanDeviceTeachIn( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
 
     wooper:const_return().
 
+
+
+-doc """
+Handles a device-related request failure regarding the specified operation
+(typically a smart plug failing to report a state change) notified by the
+specified Oceanic server.
+""".
+-spec onEnoceanDeviceRequestFailed( wooper:state(), eurid(),
+    option( device_name() ), option( device_short_name() ), device_operation(),
+    oceanic_server_pid() ) -> oneway_return().
+onEnoceanDeviceRequestFailed( State, DeviceEurid, MaybeDevName,
+        MaybeDevShortName, DeviceOp, OcSrvPid ) ->
+
+    Msg = text_utils:format( "The ~ts request on ~ts is reported as failed "
+        "by the Oceanic server ~w.",
+        [ DeviceOp, oceanic_text:get_best_naming( MaybeDevName,
+            MaybeDevShortName, DeviceEurid ), OcSrvPid ] ),
+
+    DevName = case MaybeDevName of
+
+        undefined ->
+            "unnamed device";
+
+        DName ->
+            DName
+
+    end,
+
+    class_TraceEmitter:send_named_emitter( error, State, Msg,
+        get_trace_emitter_name_from( DevName ) ),
+
+    DevTable = ?getAttr(device_table),
+    DevState = table:get_value( _K=DeviceEurid, DevTable ),
+
+    UpdatedDevState = DevState#device_state{ availability=unreachable },
+
+    UpdatedDevTable = table:add_entry( DeviceEurid, UpdatedDevState, DevTable ),
+
+    FailedState = setAttribute( State, device_table, UpdatedDevTable ),
+
+    wooper:return_state( FailedState ).
 
 
 -doc """
@@ -5468,18 +5511,19 @@ Triggers (immediately) the specified operation onto the specified device.
 Typically referenced by user-configured action specifications.
 """.
 -spec actOnDevice( wooper:state(), user_device_designator(),
-    extended_device_operation() ) ->
-          const_request_return( 'action_not_needed' | 'action_triggered' ).
+    extended_device_operation() ) -> const_request_return( string_fallible() ).
 actOnDevice( State, UserDevDesig, ExtDevOp ) ->
 
     cond_utils:if_defined( us_main_debug_actions, ?debug_fmt( "Triggering the "
         "'~ts' operation on device designated by ~w.",
         [ ExtDevOp, UserDevDesig ] ) ),
 
-    ActionRes = case resolve_device_operation( ExtDevOp, State ) of
+    ActionResStr = case resolve_device_operation( ExtDevOp, State ) of
 
         undefined ->
-            action_not_needed;
+            text_utils:format( "For the device designated by '~ts', "
+                "the '~ts' action is not needed.", [ UserDevDesig, ExtDevOp ] );
+
 
         ActualDevOp ->
             DevDesig = oceanic:get_internal_device_designator( UserDevDesig ),
@@ -5489,11 +5533,13 @@ actOnDevice( State, UserDevDesig, ExtDevOp ) ->
             % No result to expect:
             ?getAttr(oc_srv_pid) ! { performAction, DeviceAction },
 
-            action_triggered
+            text_utils:format(
+                "Action '~ts' triggered on device designated by '~ts'.",
+                [ ExtDevOp, UserDevDesig ] )
 
     end,
 
-    wooper:const_return_result( ActionRes ).
+    wooper:const_return_result( { ok, ActionResStr } ).
 
 
 
@@ -5572,10 +5618,10 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, ExtDevOp,
 
     TaskTable = ?getAttr(task_table),
 
-    case table:lookup_entry( _K=DevDesig, TaskTable ) of
+    UnschedStr = case table:lookup_entry( _K=DevDesig, TaskTable ) of
 
         key_not_found ->
-            ok;
+            "";
 
         { value, PrevTaskId } ->
             ?warning_fmt( "For device user-designated as '~p' "
@@ -5586,7 +5632,9 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, ExtDevOp,
                   PrevTaskId ] ),
 
             % No feedback wanted:
-            SchedPid ! { unregisterTaskAsync, PrevTaskId }
+            SchedPid ! { unregisterTaskAsync, PrevTaskId },
+            text_utils:format( " (a prior task #~B had to be unscheduled "
+                               "first)", [ PrevTaskId ] )
 
     end,
 
@@ -5614,19 +5662,20 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, ExtDevOp,
         { wooper_result, task_done } ->
             cond_utils:if_defined( us_main_debug_actions,
                 ?debug( "Periodical device action already done." ) ),
-            { "Task done", State };
+            { "Task done" ++ UnschedStr, State };
 
         { wooper_result, { task_registered, TaskId } } ->
 
             cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
-                "Periodical device action registered as task #~B.",
-                [ TaskId ] ) ),
+                "Periodical device action registered as task #~B~ts.",
+                [ TaskId, UnschedStr ] ) ),
 
             NewTaskTable = table:add_entry( DevDesig, TaskId, TaskTable ),
 
             NewState = setAttribute( State, task_table, NewTaskTable ),
 
-            { text_utils:format( "Periodical task #~B scheduled", [ TaskId ] ),
+            { text_utils:format( "Periodical task #~B scheduled~ts.",
+                                 [ TaskId, UnschedStr ] ),
               NewState }
 
     end,
