@@ -18,8 +18,10 @@ monitor-prod:
 monitor-local:
 	@./monitor-us-main.sh us-main-on-$$(hostname -s)-remote-access.config
 
+
+# Very convenient:
 debug:
-	@kill-us-main.sh; start-us-main-native-build.sh; ./monitor-us-main.sh
+	@kill-trace-supervision-tool.sh; start-us-main-native-build.sh --kill-prior-instance ~/.config/universal-server; ./monitor-us-main.sh $(HOME)/.config/universal-server/us-main-on-$$(hostname -s)-remote-access.config
 
 
 include $(US_MAIN_TOP)/GNUmakesettings.inc
