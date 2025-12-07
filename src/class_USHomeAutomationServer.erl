@@ -35,11 +35,16 @@ thanks to Ceylan-Oceanic.
 -define( superclasses, [ class_USServer ] ).
 
 
-% For settings regarding name registration:
--include("us_main_defines.hrl").
+
+% For the action_info record:
+-include_lib("us_common/include/us_action.hrl").
 
 % For the event records:
 -include_lib("oceanic/include/oceanic.hrl").
+
+
+% For settings regarding name registration:
+-include("us_main_defines.hrl").
 
 
 % Design notes:
@@ -236,6 +241,8 @@ typically as triggered by actions.
 
 -export_type([ home_automation_server_pid/0,
                home_automation_core_settings/0, home_automation_settings/0,
+               event_action_name/0, event_action_arity/0, event_action_spec/0,
+               user_action_trigger/0, canon_action_trigger/0,
                presence_milestone/0, presence_slot/0, presence_program/0,
                random_activity_settings/0, presence_simulation_user_settings/0,
                psc_sim_user_setting/0,
@@ -244,14 +251,15 @@ typically as triggered by actions.
 
 
 % 15 minutes, in seconds:
-%-define( default_alarm_duration, 15 * 60 ).
+%-define( default_alarm_duration, 12 * 60 ).
 
 % For testing, 15 seconds:
 -define( default_alarm_duration, 15 ).
 
 
 % Type silencing:
--export_type([ telegram_info/0, device_splitter_table/0, task_table/0 ]).
+-export_type([ telegram_info/0, device_splitter_table/0, task_table/0,
+               short_name_table/0 ]).
 
 
 % Local types:
@@ -265,6 +273,14 @@ typically as triggered by actions.
 -doc "A pair of telegrams corresponding to a press/release transaction.".
 -type telegram_pair() :: { Press :: telegram(), Release :: telegram() }.
 
+
+-doc """
+A table allowing to translate the short name of a device into an actual EURID.
+
+Useful, as the user may specify their custom actions based on short names
+(whereas the corresponding EURIDs are not known, at least yet.
+""".
+-type short_name_table() :: table( device_short_name(), eurid() ).
 
 
 -doc """
@@ -448,6 +464,59 @@ A (higher-level) status of a device, based on its type, as known by this server.
                                hardware_status(),
                                LocalControlEnabled :: boolean() }.
 
+-doc """
+The name of an action expecting either zero or one dynamic argument, a device
+event.
+
+Introduced so that incoming events can directly trigger any kind of action, even
+user-defined ones for which an event would be of no use (for instance to act on
+a user-specified device).
+""".
+-type event_action_name() :: action_name().
+
+
+-doc """
+An event action may or may not accept a single dynamic argument, which would be
+any triggering device event.
+
+Zero-arity is convenient when an event must trigger an action defined otherwise
+(typically to be triggered also from the command-line).
+""".
+-type event_action_arity() :: 0..1.
+
+
+-doc "To specify an action to be triggered by an event.".
+-type event_action_spec() :: { event_action_name(), event_action_arity() }.
+
+
+-doc """
+Describes an event action that may be triggered by a given device, based on the
+specified CITS.
+""".
+-type action_trigger() ::
+    { canon_incoming_trigger_spec(), event_action_spec() }.
+
+
+-doc """
+A table mapping a device (designated by its EURID or short name) to a list of
+(canonical) incoming trigger specification and their respective, associated
+event actions, so that incoming events can trigger such actions.
+
+A short name is of use, as users usually designate devices based on it, and this
+server is not able to resolve such a name until it receives a first event from
+that device.
+
+As a result, a given device may be present in that table 0, 1 or 2 times.
+
+A CITS is needed at this level so that custom, user-configured triggers can be
+defined (e.g. to wire a specified button of a rocker to a specific action).
+
+Also specifying the full event to an action allows the event action to rely on
+any information of interest fetched from it (e.g. the hygrometry of a
+thermometer-issued event).
+""".
+-type action_trigger_table() ::
+    table( device_designator(), [ action_trigger() ] ).
 
 
 -doc "Information about telegram(s) already prepared for a given device.".
@@ -557,13 +626,74 @@ corresponding device.
 -type device_splitter_table() :: table( bin_string(), eurid() ).
 
 
+
+-doc """
+The user-level specification of an action trigger.
+
+It describes how an event (like a button being pressed) shall trigger an action
+(e.g. switching on actuators, like a smart plug controlling lights, sirens,
+appliances, etc.), based only on user configuration.
+
+The actions triggered in this context have by design either no dynamic argument
+or a single one, the originating event.
+
+They may be either built-in (e.g. to start/stop presence lighting) or
+user-defined (e.g. to control the heating of a given room).
+
+Examples of such user action triggers (typically specified in an
+home_automation_action_triggers section):
+
+- `{{wasabi_rocker, {double_rocker, {1, top}}}, {start_room_heating,0}}`
+
+- `{{night_table_rocker, {double_rocker, {1, bottom, just_pressed}}},
+    {stop_presence_lighting,0}}`
+- `{{some_device, {double_rocker, {1, bottom, just_pressed}}},
+    {act_on_event,1}}`
+
+Abbreviated as UAT.
+""".
+-type user_action_trigger() :: { listened_event_spec(), event_action_spec() }.
+
+
+
+
+% In the future, event-based actions could be defined, relatively to an emitting
+% device (typically a sensor); they would take exactly a single argument, the
+% event triggering that action.
+%
+% The triggered action will be parametrised:
+%
+% - first by any static arguments that would have been specified when defining
+%  that action
+%
+% - then by a single dynamic argument, the event that triggered it, to account
+% for all contextual information needed (for example whether that trigger button
+% was pressed or released, or which temperature was reported by the emitting
+% sensor, etc.).
+%
+% Examples of such user action event triggers (typically specified in an
+% home_automation_event_action_triggers section):
+%
+% - `{my_thermometer, control_heating}`
+%
+% - `{{night_table_rocker, [{static_info,42}], control_presence_lighting}`
+
+
+-doc "The internal, canonical form of an action trigger.".
+-type canon_action_trigger() ::
+    { canon_listened_event_spec(), action_name() }.
+
+
+
+
 -doc "Core settings gathered for the home automation server.".
 -type home_automation_core_settings() :: {
     AlarmTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
     AlarmActuatorEmitEvSpecs :: [ canon_emitted_event_spec() ],
     PscTriggerListenEvSpecs :: [ canon_listened_event_spec() ],
     presence_simulation_user_settings(),
-    HAActionSpecs :: [ user_action_spec() ], oceanic_settings() }.
+    UserActSpecs :: [ user_action_spec() ],
+    UserActTriggers :: [ user_action_trigger() ], oceanic_settings() }.
 
 
 
@@ -655,7 +785,14 @@ Full settings gathered regarding the home automation server.
 % The settings of the automated actions that shall be supported for home
 % automation:
 %
--define( us_main_home_automation_actions_key, home_automation_action_specs ).
+-define( us_main_home_automation_action_specs_key,
+         home_automation_action_specs ).
+
+
+% The settings of the registered triggers of home automated actions:
+-define( us_main_home_automation_action_triggers_key,
+         home_automation_action_triggers ).
+
 
 % All known, licit (top-level) keys for the Oceanic configuration information
 % (preferred to be read directly from the US-Main configuration file rather than
@@ -687,6 +824,9 @@ Full settings gathered regarding the home automation server.
     { app_base_directory, bin_directory_path(),
       "the base directory of the US-Main application (the root where "
       "src, priv, ebin, etc. can be found)" },
+
+    { short_name_table, short_name_table(),
+      "allows converting a device short name in its EURID" },
 
     { alarm_inhibited, boolean(),
       "tells whether the alarm is inhibited, permanently, if somebody is at "
@@ -759,6 +899,9 @@ Full settings gathered regarding the home automation server.
     { presence_switching_device_desc, option( bin_string() ),
       "a textual description of the presence switching devices (if any)" },
 
+    { action_trigger_table, action_trigger_table(),
+      "records the actions that shall be triggered based on incoming events" },
+
     { celestial_info, option( celestial_info() ),
       "any precomputed dawn/dusk time, for the current day" },
 
@@ -777,6 +920,7 @@ Full settings gathered regarding the home automation server.
       "a table keeping track of the splitters of the devices that can be "
       "user-designated (typically actuators)" } ] ).
 
+% Inherited attributes of interest include: action_table.
 
 
 % Used by the trace_categorize/1 macro to use the right emitter:
@@ -927,6 +1071,8 @@ Full settings gathered regarding the home automation server.
 -type availability_status() :: oceanic:availability_status().
 -type device_state_info() :: oceanic:device_state_info().
 
+-type canon_incoming_trigger_spec() :: oceanic:canon_incoming_trigger_spec().
+-type listened_event_spec() :: oceanic:listened_event_spec().
 -type canon_listened_event_spec() :: oceanic:canon_listened_event_spec().
 -type canon_emitted_event_spec() :: oceanic:canon_emitted_event_spec().
 -type emitted_event_spec() :: oceanic:emitted_event_spec().
@@ -938,8 +1084,13 @@ Full settings gathered regarding the home automation server.
 -type user_server_location() ::
     class_USMainCentralServer:user_server_location().
 
+-type action_name() :: us_action:action_name().
+-type argument() :: us_action:argument().
+-type action_table() :: us_action:action_table().
+-type action_info() :: us_action:action_info().
 -type user_action_spec() :: us_action:user_action_spec().
 -type user_action_specs() :: us_action:user_action_specs().
+
 %-type action_outcome() :: us_action:action_outcome().
 %-type action_outcome( ReturnT ) :: us_action:action_outcome( ReturnT ).
 
@@ -1077,7 +1228,9 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
         ?us_main_home_automation_server_registration_name,
         ?us_main_home_automation_server_registration_scope ),
 
-    % Common to all home-automation services; beware of blocking calls:
+    % Common to all home-automation services; interleaved (received later in
+    % this function), beware of blocking calls:
+    %
     class_USMainCentralServer:get_server_pid() !
         { getHomeAutomationSettings, [], self() },
 
@@ -1138,7 +1291,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
     { MaybeUserSrvLoc, BinAppBaseDirectoryPath,
       AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
       PscTriggerListenEvSpecs, ConfPscSimUSettings, UserActSpecs,
-      OcSettings } = receive
+      UserActTriggers, OcSettings } = receive
 
         { wooper_result, HomeAutoMatSettings } ->
             HomeAutoMatSettings
@@ -1231,6 +1384,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
     ActionState = init_automated_actions( UserActSpecs, AlarmState ),
 
+    TriggerState = init_action_triggers( UserActTriggers, ActionState ),
 
     % Geographical location:
     MaybeSrvLoc = case MaybeUserSrvLoc of
@@ -1280,13 +1434,14 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 
     EmptyTable = table:new(),
 
-    MoreCompleState = setAttributes( ActionState, [
+    MoreCompleState = setAttributes( TriggerState, [
         { oc_srv_pid, MaybeOcSrvPid },
 
         %{ oc_periodic_restart, true },
         { oc_periodic_restart, false },
 
         { oc_src_eurid, MaybeSrcEurid },
+        { short_name_table, EmptyTable },
         { app_base_directory, BinAppBaseDirectoryPath },
 
         % Expecting to be launching this server while being at home:
@@ -1317,7 +1472,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
         { presence_switching_trigger_specs, PscTriggerListenEvSpecs },
         { presence_switching_device_desc, PscSwitchBinDesc },
         { celestial_info, undefined },
-        { task_table, table:new() } ] ),
+        { task_table, EmptyTable } ] ),
 
     ApplyState = apply_presence_simulation( SetState ),
 
@@ -2414,7 +2569,14 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
               enablePresenceSimulation },
 
             { disable_presence_simulation, "disables the presence simulation",
-              disablePresenceSimulation } ] } ],
+              disablePresenceSimulation },
+
+            { start_temporarily_all_presence_lighting,
+              "starts temporarily all presence lighting",
+              startTemporarilyAllPresenceLighting },
+
+            { stop_all_presence_lighting, "stops all presence lighting",
+              stopAllPresenceLighting } ] } ],
 
     AllActSpecs = BuiltinActSpecs ++ UserActSpecs,
 
@@ -2433,6 +2595,77 @@ init_automated_actions( Other, State ) ->
                 "(not a list): ~p.", [ Other ] ),
 
     throw( { invalid_home_automation_actions, Other, not_list } ).
+
+
+
+-doc "Initialises the trigger management of automated actions.".
+-spec init_action_triggers( [ user_action_trigger() ], wooper:state() ) ->
+                                                wooper:state().
+init_action_triggers( UserActTriggers, State )
+                                        when is_list( UserActTriggers ) ->
+
+    ?debug_fmt( "Initialising the automated action triggers, based on "
+                "their user specifications:~n ~p", [ UserActTriggers ] ),
+
+    ActionTable = ?getAttr(action_table),
+
+    % Not fun register_action_trigger/2, as closure for the two extra tables:
+    ActTriggerTable = lists:foldl(
+        fun( UAT, AccTriggerTable ) ->
+            register_action_trigger( UAT, AccTriggerTable, ActionTable )
+        end,
+        _Acc0=table:new(),
+        _List=UserActTriggers ),
+
+    cond_utils:if_defined( us_main_debug_actions,
+         ?debug_fmt( "Initial action triggers: ~ts",
+                     [ table:to_string( ActTriggerTable ) ] ) ),
+
+    setAttribute( State, action_trigger_table, ActTriggerTable );
+
+
+init_action_triggers( Other, State ) ->
+    ?error_fmt( "Invalid action triggers for home automation "
+                "(not a list): ~p.", [ Other ] ),
+
+    throw( { invalid_home_automation_action_triggers, Other, not_list } ).
+
+
+
+-doc """
+Registers the specified user-level action trigger in the specified table.
+""".
+-spec register_action_trigger( user_action_trigger(),
+        action_trigger_table(), action_table() ) -> action_trigger_table().
+% UAT being {listened_event_spec(), event_action_name()}:
+register_action_trigger( UAT={ LES, EvActId={ EvActName, EvActArity } },
+        ActTriggerTable, ActionTable ) when is_atom( EvActName )
+            andalso ( EvActArity =:= 0 orelse EvActArity =:= 1 ) ->
+
+    _CLES={ DevDes, CITS } = oceanic:canonicalise_listened_event_spec( LES ),
+
+    table:has_entry( _K=EvActId, ActionTable ) orelse
+        begin
+            trace_bridge:error_fmt( "No event action ~ts defined, whereas "
+                "it is specified by user action trigger ~w; "
+                "known actions are:~ts", [
+                    us_action:action_id_to_string( EvActId ), UAT,
+                    text_utils:strings_to_string( lists:sort( [
+                        us_action:action_id_to_string( AI )
+                            || AI <- table:keys( ActionTable ) ] ) ) ] ),
+
+            throw( { unknown_event_action_in_trigger, EvActId, UAT } )
+
+        end,
+
+    % Minor risk of having a device registered twice, one with short name, the
+    % other with EURID:
+    %
+    table:append_to_entry( DevDes, _ActTrigger={ CITS, EvActId },
+                           ActTriggerTable );
+
+register_action_trigger( Other, _ActTriggerTable, _ActionTable ) ->
+    throw( { invalid_home_automation_user_action_trigger, Other } ).
 
 
 
@@ -3579,10 +3812,10 @@ Ensures that no past presence task lingers in the specified simulation.
 -spec clear_any_presence_task( presence_simulation(), scheduler_pid(),
                                wooper:state() ) -> presence_simulation().
 clear_any_presence_task( Psc=#presence_simulation{
-                    presence_task_info={ TaskId, _Time } }, SchedPid, State ) ->
-    ?warning_fmt( "Clearing a task during the daily presence simulation "
-        "update (abnormal) for ~ts.",
-        [ presence_simulation_to_string( Psc ) ] ),
+                    presence_task_info={ TaskId, Time } }, SchedPid, State ) ->
+    ?warning_fmt( "Clearing a task (#~B, at ~p) during the daily "
+        "presence simulation update (abnormal) for:~n ~ts.",
+        [ TaskId, Time, presence_simulation_to_string( Psc ) ] ),
 
     SchedPid ! { unregisterTaskAsync, [ TaskId ] },
     Psc#presence_simulation{ presence_task_info=undefined };
@@ -3630,11 +3863,9 @@ onEnoceanConfiguredDeviceFirstSeen( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
     RecState = record_new_device( DeviceEvent, State ),
 
-    PresState = manage_presence_switching( DeviceEvent, RecState ),
+    ProcState = process_device_event( DeviceEvent, RecState ),
 
-    AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
-
-    wooper:return_state( AlarmState );
+    wooper:return_state( ProcState );
 
 
 onEnoceanConfiguredDeviceFirstSeen( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -3673,12 +3904,12 @@ onEnoceanDeviceDiscovery( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
     RecState = record_new_device( DeviceEvent, State ),
 
-    % If ever the device was not configured, yet declared as presence-switching:
-    PresState = manage_presence_switching( DeviceEvent, RecState ),
+    % If ever the device was not configured, yet declared as presence-switching,
+    % or alike:
+    %
+    ProcState = process_device_event( DeviceEvent, RecState ),
 
-    AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
-
-    wooper:return_state( AlarmState );
+    wooper:return_state( ProcState );
 
 
 onEnoceanDeviceDiscovery( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -3723,9 +3954,8 @@ onEnoceanUnresolvedDeviceFirstSeen(
 
     RecState = record_new_device( UnresolvedDevEvent, State ),
 
-    % Not relevant here:
-    %PresState = manage_presence_switching( DeviceEvent, RecState ),
-    %AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
+    % Not deemed relevant here:
+    %ProcState = process_device_event( DeviceEvent, RecState ),
 
     wooper:return_state( RecState ).
 
@@ -3757,6 +3987,9 @@ onEnoceanUnresolvedDevice( State,
 
     class_TraceEmitter:send_named_emitter( info, State, Msg, BinDevName ),
     %   end),
+
+    % Not deemed relevant here:
+    %ProcState = process_device_event( DeviceEvent, RecState ),
 
     wooper:const_return().
 
@@ -3810,13 +4043,15 @@ record_new_device( DeviceEvent, State ) ->
         current_status=get_status_from_event( DeviceEvent,
                                               InitStatus ) },
 
+    MaybeDevShortName = oceanic:get_maybe_device_short_name( DeviceEvent ),
+
     NewDevState = case table:lookup_entry( DevEurid, DevTable ) of
 
         % Not already configured, hence directly set:
         key_not_found ->
             BaseDevState#device_state{
                 name=oceanic:get_best_device_name_from( DeviceEvent, DevType ),
-                short_name=oceanic:get_maybe_device_short_name( DeviceEvent ),
+                short_name=MaybeDevShortName,
                 type=DevType,
                 eep_ids=set_utils:singleton_maybe( MaybeEepId ) };
 
@@ -3870,16 +4105,40 @@ record_new_device( DeviceEvent, State ) ->
     { NewDevSpellTree, NewDevTable, NewDevSplitterTable } =
         recompute_splitters( RicherDevTable ),
 
-     setAttributes( State, [
+    ShortNameTable = ?getAttr(short_name_table),
+
+    NewShortNameTable = case MaybeDevShortName of
+
+        undefined ->
+            ShortNameTable;
+
+        ShortName ->
+             case table:lookup_entry( _K=ShortName, ShortNameTable ) of
+
+                key_not_found ->
+                    table:add_entry( ShortName, DevEurid, ShortNameTable );
+
+                % Already correctly set:
+                { value, DevEurid } ->
+                    ShortNameTable;
+
+                { value, PrevDevEurid } ->
+                    ?error_fmt( "The device short name ~ts was already "
+                        "associated to EURID ~ts, ignoring thus ~ts.",
+                        [ ShortName,
+                          oceanic_text:eurid_to_string( PrevDevEurid ),
+                          oceanic_text:eurid_to_string( DevEurid ) ] ),
+                    ShortNameTable
+
+             end
+
+    end,
+
+    setAttributes( State, [
          { device_table, NewDevTable },
          { device_spell_tree, NewDevSpellTree },
-         { dev_splitter_table, NewDevSplitterTable } ] ).
-
-
-    %    false ->
-    %        State
-    %
-    %end.
+         { dev_splitter_table, NewDevSplitterTable },
+         { short_name_table, NewShortNameTable } ] ).
 
 
 
@@ -3988,7 +4247,7 @@ discovery-related message has been received first).
 -spec onEnoceanDeviceEvent( wooper:state(), device_event(), back_online_info(),
                             oceanic_server_pid() ) -> oneway_return().
 onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
-                                when is_tuple( DeviceEvent ) ->
+                                                when is_tuple( DeviceEvent ) ->
 
     % Check:
     OcSrvPid = ?getAttr(oc_srv_pid),
@@ -4004,13 +4263,9 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
         get_trace_emitter_name_from( BinDevName ) ),
     %   end),
 
-    ProcessedState = process_device_event( DeviceEvent, State ),
+    ProcState = process_device_event( DeviceEvent, State ),
 
-    PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
-
-    AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
-
-    wooper:return_state( AlarmState );
+    wooper:return_state( ProcState );
 
 
 onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
@@ -4029,13 +4284,9 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=BinDevDesc, OcSrvPid )
     class_TraceEmitter:send_named_emitter( notice, State, Msg,
         get_trace_emitter_name_from( BinDevName ) ),
 
-    ProcessedState = process_device_event( DeviceEvent, State ),
+    ProcState = process_device_event( DeviceEvent, State ),
 
-    PresState = manage_presence_switching( DeviceEvent, ProcessedState ),
-
-    AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
-
-    wooper:return_state( AlarmState );
+    wooper:return_state( ProcState );
 
 
 onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
@@ -4047,19 +4298,29 @@ onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
 
 
 
+% (helper)
+-spec process_device_event( device_event(), wooper:state() ) -> wooper:state().
+process_device_event( DeviceEvent, State ) ->
+
+    DevUpState = update_device_from_event( DeviceEvent, State ),
+
+    PresState = manage_presence_switching( DeviceEvent, DevUpState ),
+    AlarmState = manage_alarm_switching( DeviceEvent, PresState ),
+
+    manage_action_triggers( DeviceEvent, AlarmState ).
+
+
+
+
 -doc """
 Updates, based on the specified event, the stored state of the corresponding
 device.
 
 Any reaction to this event to be done next by the caller.
 """.
--spec process_device_event( device_event(), wooper:state() ) -> wooper:state().
-process_device_event( DeviceEvent=#teach_request_event{}, State ) ->
-    trace_utils:debug_fmt( "(ignoring ~ts)",
-        [ oceanic_text:device_event_to_string( DeviceEvent ) ] ),
-    State;
-
-process_device_event( DeviceEvent, State ) ->
+-spec update_device_from_event( device_event(), wooper:state() ) ->
+                                                    wooper:state().
+update_device_from_event( DeviceEvent, State ) ->
 
     DevEurid = oceanic:get_source_eurid( DeviceEvent ),
 
@@ -4074,6 +4335,9 @@ process_device_event( DeviceEvent, State ) ->
                     oceanic_text:device_event_to_string( DeviceEvent ) ] ),
             State;
 
+        % A priori no need to set/update the device short name here (either
+        % always available, or never):
+        %
         { value, DevState=#device_state{ current_status=PrevStatus } } ->
 
             NewDevState = DevState#device_state{
@@ -4211,6 +4475,7 @@ get_status_from_event( _DeviceEvent=#smart_plug_status_report_event{
     { OutputPower, PowerFailureDetected, SwitchedOffDueToOvercurrent,
       HardwareStatus, LocalControlEnabled };
 
+
 % If matching, it is the sign that the above clause for
 % double_rocker_switch_event did not match, as the previous status was not a
 % quadruplet of booleans, but a quintuplet; this happens because some smart
@@ -4218,15 +4483,18 @@ get_status_from_event( _DeviceEvent=#smart_plug_status_report_event{
 % on/off ("local control") button is pressed; not an interesting event here:
 %
 get_status_from_event( _DeviceEvent=#double_rocker_switch_event{},
-                       PrevStatus={ _OutputPower, _PowerFailureDetected,
-                            _SwitchedOffDueToOvercurrent, _HardwareStatus,
-                            _LocalControlEnabled } ) ->
-    PrevStatus;
-
-% Remaining 'undefined':
-get_status_from_event( _DeviceEvent=#unresolved_device_event{},
                        PrevStatus ) ->
     PrevStatus;
+
+
+get_status_from_event( _DeviceEvent=#teach_request_event{}, PrevStatus ) ->
+    PrevStatus;
+
+
+% Remaining 'undefined':
+get_status_from_event( _DeviceEvent=#unresolved_device_event{}, PrevStatus ) ->
+    PrevStatus;
+
 
 get_status_from_event( OtherDeviceEvent, PrevStatus ) ->
 
@@ -4236,6 +4504,177 @@ get_status_from_event( OtherDeviceEvent, PrevStatus ) ->
     % Thus unchanged:
     PrevStatus.
 
+
+
+-doc "Applies any action trigger corresponding to the specified event.".
+-spec manage_action_triggers( device_event(), wooper:state() ) ->
+                                                    wooper:state().
+manage_action_triggers( DevEvent, State ) ->
+
+    { DevEurid, MaybeDevShortName } = oceanic:get_designator_pair( DevEvent ),
+
+    TriggerTable = ?getAttr(action_trigger_table),
+
+    ActTriggersFromEurid =
+            case table:lookup_entry( _K=DevEurid, TriggerTable ) of
+
+        key_not_found ->
+            cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+                "(no action trigger available for device based on EURID ~ts)",
+                [ oceanic_text:eurid_to_string( DevEurid ) ] ) ),
+            [];
+
+        { value, ActTrigsFromEurid } ->
+             ActTrigsFromEurid
+
+    end,
+
+    ActTriggersFromShortName = case MaybeDevShortName of
+
+        undefined ->
+            [];
+
+        DevShortName ->
+            % The trigger table could then be updated now to rely more on
+            % EURIDs, and less on short names, but anyway a short name check has
+            % always to be done:
+            %
+            case table:lookup_entry( DevShortName, TriggerTable ) of
+
+                key_not_found ->
+                    cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+                        "(no action trigger available for device based on the "
+                        "'~ts' short name)", [ DevShortName ] ) ),
+                    [];
+
+                { value, ActTrigsFromName } ->
+                    ActTrigsFromName
+
+            end
+
+    end,
+
+    % Shortest list first:
+    case ActTriggersFromEurid ++ ActTriggersFromShortName of
+
+        [] ->
+            cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+                "No action trigger defined for device of EURID ~ts "
+                "(short name: ~ts).",
+                [ oceanic_text:eurid_to_string( DevEurid ),
+                  MaybeDevShortName ] ) ),
+            State;
+
+        AllActTriggers ->
+            apply_action_triggers( AllActTriggers, DevEurid,
+                                   MaybeDevShortName, DevEvent, State )
+
+    end.
+
+
+
+-doc "Applies the specified action triggers in turn.".
+-spec apply_action_triggers( [ canon_action_trigger() ], eurid(),
+        option( device_short_name() ), device_event(), wooper:state() ) ->
+                                                wooper:state().
+apply_action_triggers( ActTriggers, DevEurid, MaybeDevShortName,
+                       DevEvent, State ) ->
+
+    cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+        "Examining action trigger(s) available for device of EURID ~ts "
+        "(short name: ~ts): ~ts~nThis was triggered by event ~ts.",
+        [ oceanic_text:eurid_to_string( DevEurid ), MaybeDevShortName,
+          text_utils:terms_to_raw_string( ActTriggers ),
+          oceanic_text:device_event_to_string( DevEvent ) ] ) ),
+
+    ActTable = ?getAttr(action_table),
+
+    lists:foldl(
+        fun( _ActTrigger={ CITS, EvActId }, AccState ) ->
+            case oceanic:is_cits_matching( DevEvent, DevEurid, CITS ) of
+
+                true ->
+                    case table:lookup_entry( EvActId, ActTable ) of
+
+                        % Not expected to happen, as checked at UAT registering:
+                        key_not_found ->
+                            ?error_fmt( "No ~ts action found "
+                                "(triggered by device of EURID ~ts "
+                                "(short name: ~ts), nothing done.",
+                                [ us_action:action_id_to_string( EvActId ),
+                                  oceanic_text:eurid_to_string( DevEurid ),
+                                  MaybeDevShortName ] );
+
+                        { value, ActionInfo } ->
+                            cond_utils:if_defined( us_main_debug_actions,
+                                ?notice_fmt( "For EURID ~ts (short name: ~ts), "
+                                    "the ~ts matches the following event: ~ts."
+                                    "~nThus applying the ~ts event action.",
+                                    [ oceanic_text:eurid_to_string( DevEurid ),
+                                      MaybeDevShortName,
+                                      oceanic_text:cits_to_string( CITS ),
+                                      oceanic_text:device_event_to_string(
+                                        DevEvent ),
+                                      us_action:action_id_to_string( EvActId )
+                                    ] ) ),
+
+                            % Event actions may or may not have a dynamic
+                            % argument (then their triggering event):
+                            %
+                            ActArgs = case pair:second( EvActId ) of
+
+                                0 ->
+                                    [];
+
+                                1 ->
+                                    [ DevEvent ]
+
+                            end,
+
+                            apply_action( ActionInfo, ActArgs, AccState )
+
+                    end;
+
+                false ->
+                    cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+                        "For device of EURID ~ts (short name: '~ts'), "
+                        "the ~ts does not match the following event: ~ts.",
+                        [ oceanic_text:eurid_to_string( DevEurid ),
+                          MaybeDevShortName,
+                          oceanic_text:cits_to_string( CITS ),
+                          oceanic_text:device_event_to_string( DevEvent ) ] ) ),
+                    AccState
+            end
+
+        end,
+        _Acc0=State,
+        _List=ActTriggers ).
+
+
+
+-doc "Applies the specified action with the specified (dynamic) arguments.".
+-spec apply_action( action_info(), [ argument() ], wooper:state() ) ->
+                                                    wooper:state().
+apply_action( #action_info{ result_spec=ResSpec, request_name=ReqName },
+              DynArgs, State ) ->
+
+    % By design, a local action, with no argument to coerce:
+    { ActOutcome, NewAccState } = class_USServer:apply_arguments( ReqName,
+        DynArgs, _MaybeArgTokens=undefined, ResSpec, State ),
+
+    case ActOutcome of
+
+        { action_done, Res } ->
+            ?debug_fmt( "Action succeeded, with the following result:~n ~p",
+                        [ Res ] );
+
+        { action_failed, FailureReport } ->
+            ?debug_fmt( "Action failed, with the following report:~n ~p",
+                        [ FailureReport ] )
+
+    end,
+
+    NewAccState.
 
 
 
@@ -4264,7 +4703,10 @@ onEnoceanDeviceTeachIn( State, DeviceEvent, BinDevDesc, OcSrvPid )
 
     RecState = record_new_device( DeviceEvent, State ),
 
-    wooper:return_state( RecState );
+    % Possibly:
+    ProcState = process_device_event( DeviceEvent, RecState ),
+
+    wooper:return_state( ProcState );
 
 
 onEnoceanDeviceTeachIn( State, OtherEvent, BinDevDesc, OcSrvPid ) ->
@@ -4383,6 +4825,8 @@ onEnoceanJamming( State, TrafficLevel, OcSrvPid ) ->
     ?alert_fmt( "Received a notification from Oceanic server ~w of a "
         "possible jamming attempt (traffic level of ~B bytes per second).",
         [ OcSrvPid, TrafficLevel ] ),
+
+    % Should trigger event actions in the future (alarm).
 
     wooper:const_return().
 
@@ -4697,13 +5141,13 @@ manage_presence_switching( DevEvent, State ) ->
             case ?getAttr(actual_presence) of
 
                 true ->
-                    ?debug_fmt( "~ts, yet already considered at home, "
-                                "so nothing done.", [ BaseMsg ] ),
+                    ?info_fmt( "~ts, yet already considered at home, "
+                               "so nothing done.", [ BaseMsg ] ),
                     State;
 
                 false ->
-                    ?debug_fmt( "~ts whereas considered away, "
-                                "so switching presence on now.", [ BaseMsg ] ),
+                    ?notice_fmt( "~ts whereas considered away, "
+                                 "so switching presence on now.", [ BaseMsg ] ),
                     on_presence_change( _NewPresStatus=true, State )
 
             end;
@@ -4723,13 +5167,13 @@ manage_presence_switching( DevEvent, State ) ->
             case ?getAttr(actual_presence) of
 
                 true ->
-                    ?debug_fmt( "~ts whereas considered at home, "
-                                "so switching presence off now.", [ BaseMsg ] ),
+                    ?notice_fmt( "~ts whereas considered at home, "
+                        "so switching presence off now.", [ BaseMsg ] ),
                     on_presence_change( _NewPresStatus=false, State );
 
                 false ->
-                    ?debug_fmt( "~ts, yet already considered away, "
-                                "so nothing done.", [ BaseMsg ] ),
+                    ?info_fmt( "~ts, yet already considered away, "
+                        "so nothing done.", [ BaseMsg ] ),
                     State
 
             end;
@@ -5487,6 +5931,32 @@ disablePresenceSimulation( State ) ->
 
 
 
+-doc "Starts temporarily all presence lighting (built-in action).".
+-spec startTemporarilyAllPresenceLighting( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+startTemporarilyAllPresenceLighting( State ) ->
+
+    ?warning( "startTemporarilyAllPresenceLighting not temporary." ),
+
+    StartState = ensure_all_lighting( State ),
+
+    wooper:return_state_result( StartState,
+        { ok, "All presence lighting started." } ).
+
+
+
+-doc "Stops all presence lighting (built-in action).".
+-spec stopAllPresenceLighting( wooper:state() ) ->
+                        request_return( successful( ustring() ) ).
+stopAllPresenceLighting( State ) ->
+
+    StopState = ensure_not_any_lighting( State ),
+
+    wooper:return_state_result( StopState,
+        { ok, "All presence lighting stopped." } ).
+
+
+
 % actions:
 % alarm:
 %%  * ${start_alarm_opt}: starts the alarm (siren)
@@ -5535,7 +6005,8 @@ actOnDevice( State, UserDevDesig, ExtDevOp ) ->
 
             text_utils:format(
                 "Action '~ts' triggered on device designated by '~ts'.",
-                [ ExtDevOp, UserDevDesig ] )
+                [ extended_device_operation_to_string( ExtDevOp ),
+                  UserDevDesig ] )
 
     end,
 
@@ -5781,7 +6252,9 @@ get_licit_config_keys() ->
     [ ?us_main_server_location_key,
       ?us_main_alarm_triggers_key, ?us_main_alarm_actuators_key,
       ?us_main_presence_triggers_key, ?us_main_presence_settings_key,
-      ?us_main_home_automation_actions_key ] ++ ?supported_oceanic_config_keys.
+      ?us_main_home_automation_action_specs_key,
+      ?us_main_home_automation_action_triggers_key ]
+        ++ ?supported_oceanic_config_keys.
 
 
 
@@ -5789,7 +6262,8 @@ get_licit_config_keys() ->
 Handles the home automation-related entries in the user settings specified in
 US-Main configuration files.
 
-Note that the specified state is the one of a US-Main configuration server.
+Note that the specified state is the one of a US-Main configuration server, as
+it calls this function from its context.
 """.
 -spec manage_configuration( us_main_config_table(), wooper:state() ) ->
                                         wooper:state().
@@ -5942,16 +6416,30 @@ manage_configuration( ConfigTable, State ) ->
     end,
 
     UserActSpecs = case table:lookup_entry(
-            ?us_main_home_automation_actions_key, ConfigTable ) of
+            ?us_main_home_automation_action_specs_key, ConfigTable ) of
 
         key_not_found ->
-            ?info( "No action settings defined for home automation." ),
+            ?info( "No action specs defined for home automation." ),
             [];
 
 
-        { value, HAActSettings } ->
+        { value, HAActSpecs } ->
             % Checked later directly by this home automation server:
-            HAActSettings
+            HAActSpecs
+
+    end,
+
+    UserActTriggers = case table:lookup_entry(
+            ?us_main_home_automation_action_triggers_key, ConfigTable ) of
+
+        key_not_found ->
+            ?info( "No action triggers defined for home automation." ),
+            [];
+
+
+        { value, HAActTriggers } ->
+            % Checked later directly by this home automation server:
+            HAActTriggers
 
     end,
 
@@ -5964,7 +6452,7 @@ manage_configuration( ConfigTable, State ) ->
     %
     HACoreSettings = { AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs,
         PscTriggerListenEvSpecs, SetPscUSimSettings, UserActSpecs,
-        OcSettings },
+        UserActTriggers, OcSettings },
 
     setAttributes( State, [
         { server_location, MaybePosition },
@@ -6256,7 +6744,7 @@ presence_simulation_to_string( #presence_simulation{
         smart_lighting=IsSmart,
         random_activity=RandomAct,
         presence_task_info=MaybeTaskInfo },
-                             MaybeOcSrvPid ) ->
+                               MaybeOcSrvPid ) ->
 
     SmartStr = case IsSmart of
 
@@ -6315,7 +6803,7 @@ presence_simulation_to_string( #presence_simulation{
 
     text_utils:format( "presence simulation of id #~B, ~ts, "
         "~tsusing smart lighting, based on ~ts, whose presence program ~ts~n"
-        "The switching of this presence relies on ~ts(~ts)",
+        "The switching of this presence relies on ~ts (~ts)",
         [ Id, case IsEnabled of
                     true ->  "enabled";
                     false -> "disabled"
@@ -6733,6 +7221,27 @@ maybe_status_to_string( DevStatus, _DevType=undefined ) ->
 maybe_status_to_string( DevStatus, DevType ) ->
     text_utils:format( "reports an unknown ~ts status (~p)",
         [ oceanic_text:device_type_to_string( DevType ), DevStatus ] ).
+
+
+-doc """
+Returns a textual description of the specified extended device operation.
+""".
+-spec extended_device_operation_to_string( extended_device_operation() ) ->
+                                                ustring().
+extended_device_operation_to_string( _ExtDevOp=switch_on_if_at_home ) ->
+    "switching on if at home";
+
+extended_device_operation_to_string( _ExtDevOp=switch_off_if_at_home ) ->
+    "switching off if at home";
+
+extended_device_operation_to_string( _ExtDevOp=switch_on_if_away ) ->
+    "switching on if away";
+
+extended_device_operation_to_string( _ExtDevOp=switch_off_if_away ) ->
+    "switching off if away";
+
+extended_device_operation_to_string( DevOp ) ->
+    oceanic_text:device_operation_to_string( DevOp ).
 
 
 
