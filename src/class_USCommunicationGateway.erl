@@ -319,8 +319,8 @@ init_communications( State ) ->
 
 
         false ->
-            ?info( "No SMS communication will be available, no Ceylan-Mobile "
-                   "found available." ),
+            ?notice( "No SMS communication will be available, no Ceylan-Mobile "
+                     "found available." ),
             mobile:stop(),
             false
 
