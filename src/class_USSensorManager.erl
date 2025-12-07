@@ -3235,7 +3235,9 @@ examine_temperature( PointNameBin, CurrentTemp,
                         "alarm high threshold (~ts) at measurement "
                         "point ~ts, which reported ~ts (critical high "
                         "threshold of ~ts not reached yet). "
-                        "Check fans and room temperature.~n~ts~n~ts~n~ts",
+                        "Check fans and room temperature.~n~n"
+                        "Main system metrics:~n~ts~n~n"
+                        "~ts~n~ts",
                         [ sensor_id_to_string( SensorId ),
                           unit_utils:temperature_to_string( AlarmHigh ),
                           PointNameBin,
