@@ -24,7 +24,7 @@
   0},
  {<<"us_common">>,
   {git,"https://github.com/Olivier-Boudeville/us-common.git",
-       {ref,"ac2153af3431675ee6eb7b939a1e5725922d889f"}},
+       {ref,"da4e7661a4c42f403a60efe4820f4e2a18f242bf"}},
   0},
  {<<"wooper">>,
   {git,"https://github.com/Olivier-Boudeville/Ceylan-WOOPER.git",
