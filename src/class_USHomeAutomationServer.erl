@@ -3727,20 +3727,38 @@ updatePresencePrograms( State ) ->
 
 
 -doc """
-Stops any ongoing alarm, from the scheduler.
+Stops any ongoing alarm.
 
-Typically called to disengage automatically a triggered alarm after a maximum
-duration.
+Oneway typically called by a scheduler to disengage automatically a triggered
+alarm after a maximum duration.
 """.
--spec stopAlarmScheduled( wooper:state() ) -> oneway_return().
-stopAlarmScheduled( State ) ->
+-spec stopAlarmNoResult( wooper:state() ) -> oneway_return().
+stopAlarmNoResult( State ) ->
 
-    send_alarm_trace( info, "Requested (presumably by the scheduler) "
+    send_alarm_trace( info, "Requested (presumably by a scheduler) "
                       "to stop the alarm now.", State ),
 
     DoneState = setAttribute( State, alarm_stop_task_id, undefined ),
 
     StopState = apply_alarm_status( _NewStatus=false, DoneState ),
+
+    wooper:return_state( StopState ).
+
+
+
+-doc """
+Stops all presence lighting.
+
+Oneway typically called by a scheduler to switch off automatically all presence
+lighting after a maximum duration.
+""".
+-spec stopAllPresenceNoResult( wooper:state() ) -> oneway_return().
+stopAllPresenceNoResult( State ) ->
+
+    send_alarm_trace( info, "Requested (presumably by a scheduler) "
+                      "to switch off all presence lighting now.", State ),
+
+    StopState = ensure_not_any_lighting( State ),
 
     wooper:return_state( StopState ).
 
@@ -4655,12 +4673,26 @@ apply_action_triggers( ActTriggers, DevEurid, MaybeDevShortName,
 -doc "Applies the specified action with the specified (dynamic) arguments.".
 -spec apply_action( action_info(), [ argument() ], wooper:state() ) ->
                                                     wooper:state().
-apply_action( #action_info{ result_spec=ResSpec, request_name=ReqName },
+% A variation on class_USServer:execute_action/3:
+apply_action( #action_info{ action_name=ActName,
+                            arg_specs=ArgSpecs,
+                            result_spec=ResSpec,
+                            request_name=ReqName },
               DynArgs, State ) ->
 
     % By design, a local action, with no argument to coerce:
-    { ActOutcome, NewAccState } = class_USServer:apply_arguments( ReqName,
-        DynArgs, _MaybeArgTokens=undefined, ResSpec, State ),
+    { ActOutcome, NewState } = case us_action:integrate_dynamic_arguments(
+            DynArgs, ArgSpecs, ActName ) of
+
+        { ok, ActualArgs } ->
+            class_USServer:apply_arguments( ReqName, ActualArgs,
+                _MaybeArgTokens=undefined, ResSpec, State );
+
+        { error, CoerceTokenError } ->
+            Outcome = { action_failed, CoerceTokenError },
+            { Outcome, State }
+
+    end,
 
     case ActOutcome of
 
@@ -4674,7 +4706,7 @@ apply_action( #action_info{ result_spec=ResSpec, request_name=ReqName },
 
     end,
 
-    NewAccState.
+    NewState.
 
 
 
@@ -5397,7 +5429,7 @@ apply_alarm_status( NewStatus=true, State ) ->
     AfterDuration = ?getAttr(alarm_duration),
 
     SchedPid ! { registerOneshotTaskIn,
-                 [ _TaskCmd=stopAlarmScheduled, AfterDuration ], self() },
+                 [ _TaskCmd=stopAlarmNoResult, AfterDuration ], self() },
 
     cond_utils:if_defined( us_main_debug_alarm, send_alarm_trace_fmt( debug,
         "Registering alarm stop task to happen in ~ts.",
@@ -5936,12 +5968,30 @@ disablePresenceSimulation( State ) ->
                         request_return( successful( ustring() ) ).
 startTemporarilyAllPresenceLighting( State ) ->
 
-    ?warning( "startTemporarilyAllPresenceLighting not temporary." ),
-
     StartState = ensure_all_lighting( State ),
 
-    wooper:return_state_result( StartState,
-        { ok, "All presence lighting started." } ).
+    % Presence lighting to be stopped after 24 minutes:
+    StopAfterDurSecs = 24*60,
+
+    % For testing:
+    %StopAfterDurSecs = 10,
+
+    class_USScheduler:get_server_pid() ! { registerOneshotTaskIn,
+        [ _TaskCmd=stopAllPresenceNoResult, StopAfterDurSecs ], self() },
+
+    TaskId = receive
+
+        { wooper_result, { task_registered, TId } } ->
+            TId
+
+    end,
+
+    Msg = text_utils:format( "All presence lighting started; will be stopped "
+        "after ~ts (task #~B).",
+        [ time_utils:duration_to_string( _Ms=1000*StopAfterDurSecs ),
+          TaskId ] ),
+
+    wooper:return_state_result( StartState, { ok, Msg } ).
 
 
 
