@@ -676,7 +676,7 @@ Abbreviated as UAT.
 %
 % - `{my_thermometer, control_heating}`
 %
-% - `{{night_table_rocker, [{static_info,42}], control_presence_lighting}`
+% - `{night_table_rocker, [{static_info,42}], control_presence_lighting}`
 
 
 -doc "The internal, canonical form of an action trigger.".
@@ -3725,6 +3725,21 @@ updatePresencePrograms( State ) ->
     wooper:return_state( UpdatedState ).
 
 
+-doc """
+Starts immediately and unconditionally (no alarm inhibition taken into account)
+the alarm.
+
+Starts also all lighting, and plans an automatic alarm stop once its duration
+has elapsed.
+
+Oneway typically called by the security manage should panic be decided.
+""".
+-spec startAlarm( wooper:state() ) -> oneway_return().
+startAlarm( State ) ->
+    wooper:return_state( apply_alarm_status( _NewStatus=true, State ) ).
+
+
+
 
 -doc """
 Stops any ongoing alarm.
@@ -3752,8 +3767,8 @@ Stops all presence lighting.
 Oneway typically called by a scheduler to switch off automatically all presence
 lighting after a maximum duration.
 """.
--spec stopAllPresenceNoResult( wooper:state() ) -> oneway_return().
-stopAllPresenceNoResult( State ) ->
+-spec stopAllPresenceLightingScheduled( wooper:state() ) -> oneway_return().
+stopAllPresenceLightingScheduled( State ) ->
 
     send_alarm_trace( info, "Requested (presumably by a scheduler) "
                       "to switch off all presence lighting now.", State ),
@@ -5380,6 +5395,9 @@ Called whenever the actual alarm status changed.
 
 Unconditional: any effect of alarm inhibition supposed to be taken into account,
 and any prior alarm status ignored (too critical to rely on assumptions).
+
+Starts also all lighting, and plans an automatic alarm stop once its duration
+has elapsed.
 """.
 -spec apply_alarm_status( boolean(), wooper:state() ) -> wooper:state().
 apply_alarm_status( NewStatus=true, State ) ->
@@ -5474,7 +5492,7 @@ apply_alarm_status( NewStatus=false, State ) ->
 
     % No specific lighting stop wanted.
 
-    case ?getAttr(alarm_stop_task_id ) of
+    case ?getAttr(alarm_stop_task_id) of
 
         undefined ->
             ok;
@@ -5507,7 +5525,8 @@ apply_alarm_status( NewStatus=false, State ) ->
 
     end,
 
-    SetState.
+    % Mostly for symmetry, also switch off lighting:
+    ensure_not_any_lighting( SetState ).
 
 
 
@@ -5970,14 +5989,15 @@ startTemporarilyAllPresenceLighting( State ) ->
 
     StartState = ensure_all_lighting( State ),
 
-    % Presence lighting to be stopped after 24 minutes:
-    StopAfterDurSecs = 24*60,
+    % Presence lighting to be stopped after 15 minutes:
+    StopAfterDurSecs = 15*60,
 
     % For testing:
     %StopAfterDurSecs = 10,
 
     class_USScheduler:get_server_pid() ! { registerOneshotTaskIn,
-        [ _TaskCmd=stopAllPresenceNoResult, StopAfterDurSecs ], self() },
+        [ _TaskCmd=stopAllPresenceLightingScheduled,
+          StopAfterDurSecs ], self() },
 
     TaskId = receive
 
