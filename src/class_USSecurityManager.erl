@@ -386,6 +386,10 @@ panic( State ) ->
         "to de-escalate. Previous alert level was ~ts.",
         [ describe_defcon( NewDefcon ), describe_defcon( ?getAttr(defcon) ) ] ),
 
+    ?warning( Str ),
+
+    class_USHomeAutomationServer:get_server_pid() ! startAlarm,
+
     SetState = setAttribute( State, defcon, NewDefcon ),
 
     wooper:return_state_result( SetState, { ok, Str } ).
@@ -405,6 +409,10 @@ peace( State ) ->
         "alert level, ~ts. Trigger the set_defcon/1 or panic/0 actions "
         "to aggravate. Previous alert level was ~ts.",
         [ describe_defcon( NewDefcon ), describe_defcon( ?getAttr(defcon) ) ] ),
+
+    ?notice( Str ),
+
+    class_USHomeAutomationServer:get_server_pid() ! stopAlarmNoResult,
 
     SetState = setAttribute( State, defcon, NewDefcon ),
 
