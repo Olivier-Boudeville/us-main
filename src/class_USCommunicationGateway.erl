@@ -29,7 +29,6 @@ Such gateways rely on a contact directory.
 """.
 
 
-
 -define( class_description, "US server in charge of managing the "
     "communication of the US infrastructure, typically with "
     "associated users." ).
@@ -49,6 +48,7 @@ Such gateways rely on a contact directory.
 % User information generally come from an associated contact directory (see
 % class_USContactDirectory).
 %
+% At least currently, "user message" means SMS.
 % The SMS support relies on Ceylan-Mobile (see http://mobile.esperide.org).
 
 
@@ -80,16 +80,39 @@ Such gateways rely on a contact directory.
 -define( bridge_name, ?MODULE ).
 
 
+-doc "Settings gathered for the communication server.".
+-type communication_settings() :: [ bin_phone_number() ]. % MasterBinNumbers
+
+
 -doc "The PID of a communication gateway.".
 -type gateway_pid() :: class_USServer:server_pid().
 
+-type polling_delay() :: time_utils:milliseconds().
 
 
-% Type shorthands:
+-export_type([ communication_settings/0, gateway_pid/0, polling_delay/0 ]).
 
--type ustring() :: text_utils:ustring().
 
-%-type directory_pid() :: class_USContactDirectory:directory_pid().
+
+% Default delays, in milliseconds:
+
+
+-define( sms_polling_min_delay, 500 ).
+
+
+
+% For testing:
+-define( sms_polling_max_delay, 2000 ).
+
+% Operationally:
+%-define( sms_polling_max_delay, 5000 ).
+
+
+
+% Entries in the US-configuration files for communication:
+
+-define( us_main_master_numbers_key, communication_mobile_master_numbers ).
+
 
 
 
@@ -100,8 +123,20 @@ Such gateways rely on a contact directory.
 %
 -define( class_attributes, [
 
-    { sms_support_operational, boolean(), "tells whether an actual SMS "
-      "support is enabled and operational, notably to be able to send them" },
+    { sms_support_active, boolean(), "tells whether an actual SMS "
+      "support is active (enabled and operational)" },
+
+    { sms_polling_delay, polling_delay(), "the current delay between two "
+      "pollings of the SMSs" },
+
+    { sms_polling_min_delay, polling_delay(), "the minimum delay between two "
+      "pollings of the SMSs" },
+
+    { sms_polling_max_delay, polling_delay(), "the maximum delay between two "
+      "pollings of the SMSs" },
+
+    { master_phone_numbers, [ bin_phone_number() ], "the phone numbers that, "
+      "through SMSs, can control the overall US-Main instance" },
 
     { parent_comm_gateway_lookup_info, option( lookup_info() ),
       "the lookup naming information  of any parent, authoritative gateway "
@@ -112,15 +147,55 @@ Such gateways rely on a contact directory.
 % Used by the trace_categorize/1 macro to use the right emitter:
 -define( trace_emitter_categorization, "US.US-Main.Communication" ).
 
+% Exported helpers:
+-export([ get_licit_config_keys/0, manage_configuration/2 ]).
+
 
 
 % Note: include order matters.
+
+% For the received_sms record:
+-include_lib("mobile/include/mobile.hrl").
 
 % Allows to define WOOPER base variables and methods for that class:
 -include_lib("wooper/include/wooper.hrl").
 
 % Allows to use macros for trace sending:
 -include_lib("traces/include/class_TraceEmitter.hrl").
+
+
+
+
+% Implementation notes
+%
+% As the polling frequency od SMS is adaptative (it is set to high as soon as a
+% SMS is received, and gradually increases back to its minimal frequency), this
+% server does not rely on the US scheduler, but takes care directly of this
+% polling.
+
+
+
+% Type shorthands:
+
+-type ustring() :: text_utils:ustring().
+-type trace_format() :: text_utils:trace_format().
+-type trace_values() :: text_utils:trace_values().
+
+-type trace_severity() :: trace_utils:trace_severity().
+-type trace_message() :: trace_utils: trace_message().
+
+-type bin_phone_number() :: sms_utils:bin_phone_number().
+
+-type bin_mobile_number() :: mobile:bin_mobile_number().
+-type bin_sms_message() :: mobile:bin_sms_message().
+-type received_sms() :: mobile:received_sms().
+
+-type us_main_config_table() ::
+    class_USMainCentralServer:us_main_config_table().
+
+
+%-type directory_pid() :: class_USContactDirectory:directory_pid().
+
 
 
 % Implementation of the supervisor_bridge behaviour, for the intermediate
@@ -200,10 +275,47 @@ construct( State ) ->
         ?us_main_communication_server_registration_name,
         ?us_main_communication_server_registration_scope ),
 
+    USMainCtrSrvPid = class_USMainCentralServer:get_server_pid(),
+
+    % Blocking; beware of not creating deadlocks that way:
+    USMainCtrSrvPid ! { getCommunicationSettings, [], self() },
+
     InitCommState = init_communications( SrvState ),
 
-    SetState = setAttribute( InitCommState, parent_comm_gateway_lookup_info,
-                             undefined ),
+    % Interleaving of call to getCommunicationSettings/1:
+    MasterBinPhoneNumbers = receive
+
+        % Already checked by the US-Main configuration server to be a list:
+        { wooper_result, CommSettings } when is_list( CommSettings ) ->
+            CommSettings
+
+    end,
+
+    SetState = setAttributes( InitCommState, [
+        % (sms_support_active already set)
+        { sms_polling_delay, ?sms_polling_max_delay }, % Start nominal
+        { sms_polling_min_delay, ?sms_polling_min_delay },
+        { sms_polling_max_delay, ?sms_polling_max_delay },
+        { master_phone_numbers, MasterBinPhoneNumbers },
+        { parent_comm_gateway_lookup_info, undefined } ] ),
+
+    % Starts the SMS polling mechanism if relevant:
+    getAttribute( SetState, sms_support_active ) =:= true andalso
+         case MasterBinPhoneNumbers of
+
+            [] ->
+                ?send_warning( SetState, "SMS support active, yet with "
+                    "no master phone number defined; SMS-based "
+                    "actions disabled." );
+
+            MasterBinPhoneNumbers ->
+                ?send_info_fmt( SetState, "SMS support active, based "
+                    "on the following master phone numbers: ~ts.",
+                    [ text_utils:strings_to_listed_string(
+                        MasterBinPhoneNumbers ) ] ),
+                 self() ! pollSMS
+
+        end,
 
     ?send_notice_fmt( SetState, "Constructed: ~ts.",
                       [ to_string( SetState ) ] ),
@@ -225,6 +337,234 @@ destruct( State ) ->
 
 
 % Method section.
+
+
+-doc "Polls adaptatively any incoming SMSs, to trigger associated actions.".
+-spec pollSMS( wooper:state() ) -> oneway_return().
+pollSMS( State ) ->
+
+    cond_utils:if_defined( us_main_debug_sms_communication,
+        ?debug( "Polling now for action-related SMSs." ) ),
+
+    { NewDelay, NewState } = case process_sms_messages(
+            ?getAttr(master_phone_numbers), State ) of
+
+        % As soon as a relevant SMS is received, we switch to the most frequent
+        % "interactive" polling:
+        %
+        { _RelevantSMSRead=true, ReadState } ->
+            % Resetting delay:
+            { ?getAttr(sms_polling_min_delay), ReadState };
+
+        { _RelevantSMSRead=false, ReadState } ->
+            % Ramping up delay slowly:
+            MaxDelay = ?getAttr(sms_polling_max_delay),
+            AugmentedDelay = ?getAttr(sms_polling_delay) + 10,
+            RetainedDelay = case AugmentedDelay > MaxDelay of
+
+                true ->
+                    MaxDelay;
+
+                false ->
+                    AugmentedDelay
+
+            end,
+
+            { RetainedDelay, ReadState }
+
+    end,
+
+    cond_utils:if_defined( us_main_debug_sms_communication, ?debug_fmt(
+        "Next SMS polling in ~B ms.", [ NewDelay ] ) ),
+
+    % Thus a delayed, recursive call:
+    case timer:send_after( _DurMs=NewDelay, _Msg=pollSMS ) of
+
+        { ok, _TRef } ->
+            ok;
+
+        { error, Reason } ->
+            ?error_fmt( "Failed to register a SMS polling delayed "
+                "of ~ts : ~p.",
+                [ time_utils:duration_to_string( NewDelay ), Reason ] )
+
+    end,
+
+    UpdatedState = setAttribute( NewState, sms_polling_delay, NewDelay ),
+
+    wooper:return_state( UpdatedState ).
+
+
+
+
+
+-doc """
+Processes any incoming SMSs: reads (and deletes) them, and processes any
+corresponding action.
+""".
+-spec process_sms_messages( [ bin_phone_number() ], wooper:state() ) ->
+                        { RelevantSMSRead :: boolean(), wooper:state() }.
+process_sms_messages( MasterBinPhoneNumbers, State ) ->
+
+    % Nominal setting:
+    DeleteOnReading = true,
+
+    % Just for testing (note that this server will then endlessly loop with the
+    % same pollings):
+    %
+    %DeleteOnReading = false,
+
+    case mobile:read_all_sms( DeleteOnReading ) of
+
+        [] ->
+            cond_utils:if_defined( us_main_debug_sms_communication,
+                                   ?debug( "No SMS to read found." ) ),
+            { false, State };
+
+        SMSs ->
+            cond_utils:if_defined( us_main_debug_sms_communication, ?debug_fmt(
+                "Processing the ~B SMS that were just read.",
+                [ length( SMSs ) ] ) ),
+
+            filter_sms_messages( SMSs, _RelevantSMSFound=false,
+                                 MasterBinPhoneNumbers, State )
+
+    end.
+
+
+
+-spec filter_sms_messages( [ received_sms() ], boolean(),
+        [ bin_phone_number() ], wooper:state() ) ->
+            { boolean(), wooper:state() }.
+filter_sms_messages( _SMSs=[], RelevantSMSFound, _MasterBinPhoneNumbers,
+                     State ) ->
+    { RelevantSMSFound, State };
+
+filter_sms_messages( _SMSs=[ SMS=#received_sms{
+                                sender_number=BinSenderNumber } | T ],
+                     RelevantSMSFound, MasterBinPhoneNumbers, State ) ->
+
+    case lists:member( _Elem=BinSenderNumber, MasterBinPhoneNumbers ) of
+
+        true ->
+            % Hopefully no spoofing:
+            cond_utils:if_defined( us_main_debug_sms_communication, ?info_fmt(
+                "Processing the following SMS, as it is expected to emanate "
+                "from an authorised sender: ~ts.",
+                [ mobile:received_sms_to_string( SMS ) ] ) ),
+
+            ApplyState = apply_text( SMS#received_sms.text, BinSenderNumber,
+                                     State ),
+
+            filter_sms_messages( T, _RelevantSMSFound=true,
+                                 MasterBinPhoneNumbers, ApplyState );
+
+        false ->
+            ?warning_fmt( "Dropping the following SMS, not emanating from "
+                "any authorised sender: ~ts.",
+                [ mobile:received_sms_to_string( SMS ) ] ),
+
+            filter_sms_messages( T, RelevantSMSFound, MasterBinPhoneNumbers,
+                                 State )
+
+    end.
+
+
+
+-spec apply_text( bin_sms_message(), bin_mobile_number(), wooper:state() ) ->
+                                                    wooper:state().
+% At least currenty const:
+apply_text( BinText, BinSenderNumber, State ) ->
+
+    CtrlSrvPid = class_USMainCentralServer:get_server_pid(),
+
+    cond_utils:if_defined( us_main_debug_sms_communication, ?debug_fmt(
+        "Requesting the SMS-triggered execution of the action "
+        "corresponding to '~ts'.", [ BinText ] ) ),
+
+    % Currently relying on a synchronous call:
+    CtrlSrvPid ! { performActionFromTokenString, BinText, self() },
+
+    receive
+
+        { wooper_result, { _ActOutcome={ action_done, Res }, CtrlSrvPid } } ->
+
+            cond_utils:if_defined( us_main_debug_sms_communication, ?debug_fmt(
+                "SMS-triggered action succeeded and returned "
+                "the following full result:~n~p", [ Res ] ) ),
+
+            FullAnswer = case Res of
+
+                { ok, Str } ->
+                    % Needed so that at least ~n become newlines:
+                    text_utils:format( Str, [] );
+
+                { error, ErrorStr } ->
+                    text_utils:format( "The requested action failed: ~ts",
+                                       [ ErrorStr ] );
+
+                Other ->
+                    text_utils:format( "Unexpected action result: ~p",
+                                       [ Other ] )
+
+            end,
+
+            % There are around 70 UCS-2 characters per SMS, 25 SMSs are already
+            % a lot, so:
+            %
+            ToSendStr = text_utils:term_to_bounded_string( FullAnswer,
+                                                           _MaxLen=25*70 ),
+
+            % Sending back the result to the caller:
+            case mobile:send_sms( ToSendStr, BinSenderNumber ) of
+
+                { send_success, MsgRef } ->
+                    cond_utils:if_defined( us_main_debug_sms_communication,
+                        ?debug_fmt( "Sending of this SMS answer succeeded "
+                                    "(TPMR reference: ~B).", [ MsgRef ] ),
+                        basic_utils:ignore_unused( MsgRef ) ),
+                    State;
+
+                { send_failure, MsgRef } ->
+                    ?error_fmt( "The SMS sending to the '~ts' mobile number "
+                        "of the following text failed (TPMR reference: ~B): "
+                        "~ts.", [ BinSenderNumber, MsgRef, ToSendStr ] ),
+                    State
+
+            end;
+
+        { wooper_result, { _ActOutcome={ action_failed, FailureReport },
+                           CtrlSrvPid } } ->
+
+            ReportStr = us_action:interpret_failure_report( FailureReport ),
+
+            ?warning_fmt( "The action triggered by the incoming SMS '~ts' "
+                "failed and returned the following report: ~ts~n"
+                "Notifying the caller ('~ts') of it.",
+                [ BinText, ReportStr, BinSenderNumber ] ),
+
+           ToSendStr = text_utils:term_to_bounded_string(
+               "US-Main reports that " ++ ReportStr, _MaxLen=8*70 ),
+
+            case mobile:send_sms( ToSendStr, BinSenderNumber ) of
+
+                { send_success, MsgRef } ->
+                    cond_utils:if_defined( us_main_debug_sms_communication,
+                        ?debug_fmt( "Sending of this SMS failure report "
+                            "succeeded (TPMR reference: ~B).", [ MsgRef ] ),
+                        basic_utils:ignore_unused( MsgRef ) ),
+                    State;
+
+                { send_failure, MsgRef } ->
+                    ?error_fmt( "The SMS sending to the '~ts' mobile number "
+                        "of the following failure report failed "
+                        "(TPMR reference: ~B): ~ts.",
+                        [ BinSenderNumber, MsgRef, ToSendStr ] ),
+                    State
+
+            end
+
+    end.
 
 
 
@@ -288,7 +628,7 @@ init_communications( State ) ->
 
     ?debug( "Testing whether a usable Ceylan-Mobile exists." ),
 
-    SMSSupportEnabled = case mobile:is_available() of
+    SMSSupportActive = case mobile:is_available() of
 
         true ->
 
@@ -326,13 +666,133 @@ init_communications( State ) ->
 
     end,
 
-    setAttribute( State, sms_support_enabled, SMSSupportEnabled ).
+    setAttribute( State, sms_support_active, SMSSupportActive ).
+
+
+
+% Section related to the US-Main configuration files.
+
+
+-doc """
+Returns the known sensor-related keys in the US-Main configuration files.
+""".
+-spec get_licit_config_keys() -> [ list_table:key() ].
+get_licit_config_keys() ->
+    [ ?us_main_master_numbers_key ].
+
+
+
+-doc """
+Handles the communication-related entries in the user settings specified in
+US-Main configuration files.
+
+Note that the specified state is the one of a US-Main configuration server, as
+it calls this function from its context.
+""".
+-spec manage_configuration( us_main_config_table(), wooper:state() ) ->
+                                        wooper:state().
+manage_configuration( ConfigTable, State ) ->
+
+    % First checking:
+    MasterBinNumbers = case table:lookup_entry( ?us_main_master_numbers_key,
+                                                ConfigTable ) of
+
+        key_not_found ->
+            ?info( "No master phone number defined, so no control by SMS will "
+                   "be offered." ),
+            [];
+
+        { value, MasterNumbers } when is_list( MasterNumbers ) ->
+            BinNums = [ sms_utils:check_phone_number( PN )
+                        || PN <- MasterNumbers ],
+            case BinNums of
+
+                [] ->
+                    send_comm_trace( info,
+                        "No master phone number set, so no control by SMS "
+                        "will be offered.", State );
+
+                [ BinNum ] ->
+                    send_comm_trace_fmt( info, "A single master phone number "
+                        "set: ~ts; it will provide control by SMS.", [ BinNum ],
+                        State );
+
+                _ ->
+                    send_comm_trace_fmt( info,"~B master phone numbers "
+                        "set: ~ts; they will provide control by SMS.",
+                        [ length( BinNums ),
+                          text_utils:strings_to_listed_string( BinNums ) ],
+                        State )
+
+            end,
+            BinNums
+
+    end,
+
+    CommSettings = MasterBinNumbers,
+
+    setAttribute( State, communication_settings, CommSettings ).
+
+
+
+-doc """
+Sends the specified communication trace, to have it correctly categorised.
+""".
+-spec send_comm_trace( trace_severity(), trace_message(), wooper:state() ) ->
+                                void().
+send_comm_trace( TraceSeverity, TraceMsg, State ) ->
+    class_TraceEmitter:send_categorised_named_emitter( TraceSeverity, State,
+        TraceMsg,
+        _EmitterCateg=?trace_emitter_categorization ".Communication",
+        _EmitterName="Configuration" ).
+
+
+-doc """
+Sends the specified communication trace, to have it correctly categorised.
+""".
+-spec send_comm_trace_fmt( trace_severity(), trace_format(), trace_values(),
+                           wooper:state() ) -> void().
+send_comm_trace_fmt( TraceSeverity, TraceFormat, TraceValues, State ) ->
+    TraceMsg = text_utils:format( TraceFormat, TraceValues ),
+    send_comm_trace( TraceSeverity, TraceMsg, State ).
 
 
 
 -doc "Returns a textual description of this gateway.".
 -spec to_string( wooper:state() ) -> ustring().
 to_string( State ) ->
+
+    SMSStr = case ?getAttr(sms_support_active) of
+
+        true ->
+            MasterStr = case ?getAttr(master_phone_numbers) of
+
+                [] ->
+                    "no master phone number is set";
+
+                L=[ _SingleMPNBinStr ] ->
+                    text_utils:format( "a single master phone number is set, "
+                                       "~ts", L );
+
+                MPNBinStrs ->
+                    text_utils:format( "~B master phone numbers are set, ~ts",
+                        [ length( MPNBinStrs ),
+                          text_utils:strings_to_listed_string( MPNBinStrs ) ] )
+
+            end,
+
+            text_utils:format( "an active SMS support (current polling delay: "
+                "~ts; min: ~ts / max: ~ts) for which ~ts",
+                [ time_utils:duration_to_string( ?getAttr(sms_polling_delay) ),
+                  time_utils:duration_to_string(
+                    ?getAttr(sms_polling_min_delay) ),
+                  time_utils:duration_to_string(
+                    ?getAttr(sms_polling_max_delay) ), MasterStr ] );
+
+        false ->
+            "no active SMS support"
+
+    end,
 
     ParentGatewayStr = case ?getAttr(parent_comm_gateway_lookup_info) of
 
@@ -345,4 +805,5 @@ to_string( State ) ->
 
     end,
 
-    text_utils:format( "US communication gateway, ~ts", [ ParentGatewayStr ] ).
+    text_utils:format( "US communication gateway, with ~ts; ~ts",
+                       [ SMSStr, ParentGatewayStr ] ).
