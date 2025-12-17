@@ -94,7 +94,7 @@ thanks to Ceylan-Oceanic.
 
 
 % The default mean duration, in seconds, of an interruption of lighting:
--define( default_mean_no_light_duration, 12 ).
+-define( default_mean_no_light_duration, 20 ).
 
 
 
@@ -910,7 +910,7 @@ Full settings gathered regarding the home automation server.
       "scheduled periodical tasks" },
 
     { device_table, device_table(),
-      "the table recording the current state of devices, notably to "
+      "the table recording te current state of devices, notably to "
       "detect their state transitions" },
 
     { device_spell_tree, option( spell_tree() ),
@@ -4197,7 +4197,7 @@ recompute_splitters( DevTable ) ->
     DevSpellTree = spell_tree:create( DevDesignators ),
 
     cond_utils:if_defined( us_main_debug_actions, trace_utils:debug_fmt(
-        "Recomputed spell tree for splitters: ~ts",
+        "Recomputed spell tree for splitters:~n ~ts",
         [ spell_tree:to_string( DevSpellTree ) ] ) ),
 
     % Arbitrary order:
@@ -4334,6 +4334,10 @@ onEnoceanDeviceEvent( State, OtherEvent, _BackOnlineInfo, OcSrvPid ) ->
 % (helper)
 -spec process_device_event( device_event(), wooper:state() ) -> wooper:state().
 process_device_event( DeviceEvent, State ) ->
+
+    %cond_utils:if_defined( us_main_debug_actions, ?debug_fmt(
+    %    "Processing event ~ts.",
+    %    [ oceanic_text:device_event_to_string( DeviceEvent ) ] ) ),
 
     DevUpState = update_device_from_event( DeviceEvent, State ),
 
@@ -6345,7 +6349,7 @@ manage_configuration( ConfigTable, State ) ->
 
         key_not_found ->
             send_psc_trace( info, "No user settings regarding server location.",
-                            State),
+                            State ),
             undefined;
 
 
@@ -6779,9 +6783,9 @@ to_string( State ) ->
 
     text_utils:format( "US home automation server ~ts, ~ts, ~ts, "
         "and that the alarm ~ts~n"
-        "The presence simulator is currently ~ts, knowing that ~ts.~n~ts.~n~n"
-        "This server has ~ts."
-        "This server is currently ~ts~n."
+        "The presence simulator is currently ~ts, knowing that ~ts~n~ts.~n~n"
+        "This server has ~ts~n"
+        "This server is currently ~ts~n"
         "Registering the following device splitters: ~ts~n",
         [ OcSrvStr, LocStr, AtHomeStr, AlarmStr, PscStr, PscSwitchStr,
           MidTaskStr, ActStr,
