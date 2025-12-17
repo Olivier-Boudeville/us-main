@@ -89,6 +89,43 @@
 
 
     {
+      "_comment": "The value for the src_dirs entry for this layer can be generated/updated by executing: 'make list-src-dirs' from the root of this layer, and copying them verbatim below (relative paths already correct). The same applies for extra_src_dirs, with 'make list-extra-src-dirs'",
+      "name": "mobile",
+      "dir": "../../mobile",
+      "src_dirs": ["./src"],
+      "extra_src_dirs": ["test"],
+      "include_dirs": [
+        "include"
+      ],
+
+      "macros": {
+        "mobile_debug_mode":  "true",
+        "seaplus_debug_mode": "true",
+        "wooper_debug_mode":  "true",
+        "myriad_debug_mode":  "true"
+      }
+    },
+
+
+    {
+      "_comment": "The value for the src_dirs entry for this layer can be generated/updated by executing: 'make list-src-dirs' from the root of this layer, and copying them verbatim below (relative paths already correct). The same applies for extra_src_dirs, with 'make list-extra-src-dirs'",
+      "name": "seaplus",
+      "dir": "../../seaplus",
+      "src_dirs": ["./src"],
+      "extra_src_dirs": ["test/c-test"],
+      "include_dirs": [
+        "include"
+      ],
+
+      "macros": {
+        "seaplus_debug_mode": "true",
+        "wooper_debug_mode":  "true",
+        "myriad_debug_mode":  "true"
+      }
+    },
+
+
+    {
       "_comment": "Can be copied verbatim from myriad/conf/build_info.json, provided that the next 'dir' entry is updated afterwards:",
       "name": "myriad",
       "dir": "../../myriad",
