@@ -38,6 +38,16 @@ Type=forking
 # To inspect the outputs, use:
 # journalctl --pager-end --unit=us-main-native-build.service
 #
+# (as too often, an otherwise working script misbehaves here; notably it fails
+# at least sometimes killing a prior instance, whereas running kill-us-main.sh
+# from a shell operates flawlessly...; so we recommend executing either
+# kill-us-main.sh or better/more reliable, 'control-us-main.sh stop', then
+# 'systemctl restart us-main-as-native-build.service')
+#
+# In case of problem, reading
+# /opt/universal-server/us_main-native-deployment/us_main/log/erlang.log.1 may
+# be of interest.
+#
 ExecStart=/usr/local/bin/start-us-main-native-build.sh --kill-prior-instance
 
 ExecStop=/usr/local/bin/stop-us-main-native-build.sh --kill-epmd
