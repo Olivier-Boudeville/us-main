@@ -48,8 +48,10 @@ exec() ->
     %
     erlang:process_flag( trap_exit, false ),
 
+
     { ActualTargetNodeName, IsVerbose, _CfgTable, ArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
+
 
     % We do not want anymore a specific server to be entered, the US-Main
     % configuration server is now the only relevant one, centralising the
