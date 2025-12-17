@@ -153,7 +153,7 @@ if [ -n "${to_kill}" ]; then
 	# thereof - unless being killed in turn). Now attempting a normal kill first
 	# (the current user may or may not be able to kill these processes):
 
-	if ! kill ${to_kill}; then  # 2>/dev/null
+	if ! kill ${to_kill}; then # 2>/dev/null
 
 		echo "  Error: failed to kill gracefully processes of PIDs ${to_kill}." 1>&2
 
@@ -166,15 +166,21 @@ if [ -n "${to_kill}" ]; then
 
 	if [ -n "${to_kill}" ]; then
 
-		echo "  Error: having to kill brutally processes of PIDs ${to_kill} (their EPMD daemon will thus not be notified of their termination)." 1>&2
+		#echo "  Error: having to kill brutally processes of PIDs ${to_kill} (their EPMD daemon will thus not be notified of their termination)." 1>&2
 
-		if ! kill -9 ${to_kill}; then  # 2>/dev/null
+		echo "WARNING: not killing brutally; no more overlapping partitions?" 1>&2
 
-			echo "  Error: failed to brutally kill processes of PIDs ${to_kill}." 1>&2
+		#if ! kill -9 ${to_kill}; then  # 2>/dev/null
 
-			exit 45
+		#	echo "  Error: failed to brutally kill processes of PIDs ${to_kill}." 1>&2
 
-		fi
+		#	exit 45
+
+		#fi
+
+		# Perhaps EPMD should be launched in relaxed_command_check mode (thus
+		# explicitly), and thus, in case of brutal kill, this script would
+		# perform also an 'epmd -stop NAME'.
 
 	fi
 
