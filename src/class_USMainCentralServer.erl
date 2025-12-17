@@ -185,6 +185,10 @@ automated actions, etc. for the **US-Main** framework.
     { server_location, option( user_server_location() ),
       "the user-specified location of this US-Main server" },
 
+    { communication_settings, communication_settings(),
+      "any communication settings read (and not specifically checked) "
+      "on behalf of the communication server" },
+
     % Home-automation specific:
     { home_automation_core_settings, home_automation_core_settings(),
       "any home automation core settings read (and not specifically checked) "
@@ -235,6 +239,10 @@ automated actions, etc. for the **US-Main** framework.
 -type config_server_pid() :: class_USConfigServer:config_server_pid().
 
 -type server_pid() :: class_USServer:server_pid().
+
+
+-type communication_settings() ::
+    class_USCommunicationGateway:communication_settings().
 
 -type user_muted_sensor_points() ::
     class_USSensorManager:user_muted_sensor_points().
@@ -380,6 +388,17 @@ getMainConfigSettings( State ) ->
                             const_request_return( user_muted_sensor_points() ).
 getSensorSettings( State ) ->
     wooper:const_return_result( ?getAttr(muted_sensor_measurements) ).
+
+
+
+-doc """
+Returns suitable communication settings (typically for the communication
+manager).
+""".
+-spec getCommunicationSettings( wooper:state() ) ->
+                            const_request_return( communication_settings() ).
+getCommunicationSettings( State ) ->
+    wooper:const_return_result( ?getAttr(communication_settings) ).
 
 
 
@@ -641,8 +660,11 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
         [ MainCfgTable, _LogDirKey=?us_main_log_dir_key,
           _DefaultLogDir=?default_log_base_dir ] ),
 
+    CommState = class_USCommunicationGateway:manage_configuration( MainCfgTable,
+                                                                   LogState ),
+
     ContactState = class_USContactDirectory:manage_configuration( MainCfgTable,
-                                                                  LogState ),
+                                                                  CommState ),
 
     SensorState = class_USSensorManager:manage_configuration( MainCfgTable,
                                                               ContactState ),
@@ -672,6 +694,7 @@ load_main_config( BinCfgBaseDir, BinMainCfgFilename, CfgSrvPid, State ) ->
     LicitKeys = ?known_us_main_central_config_keys
         ++ class_USContactDirectory:get_licit_config_keys()
         ++ class_USSensorManager:get_licit_config_keys()
+        ++ class_USCommunicationGateway:get_licit_config_keys()
         % Includes the Oceanic ones:
         ++ class_USHomeAutomationServer:get_licit_config_keys()
         ++ class_USSecurityManager:get_licit_config_keys(),
