@@ -3,7 +3,7 @@
 # whereas it is defined in us_main/conf/GNUmakefile-for-native-root.
 
 
-.PHONY: all pull build build-cowboy update rebuild run-debug kill clean
+.PHONY: help pull all build build-cowboy update rebuild run-debug kill clean
 
 
 
@@ -18,14 +18,19 @@ ALL_REPOSITORIES := $(CEYLAN_REPOSITORIES) $(US_REPOSITORIES)
 
 
 # Default (most useful):
-all:
+help:
 	@echo "  Please select target among: pull build update rebuild clean"
+
 
 
 # Updates all repositories involved (any local change being then lost):
 pull:
 	@echo "  Updating (force-pulling) sources from all repositories involved"
 	@for r in $(ALL_REPOSITORIES); do (echo " - pulling $$r"; cd $$r && git fetch && git reset --hard HEAD && git merge '@{u}' ) || exit 5; done
+
+
+# Synonym:
+all: build
 
 
 build:
