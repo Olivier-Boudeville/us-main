@@ -168,22 +168,22 @@ if [ -n "${to_kill}" ]; then
 
 		#echo "  Error: having to kill brutally processes of PIDs ${to_kill} (their EPMD daemon will thus not be notified of their termination)." 1>&2
 
-		echo "WARNING: not killing brutally; no more overlapping partitions?" 1>&2
+		# Tried to disable such killing, established it was not the cause of
+		# overlapping partitions error.
 
-		#if ! kill -9 ${to_kill}; then  # 2>/dev/null
+		if ! kill -9 ${to_kill}; then  # 2>/dev/null
 
-		#	echo "  Error: failed to brutally kill processes of PIDs ${to_kill}." 1>&2
+			echo "  Error: failed to brutally kill processes of PIDs ${to_kill}." 1>&2
 
-		#	exit 45
+			exit 45
 
-		#fi
+		fi
 
 		# Perhaps EPMD should be launched in relaxed_command_check mode (thus
 		# explicitly), and thus, in case of brutal kill, this script would
 		# perform also an 'epmd -stop NAME'.
 
 	fi
-
 
 	# Actually not specifically safer:
 	#for p in ${to_kill}; do
