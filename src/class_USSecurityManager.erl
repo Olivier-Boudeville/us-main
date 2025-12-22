@@ -412,7 +412,7 @@ peace( State ) ->
 
     ?notice( Str ),
 
-    class_USHomeAutomationServer:get_server_pid() ! stopAlarmNoResult,
+    class_USHomeAutomationServer:get_server_pid() ! stopAlarm,
 
     SetState = setAttribute( State, defcon, NewDefcon ),
 
