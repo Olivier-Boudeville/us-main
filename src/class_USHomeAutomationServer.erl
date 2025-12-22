@@ -251,10 +251,10 @@ typically as triggered by actions.
 
 
 % 15 minutes, in seconds:
-%-define( default_alarm_duration, 12 * 60 ).
+-define( default_alarm_duration, 12 * 60 ).
 
 % For testing, 15 seconds:
--define( default_alarm_duration, 15 ).
+%-define( default_alarm_duration, 15 ).
 
 
 % Type silencing:
@@ -878,9 +878,9 @@ Full settings gathered regarding the home automation server.
       "lighting" },
 
     { midnight_task_id, option( task_id() ),
-      "the identifier of any task to be triggered, if the presence simulation is
-      activated, each day at midnight to determine and update the activity of
-      the " "presence simulations for the next day (and to ensure that any "
+      "the identifier of any task to be triggered, if the presence simulation "
+      "is activated, each day at midnight to determine and update the activity "
+      "of the presence simulations for the next day (and to ensure that any "
       "potential switching discrepancy does not linger)" },
 
     { oceanic_monitor_task_id, option( task_id() ),
@@ -1593,10 +1593,10 @@ init_presence_simulation( [ { _PscProg=default_program, TargetedPscActuators,
     % (unless there is daylight, supposing smart lighting to be enabled); so, in
     % logical terms, from 7:00 to around 00:30, translating to:
 
-    % From the first second of that day (midnight):
+    % From the first second of that day (midnight)...
     TEndOfNightStart = { 0, 0, 1 },
 
-    % To a little after midnight:
+    % ...to a little after midnight:
     TEndOfNightStop = { 0, 31, 15 },
 
     % Time to wake up:
@@ -2550,6 +2550,18 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
             { deactivate, "deactivates the specified actuator",
               deactivateDevice,
               [ { dynamic, dev_designator, "string()" } ] } ] },
+
+
+          { "Alarm management", [
+            { alarm_status, "reports the current status of the alarm",
+              getAlarmStatusAsAction },
+
+            { start_alarm, "starts unconditionally the alarm",
+              startAlarmAsAction },
+
+            { stop_alarm, "stops unconditionally the alarm",
+              stopAlarmAsAction } ] },
+
 
           { "Presence management", [
             { presence, "tells whether somebody is considered at home",
@@ -3701,6 +3713,7 @@ updatePresencePrograms( State ) ->
 
             SchedPid = class_USScheduler:get_server_pid(),
 
+            % Not expected to have to unregister a corresponding task:
             ClearedPscTable = lists:foldl(
                 fun( Psc, PTableAcc ) ->
                     ClearPsc = clear_any_presence_task( Psc, SchedPid, State ),
@@ -3711,10 +3724,19 @@ updatePresencePrograms( State ) ->
                 _Acc0=table:new(),
                 _List=PscSims ),
 
-            ClearedState = setAttribute( State, presence_table,
-                                         ClearedPscTable ),
+            ClearedState =
+                setAttribute( State, presence_table, ClearedPscTable ),
 
-            apply_presence_simulation( ClearedState )
+            % Allows not switching off a light used to read at *idnight:
+            case ?getAttr(presence_simulation_enabled) of
+
+                true ->
+                    apply_presence_simulation( ClearedState );
+
+                false ->
+                    ClearedState
+
+            end
 
     end,
 
@@ -3725,6 +3747,39 @@ updatePresencePrograms( State ) ->
     wooper:return_state( UpdatedState ).
 
 
+
+-doc """
+Returns, respecting the action conventions.
+
+Starts also all lighting, and plans an automatic alarm stop once its duration
+has elapsed.
+""".
+-spec getAlarmStatusAsAction( wooper:state() ) ->
+                            const_request_return( successful( ustring() ) ).
+getAlarmStatusAsAction( State ) ->
+
+    Str = "Alarm is currently " ++ case ?getAttr(alarm_triggered) of
+
+        true ->
+            "triggered (intrusion in progress!)";
+
+        false ->
+            "off (inactive)"
+
+    end ++ ", and is " ++ case ?getAttr(alarm_inhibited) of
+
+        true ->
+            "";
+
+        false ->
+            "not "
+
+                         end ++ "inhibited.",
+
+    wooper:const_return_result( { ok, Str } ).
+
+
+
 -doc """
 Starts immediately and unconditionally (no alarm inhibition taken into account)
 the alarm.
@@ -3732,30 +3787,94 @@ the alarm.
 Starts also all lighting, and plans an automatic alarm stop once its duration
 has elapsed.
 
-Oneway typically called by the security manage should panic be decided.
+Oneway typically called by the security manager, should panic be decided.
 """.
 -spec startAlarm( wooper:state() ) -> oneway_return().
 startAlarm( State ) ->
-    wooper:return_state( apply_alarm_status( _NewStatus=true, State ) ).
 
+    send_alarm_trace( info,
+        "Requested by a direct oneway call to start the alarm now.", State ),
+
+    wooper:return_state( apply_alarm_status( _NewStatus=true,
+        _ReasonStr="direct oneway call", State ) ).
+
+
+
+-doc """
+Starts, respecting the action conventions, immediately and unconditionally (no
+alarm inhibition taken into account) the alarm.
+
+Starts also all lighting, and plans an automatic alarm stop once its duration
+has elapsed.
+""".
+-spec startAlarmAsAction( wooper:state() ) ->
+                            request_return( successful( ustring() ) ).
+startAlarmAsAction( State ) ->
+
+    send_alarm_trace( info,
+        "Requested to start the alarm now, as an action.", State ),
+
+    StartState = apply_alarm_status( _NewStatus=true,
+                                     _ReasonStr="triggered by action", State ),
+
+    wooper:return_state_result( StartState, { ok, "Alarm started." } ).
 
 
 
 -doc """
 Stops any ongoing alarm.
 
-Oneway typically called by a scheduler to disengage automatically a triggered
-alarm after a maximum duration.
+Oneway typically called by the security manager, should peace be decided.
 """.
--spec stopAlarmNoResult( wooper:state() ) -> oneway_return().
-stopAlarmNoResult( State ) ->
+-spec stopAlarm( wooper:state() ) -> oneway_return().
+stopAlarm( State ) ->
 
-    send_alarm_trace( info, "Requested (presumably by a scheduler) "
-                      "to stop the alarm now.", State ),
+    send_alarm_trace( info,
+        "Requested by a direct oneway call to stop the alarm now.", State ),
 
+    % Will manage any set alarm_stop_task_id:
+    StopState = apply_alarm_status( _NewStatus=false,
+        _ReasonStr="direct oneway call", State ),
+
+    wooper:return_state( StopState ).
+
+
+
+-doc """
+Stops, respecting the action conventions, immediately and unconditionally any
+ongoing alarm.
+""".
+-spec stopAlarmAsAction( wooper:state() ) ->
+                            request_return( successful( ustring() ) ).
+stopAlarmAsAction( State ) ->
+
+    send_alarm_trace( info,
+        "Requested to stop the alarm now, as an action.", State ),
+
+    StopState = apply_alarm_status( _NewStatus=false,
+                                    _ReasonStr="triggered by action", State ),
+
+    wooper:return_state_result( StopState, { ok, "Alarm stoped." } ).
+
+
+
+-doc """
+Stops any ongoing alarm.
+
+Oneway to be called by a scheduler, typically to disengage automatically a
+triggered alarm after a maximum duration.
+""".
+-spec stopAlarmScheduled( wooper:state() ) -> oneway_return().
+stopAlarmScheduled( State ) ->
+
+    send_alarm_trace( info, "Requested by scheduler to stop the alarm now.",
+                      State ),
+
+    % Clears the corresponding task:
     DoneState = setAttribute( State, alarm_stop_task_id, undefined ),
 
-    StopState = apply_alarm_status( _NewStatus=false, DoneState ),
+    StopState = apply_alarm_status( _NewStatus=false,
+        _ReasonStr="scheduler-triggered", DoneState ),
 
     wooper:return_state( StopState ).
 
@@ -3972,6 +4091,8 @@ onEnoceanUnresolvedDeviceFirstSeen(
     % Check:
     OcSrvPid = ?getAttr(oc_srv_pid),
 
+    BinDevName = oceanic:get_best_device_name_from( UnresolvedDevEvent ),
+
     % Longer description when first seen:
     Msg = text_utils:format( "The device of EURID ~ts, not declared in the "
         "configuration and that cannot be resolved, "
@@ -3981,9 +4102,8 @@ onEnoceanUnresolvedDeviceFirstSeen(
           oceanic_text:device_event_to_string( UnresolvedDevEvent ),
           BinDevDesc ] ),
 
-    BinDevName = get_trace_emitter_name_for_unresolved( Eurid ),
-
-    class_TraceEmitter:send_named_emitter( notice, State, Msg, BinDevName ),
+    class_TraceEmitter:send_named_emitter( notice, State, Msg,
+        get_trace_emitter_name_from( BinDevName ) ),
 
     RecState = record_new_device( UnresolvedDevEvent, State ),
 
@@ -4002,12 +4122,12 @@ telegrams thus cannot be (at least fully) decoded.
 """.
 -spec onEnoceanUnresolvedDevice( wooper:state(), unresolved_device_event(),
         oceanic_server_pid() ) -> const_oneway_return().
-onEnoceanUnresolvedDevice( State,
-        UnresolvedDevEvent=#unresolved_device_event{ source_eurid=Eurid },
-        OcSrvPid ) ->
+onEnoceanUnresolvedDevice( State, UnresolvedDevEvent, OcSrvPid ) ->
 
     % Check:
     OcSrvPid = ?getAttr(oc_srv_pid),
+
+    BinDevName = oceanic:get_best_device_name_from( UnresolvedDevEvent ),
 
     % Verbose, yet needed so that this event is reported in the traces at least
     % once:
@@ -4016,9 +4136,8 @@ onEnoceanUnresolvedDevice( State,
     %   begin
     Msg = oceanic_text:device_event_to_short_string( UnresolvedDevEvent ),
 
-    BinDevName = get_trace_emitter_name_for_unresolved( Eurid ),
-
-    class_TraceEmitter:send_named_emitter( info, State, Msg, BinDevName ),
+    class_TraceEmitter:send_named_emitter( info, State, Msg,
+        get_trace_emitter_name_from( BinDevName ) ),
     %   end),
 
     % Not deemed relevant here:
@@ -4934,9 +5053,7 @@ setPresenceStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
 
 
 
--doc """
-Called whenever the actual presence status changed.
-""".
+-doc "Called whenever the actual presence status changed.".
 -spec on_presence_change( boolean(), wooper:state() ) -> wooper:state().
 on_presence_change( NewStatus, State ) ->
 
@@ -5033,7 +5150,11 @@ unconditionally taken into account.
 """.
 -spec get_passthrough_event_types() -> [ device_event_type() ].
 get_passthrough_event_types() ->
-    % For example not a single_input_contact_event:
+    % Not 'oceanic:get_all_device_event_types().'; for example the
+    % single_input_contact_event and motion_detector_event types must be
+    % filtered out, typically if at home (e.g. not wanting to trigger the alarm
+    % when opening a door):
+    %
     [ push_button_event, double_rocker_switch_event ].
 
 
@@ -5136,14 +5257,14 @@ get_trace_emitter_name_from( BinDevName ) ->
     text_utils:bin_concatenate( <<"Devices.">>, BinDevName ).
 
 
--doc """
-Returns a suitable name for a trace emitter for the unresolved device of
-specified EURID.
-""".
--spec get_trace_emitter_name_for_unresolved( eurid() ) -> bin_string().
-get_trace_emitter_name_for_unresolved( Eurid ) ->
-    text_utils:bin_format( "Devices.~ts (unresolved)",
-                           [ oceanic_text:eurid_to_string( Eurid ) ] ).
+% -doc """
+% Returns a suitable name for a trace emitter for the unresolved device of
+% specified EURID.
+% """.
+% -spec get_trace_emitter_name_for_unresolved( eurid() ) -> bin_string().
+% get_trace_emitter_name_for_unresolved( Eurid ) ->
+%     text_utils:bin_format( "Devices.~ts (unresolved)",
+%                            [ oceanic_text:eurid_to_string( Eurid ) ] ).
 
 
 
@@ -5179,7 +5300,7 @@ manage_presence_switching( DevEvent, State ) ->
             State;
 
         % Presence declared:
-        { true, EmitterEurid, _NewDevStatus=on } ->
+        { true, EmitterEurid, _MatchDirective=set } ->
 
             OcSrvPid = ?getAttr(oc_srv_pid),
 
@@ -5205,7 +5326,7 @@ manage_presence_switching( DevEvent, State ) ->
 
 
         % Absence declared:
-        { true, EmitterEurid, _NewDevStatus=off } ->
+        { true, EmitterEurid, _MatchDirective=unset } ->
 
             OcSrvPid = ?getAttr(oc_srv_pid),
 
@@ -5231,7 +5352,7 @@ manage_presence_switching( DevEvent, State ) ->
 
 
         % Presence status inverted:
-        { true, EmitterEurid, _NewDevStatus=inverted } ->
+        { true, EmitterEurid, _MatchDirective=invert } ->
 
             OcSrvPid = ?getAttr(oc_srv_pid),
 
@@ -5239,7 +5360,6 @@ manage_presence_switching( DevEvent, State ) ->
                 "(due to the following event: ~ts): switching to presence ",
                 [ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
                   oceanic_text:device_event_to_string( DevEvent ) ] ),
-
 
             case ?getAttr(actual_presence) of
 
@@ -5299,98 +5419,128 @@ manage_alarm_switching( DevEvent, State ) ->
                                     State ) ),
             State;
 
-        % Alart start requested:
-        { true, EmitterEurid, _NewDevStatus=on } ->
+        % Alarm start requested:
+        { true, EmitterEurid, _MatchDirective=set } ->
 
             OcSrvPid = ?getAttr(oc_srv_pid),
 
-            BaseMsg = text_utils:format( "Alarm switched on (intrusion "
-                "detected) by ~ts, (due to the following event: ~ts)",
-                [ oceanic:get_device_description( EmitterEurid, OcSrvPid ),
-                  oceanic_text:device_event_to_string( DevEvent ) ] ),
+            BaseMsg = text_utils:format(
+                "Alarm requested by ~ts to be started",
+                [ oceanic:get_device_description( EmitterEurid, OcSrvPid ) ] ),
 
-            % We could rely on the alarm_triggered attribute not to trigger it
-            % again, yet for such a critical message we prefer triggering it
-            % (switching it on or off) unconditionally (hence possibly again) -
-            % provided it is not inhibited with a non-prioritary event, of
-            % course.
-
-            EvType = oceanic:get_event_type( DevEvent ),
-
-            case { ?getAttr(alarm_inhibited),
-                    lists:member( EvType, get_passthrough_event_types() ) } of
-
-                { _AnyIsInhibited, _IsPassThroughEventType=true } ->
-
-                    send_alarm_trace_fmt( info,
-                        "~ts, whose type, ~ts, bypasses any alarm inhibition; "
-                        "so triggering the alarm now.",
-                        [ BaseMsg, EvType ], State ),
-
-                    apply_alarm_status( _NewAlarmStatus=true, State );
+            start_alarm( DevEvent, BaseMsg, State );
 
 
-                % Typically single_input_contact_event, for opening detectors:
-                { _IsInhibited=true, _NotPassThroughEventType } ->
-
-                    send_alarm_trace_fmt( debug,
-                        "~ts, whose type (~ts) respects the current "
-                        "alarm inhibition; so not triggering specifically the "
-                        "alarm now.", [ BaseMsg, EvType ], State ),
-
-                    % Does not stop it either:
-                    State;
-
-
-                { _IsInhibited=false, _NotPassThroughEventType } ->
-
-                    send_alarm_trace_fmt( debug, "~ts, whereas the alarm "
-                        "is not inhibited, so triggering it now.",
-                        [ BaseMsg, EvType ], State ),
-
-                    apply_alarm_status( _NewAlarmStatus=true, State )
-
-            end;
-
-
-        % Alart stop requested:
-        { true, EmitterEurid, _NewDevStatus=off } ->
-
-            % No inhibition taken into account when wanting to stop a running
-            % alarm:
-
-            EndMsg = text_utils:format( "the following event: ~ts",
-                [ oceanic_text:device_event_to_string( DevEvent ) ] ),
+        % Alarm stop requested:
+        { true, EmitterEurid, _MatchDirective=unset } ->
 
             OcSrvPid = ?getAttr(oc_srv_pid),
 
-            EvType = oceanic:get_event_type( DevEvent ),
+            BaseMsg = text_utils:format( "Alarm requested by ~ts to be "
+                "stopped",
+                [ oceanic:get_device_description( EmitterEurid, OcSrvPid ) ] ),
 
-            case lists:member( EvType, get_passthrough_event_types() ) of
+             stop_alarm( DevEvent, BaseMsg, State );
+
+
+        % Alarm status to be inverted (not recommended, an alarm should not be
+        % controlled by for example a push button, as toggling a state is not
+        % reliable enough / too contextual, compared to forcing it to a proper
+        % value):
+        %
+        { true, EmitterEurid, _MatchDirective=invert } ->
+
+           OcSrvPid = ?getAttr(oc_srv_pid),
+
+            BaseMsg = text_utils:format( "Alarm requested by ~ts to be "
+                "toggled, hence switched ",
+                [ oceanic:get_device_description( EmitterEurid, OcSrvPid ) ] ),
+
+            case ?getAttr(alarm_triggered) of
 
                 true ->
-                    send_alarm_trace_fmt( info,
-                        "Alarm switched off (end of intrusion) by ~ts "
-                        "(unconditionally, as of type ~ts), due to ~ts",
-                        [ oceanic:get_device_description( EmitterEurid,
-                                                          OcSrvPid ),
-                          EvType, EndMsg ],
-                        State ),
-
-                    apply_alarm_status( _NewAlarmStatus=false, State );
+                    FullBaseMsg = BaseMsg ++ "off",
+                    %?debug( FullBaseMsg ),
+                    stop_alarm( DevEvent, FullBaseMsg, State );
 
                 false ->
-                    send_alarm_trace_fmt( debug,
-                        "Not switching alarm off after event from ~ts "
-                        "of (non-passthrough) type ~ts: ignoring ~ts.",
-                        [ EvType, oceanic:get_device_description(
-                            EmitterEurid, OcSrvPid ), EndMsg ], State ),
-
-                    State
+                    FullBaseMsg = BaseMsg ++ "on",
+                    %?debug( FullBaseMsg ),
+                    start_alarm( DevEvent, FullBaseMsg, State )
 
             end
 
     end.
+
+
+
+
+% (helper)
+start_alarm( DevEvent, BaseMsg, State ) ->
+
+    % We could rely on the alarm_triggered attribute not to trigger it
+    % again, yet for such a critical message we prefer triggering it
+    % (switching it on or off) unconditionally (hence possibly again) -
+    % provided it is not inhibited with a non-prioritary event, of
+    % course.
+
+    NextMsg = text_utils:format( "~ts, due to the following event: ~ts",
+        [ BaseMsg, oceanic_text:device_event_to_string( DevEvent ) ] ),
+
+    EvType = oceanic:get_event_type( DevEvent ),
+
+    % Now considering that all event types are pass-through (one should just
+    % configure one's listened event specs as wanted):
+    %
+    case { ?getAttr(alarm_inhibited),
+           lists:member( EvType, get_passthrough_event_types() ) } of
+
+        { _AnyIsInhibited, _IsPassThroughEventType=true } ->
+
+            send_alarm_trace_fmt( info, "~ts~nAs the type of this event, ~ts, "
+                "would bypass any alarm inhibition, triggering the alarm now.",
+                [ NextMsg, EvType ], State ),
+
+            apply_alarm_status( _NewAlarmStatus=true,
+                oceanic_text:device_event_to_concise_string( DevEvent ),
+                State );
+
+
+        % Typically single_input_contact_event, for opening detectors:
+        { _IsInhibited=true, _NotPassThroughEventType } ->
+
+            send_alarm_trace_fmt( info, "~ts~nAs the type of this event, ~ts, "
+                "cannot bypass the current alarm inhibition, not triggering "
+                "specifically the alarm now.", [ NextMsg, EvType ], State ),
+
+            % Does not stop it either:
+            State;
+
+
+        { _IsInhibited=false, _NotPassThroughEventType } ->
+
+            send_alarm_trace_fmt( info, "~ts~nAs the alarm is not inhibited, "
+                "triggering it now.", [ NextMsg ], State ),
+
+            apply_alarm_status( _NewAlarmStatus=true,
+                oceanic_text:device_event_to_concise_string( DevEvent ),
+                State )
+
+    end.
+
+
+
+% (helper)
+stop_alarm( DevEvent, BaseMsg, State ) ->
+
+    % No past state, inhibition (and so no pass-through event type either) to
+    % take into account when wanting to stop a running alarm:
+
+    send_alarm_trace_fmt( info,  "~ts, due to the following event: ~ts",
+        [ BaseMsg, oceanic_text:device_event_to_string( DevEvent ) ], State ),
+
+    apply_alarm_status( _NewAlarmStatus=false,
+        oceanic_text:device_event_to_concise_string( DevEvent ), State ).
 
 
 
@@ -5403,12 +5553,15 @@ and any prior alarm status ignored (too critical to rely on assumptions).
 Starts also all lighting, and plans an automatic alarm stop once its duration
 has elapsed.
 """.
--spec apply_alarm_status( boolean(), wooper:state() ) -> wooper:state().
-apply_alarm_status( NewStatus=true, State ) ->
+-spec apply_alarm_status( boolean(), ustring(), wooper:state() ) ->
+                                            wooper:state().
+apply_alarm_status( NewStatus=true, ReasonStr, State ) ->
 
-    send_alarm_trace_fmt( notice,
-        "Switching now the alarm on (trigger status was ~ts).",
-        [ ?getAttr(alarm_triggered) ], State ),
+    AlarmMsg = text_utils:format( "Switching now the alarm on "
+        "(previous alarm trigger status was ~ts); reason: ~ts",
+        [ ?getAttr(alarm_triggered), ReasonStr ] ),
+
+    send_alarm_trace( notice, AlarmMsg ++ ".", State ),
 
     % First priority:
     oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
@@ -5451,7 +5604,7 @@ apply_alarm_status( NewStatus=true, State ) ->
     AfterDuration = ?getAttr(alarm_duration),
 
     SchedPid ! { registerOneshotTaskIn,
-                 [ _TaskCmd=stopAlarmNoResult, AfterDuration ], self() },
+                 [ _TaskCmd=stopAlarmScheduled, AfterDuration ], self() },
 
     cond_utils:if_defined( us_main_debug_alarm, send_alarm_trace_fmt( debug,
         "Registering alarm stop task to happen in ~ts.",
@@ -5462,6 +5615,13 @@ apply_alarm_status( NewStatus=true, State ) ->
 
     % For debug, no noise:
     %LightState = State,
+
+    % Later is safer; specifying the hostname would be an hazard:
+    AlarmMsgBin = text_utils:bin_format( "~ts, on ~ts.",
+        [ AlarmMsg, time_utils:get_textual_timestamp() ] ),
+
+    class_USCommunicationGateway:get_server_pid() !
+        { notifyBySMS, AlarmMsgBin },
 
     % For registerOneshotTaskIn:
     MaybeTaskId = receive
@@ -5481,11 +5641,13 @@ apply_alarm_status( NewStatus=true, State ) ->
                                  { alarm_stop_task_id, MaybeTaskId } ] );
 
 
-apply_alarm_status( NewStatus=false, State ) ->
+apply_alarm_status( NewStatus=false, ReasonStr, State ) ->
 
-    send_alarm_trace_fmt( notice,
-        "Switching now the alarm off (trigger status was ~ts).",
-        [ ?getAttr(alarm_triggered) ], State ),
+    AlarmMsg = text_utils:format( "Switching now the alarm off "
+        "(previous alarm trigger status was ~ts); reason: ~ts",
+        [ ?getAttr(alarm_triggered), ReasonStr ] ),
+
+    send_alarm_trace( notice, AlarmMsg ++ ".", State ),
 
     oceanic:trigger_actuators_reciprocal( ?getAttr(alarm_actuator_specs),
                                           ?getAttr(oc_srv_pid) ),
@@ -5528,6 +5690,13 @@ apply_alarm_status( NewStatus=false, State ) ->
             end
 
     end,
+
+    % Later is safer; specifying the hostname would be an hazard:
+    AlarmMsgBin = text_utils:bin_format( "~ts, on ~ts.",
+        [ AlarmMsg, time_utils:get_textual_timestamp() ] ),
+
+    class_USCommunicationGateway:get_server_pid() !
+        { notifyBySMS, AlarmMsgBin },
 
     % Mostly for symmetry, also switch off lighting:
     ensure_not_any_lighting( SetState ).
@@ -5894,8 +6063,8 @@ declarePresent( State ) ->
             wooper:const_return_result( { ok, Str } );
 
         false ->
-            SetState = setAttribute( State, actual_presence, true ),
-            ApplyState = apply_presence_simulation( SetState ),
+            ApplyState = on_presence_change( _NewStatus=true, State ),
+
             wooper:return_state_result( ApplyState,
                 { ok, "Now somebody is considered at home." } )
 
@@ -5911,8 +6080,8 @@ declareNotPresent( State ) ->
     case ?getAttr(actual_presence) of
 
         true ->
-            SetState = setAttribute( State, actual_presence, false ),
-            ApplyState = apply_presence_simulation( SetState ),
+            ApplyState = on_presence_change( _NewStatus=false, State ),
+
             wooper:return_state_result( ApplyState,
                 { ok, "Now nobody is considered at home." } );
 
