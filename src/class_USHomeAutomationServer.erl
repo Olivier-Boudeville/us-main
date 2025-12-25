@@ -1,4 +1,4 @@
-% Copyright (C) 2022-2025 Olivier Boudeville
+% Copyright (C) 2022-2026 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
@@ -2556,6 +2556,13 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
             { alarm_status, "reports the current status of the alarm",
               getAlarmStatusAsAction },
 
+            { inhibit_alarm,
+              "inhibits the alarm (except for pass-through events)",
+              inhibitAlarm },
+
+            { allow_alarm,
+              "allows back the alarm, if it was inhibited", allowAlarm },
+
             { start_alarm, "starts unconditionally the alarm",
               startAlarmAsAction },
 
@@ -3758,6 +3765,17 @@ has elapsed.
                             const_request_return( successful( ustring() ) ).
 getAlarmStatusAsAction( State ) ->
 
+    LastStr = case ?getAttr(last_alarm_trigger) of
+
+        undefined ->
+            "the alarm has never been triggered yet";
+
+        LastTrigTimestamp ->
+            text_utils:format( "the alarm has been last triggered on ~ts",
+                [ time_utils:get_textual_duration_since( LastTrigTimestamp ) ] )
+
+    end,
+
     Str = "Alarm is currently " ++ case ?getAttr(alarm_triggered) of
 
         true ->
@@ -3774,9 +3792,55 @@ getAlarmStatusAsAction( State ) ->
         false ->
             "not "
 
-                         end ++ "inhibited.",
+                         end ++ "inhibited; " ++ LastStr,
 
     wooper:const_return_result( { ok, Str } ).
+
+
+
+-doc """
+Inhibits, if necessary (i.e. if it was allowed), the alarm, as an action.
+
+Then only pass-through events may activate it.
+""".
+-spec inhibitAlarm( wooper:state() ) ->
+                                    request_return( successful( ustring() ) ).
+inhibitAlarm( State ) ->
+    case ?getAttr(alarm_inhibited) of
+
+        true ->
+            wooper:const_return_result(
+                { ok, "Alarm was already inhibited." } );
+
+        false ->
+            InhibState = setAttribute( State, alarm_inhibited, false ),
+            wooper:return_state_result( InhibState,
+                { ok, "Alarm has been inhibited (it was allowed)." } )
+
+    end.
+
+
+
+-doc """
+Allows, if necessary (i.e. if it was inhibited), the alarm, as an action.
+
+Then only pass-through events may activate it.
+""".
+-spec allowAlarm( wooper:state() ) ->
+                                    request_return( successful( ustring() ) ).
+allowAlarm( State ) ->
+    case ?getAttr(alarm_inhibited) of
+
+        true ->
+            AllowState = setAttribute( State, alarm_inhibited, true ),
+            wooper:return_state_result( AllowState,
+                { ok, "Alarm has been allowed (it was inhibited)." } );
+
+        false ->
+            wooper:const_return_result(
+                { ok, "Alarm was already Alarm." } )
+
+    end.
 
 
 
@@ -5907,7 +5971,7 @@ list_devices_ordered( DevStates ) ->
     OrderedDevStates = lists:reverse(
         lists:keysort( _LastSeenIndex=10, DevStates ) ),
 
-    [ device_state_to_short_string( DS ) || DS <- OrderedDevStates ].
+    [ device_state_to_concise_string( DS ) || DS <- OrderedDevStates ].
 
 
 
