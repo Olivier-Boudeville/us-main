@@ -4256,7 +4256,9 @@ record_new_device( DeviceEvent, State ) ->
         initial_event=DeviceEvent,
         last_event=DeviceEvent,
 
-        % No: last_seen=oceanic:get_last_seen_info( DeviceEvent ),
+        % Not 'last_seen=oceanic:get_last_seen_info(DeviceEvent)', as this
+        % records now the previous last seen:
+        %
         last_seen=oceanic:get_timestamp( DeviceEvent ),
 
         availability=online,
@@ -4566,7 +4568,10 @@ update_device_from_event( DeviceEvent, State ) ->
 
             NewDevState = DevState#device_state{
                 last_seen=oceanic:update_last_seen_info( DeviceEvent,
-                    DevState#device_state.last_seen ),
+                    % Not 'DevState#device_state.last_seen', as this records now
+                    % the previous last seen:
+                    %
+                    oceanic:get_timestamp( DeviceEvent ) ),
                 availability=online,
                 current_status=get_status_from_event( DeviceEvent,
                                                       PrevStatus ) },
