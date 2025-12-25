@@ -588,11 +588,11 @@ apply_text( BinText, BinSenderNumber, State ) ->
 
             end,
 
-            % There are around 70 UCS-2 characters per SMS, 25 SMSs are already
+            % There are around 70 UCS-2 characters per SMS, 32 SMSs are already
             % a lot, so:
             %
             ToSendStr = text_utils:term_to_bounded_string( FullAnswer,
-                                                           _MaxLen=25*70 ),
+                                                           _MaxLen=32*70 ),
 
             % Sending back the result to the caller:
             case mobile:send_sms( ToSendStr, BinSenderNumber ) of
