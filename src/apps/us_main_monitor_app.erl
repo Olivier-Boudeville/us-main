@@ -43,7 +43,7 @@ connect to the VM hosting that instance.
 
 
 
--doc "Runs this monitoring app.".
+-doc "Runs this US-main monitoring application.".
 -spec exec() -> no_return().
 exec() ->
 
@@ -52,15 +52,15 @@ exec() ->
     %
     erlang:process_flag( trap_exit, false ),
 
-    { ActualTargetNodeName, IsVerbose, CfgTable, FinalArgTable } =
+    { ActualTargetNodeName, IsVerbose, CfgTable, ArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
     { MaybeDownloadTraceFilePath, FinalArgTable } = case
-            table:extract_entry_if_existing( _K='-download-trace-file',
-                                             CfgTable ) of
+            list_table:extract_entry_if_existing( _K='-download-trace-file',
+                                                  ArgTable ) of
 
         false ->
-            { undefined, CfgTable };
+            { undefined, ArgTable };
 
         { [ [ DownloadTraceFilePath  ] ], ShrunkArgTable } ->
             { DownloadTraceFilePath, ShrunkArgTable }
