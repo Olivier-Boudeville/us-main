@@ -14,7 +14,7 @@ download_trace_filename="us-main.traces"
 usage="Usage: $(basename $0) [-h|--help] [${download_short_opt}|${download_long_opt}] [US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME]: monitors the traces emitted by a US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute).
 
 Options:
-  ${download_short_opt} or ${download_long_opt}: downloads the corresponding trace file, as '$(download_trace_filename)', typically so that it can be fetched/sent afterwards from the local host
+  ${download_short_opt} or ${download_long_opt}: downloads the corresponding trace file, as '${download_trace_filename}', typically so that it can be fetched/sent afterwards from the local host
 
 Example of use: './$(basename $0) us-main-remote-access-for-development.config', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
@@ -35,7 +35,7 @@ fi
 
 if [ "$1" = "${download_short_opt}" ] || [ "$1" = "${download_long_opt}" ]; then
 
-	echo "(will download the trace file for later reuse)"
+	echo "(will download the ${download_trace_filename} trace file for later reuse)"
 	do_download=0
 	download_final_opt="${download_long_opt} ${download_trace_filename}"
 	shift
