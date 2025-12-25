@@ -836,6 +836,9 @@ Full settings gathered regarding the home automation server.
     { alarm_triggered, boolean(), "tells whether the alarm is currently "
       "activated (i.e. whether a siren is expected to be roaring)" },
 
+    { last_alarm_trigger, option( timestamp() ), "records any last actual "
+      "'real' activation of the alarm (even if it was already on; ignoring "
+      "triggers if alarm inhibition would have prevented its switching on)" },
 
     { alarm_trigger_specs, [ canon_listened_event_spec() ],
       "the specifications of the events that can be received from devices "
@@ -1487,6 +1490,7 @@ construct( State, TtyPath, MaybePscSimUserSettings, MaybeSourceEuridStr ) ->
 -spec init_alarm( [ canon_listened_event_spec() ],
         [ canon_emitted_event_spec() ], option( oceanic_server_pid() ),
         wooper:state() ) -> wooper:state().
+% Without Oceanic:
 init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
             _MaybeOcSrvPid=undefined, State ) ->
 
@@ -1496,11 +1500,13 @@ init_alarm( _AlarmTriggerListenEvSpecs, _AlarmActuatorEmitEvSpecs,
     setAttributes( State, [
         { alarm_inhibited, true },
         { alarm_triggered, false },
+        { last_alarm_trigger, undefined },
         { alarm_trigger_specs, [] },
         { alarm_actuator_specs, [] },
         { alarm_duration, ?default_alarm_duration },
         { alarm_stop_task_id, undefined } ] );
 
+% With Oceanic:
 init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
             State ) ->
 
@@ -1512,6 +1518,7 @@ init_alarm( AlarmTriggerListenEvSpecs, AlarmActuatorEmitEvSpecs, _OcSrvPid,
 
         % Initially quiet:
         { alarm_triggered, false },
+        { last_alarm_trigger, undefined },
 
         % Already vetted:
         { alarm_trigger_specs, AlarmTriggerListenEvSpecs },
@@ -2554,7 +2561,7 @@ init_automated_actions( UserActSpecs, State ) when is_list( UserActSpecs ) ->
 
           { "Alarm management", [
             { alarm_status, "reports the current status of the alarm",
-              getAlarmStatusAsAction },
+              getAlarmStatus },
 
             { inhibit_alarm,
               "inhibits the alarm (except for pass-through events)",
@@ -3756,14 +3763,11 @@ updatePresencePrograms( State ) ->
 
 
 -doc """
-Returns, respecting the action conventions.
-
-Starts also all lighting, and plans an automatic alarm stop once its duration
-has elapsed.
+Returns the current status of the alarm, respecting the action conventions.
 """.
--spec getAlarmStatusAsAction( wooper:state() ) ->
+-spec getAlarmStatus( wooper:state() ) ->
                             const_request_return( successful( ustring() ) ).
-getAlarmStatusAsAction( State ) ->
+getAlarmStatus( State ) ->
 
     LastStr = case ?getAttr(last_alarm_trigger) of
 
@@ -5164,51 +5168,6 @@ on_presence_change( NewStatus, State ) ->
 
 
 -doc """
-Requests whether the alarm is currently activated.
-""".
--spec getAlarmStatus( wooper:state() ) -> const_request_return( boolean() ).
-getAlarmStatus( State ) ->
-    wooper:const_return_result( ?getAttr(alarm_triggered) ).
-
-
--doc """
-Sets whether the alarm shall be active.
-
-Direct order, bypasses any restriction (notably ignores the `alarm_inhibited`
-attribute).
-""".
--spec setAlarmStatus( wooper:state(), boolean() ) -> oneway_return().
-setAlarmStatus( State, NewStatus ) when is_boolean( NewStatus ) ->
-
-    PrevStatus = ?getAttr(alarm_triggered),
-
-    ?info_fmt( "Alarm status set to ~ts (was ~ts).",
-               [ NewStatus, PrevStatus ] ),
-
-    NewState = case NewStatus of
-
-        % Do nothing if no status change:
-        PrevStatus ->
-            State;
-
-        _ ->
-            case NewStatus of
-
-                true ->
-                    activate_alarm( State );
-
-                false ->
-                    deactivate_alarm( State )
-
-            end
-
-    end,
-
-    wooper:return_state( NewState ).
-
-
-
--doc """
 Returns the types of events that bypass any inhibition of an alarm and that are
 unconditionally taken into account.
 """.
@@ -5257,60 +5216,6 @@ stopLighting( State ) ->
 
 
 % Helper section.
-
-
--doc "Activates the alarm.".
--spec activate_alarm( wooper:state() ) -> wooper:state().
-activate_alarm( State ) ->
-
-    case ?getAttr(alarm_actuator_specs) of
-
-        [] ->
-            send_alarm_trace( warning, "Activating alarm immediately "
-                "- yet there is no alarm actuator registered.", State );
-
-        CanonEmittedEvSpecs ->
-            OcSrvPid = ?getAttr(oc_srv_pid),
-
-            send_alarm_trace_fmt( warning, "Activating alarm immediately, "
-                "triggering the corresponding actuators: ~ts.",
-                [ oceanic_text:canon_emitted_event_specs_to_string(
-                    CanonEmittedEvSpecs, OcSrvPid ) ], State ),
-
-            oceanic:trigger_actuators( CanonEmittedEvSpecs, OcSrvPid )
-
-    end,
-
-    setAttribute( State, alarm_triggered, true ).
-
-
--doc "Deactivates the alarm.".
--spec deactivate_alarm( wooper:state() ) -> wooper:state().
-deactivate_alarm( State ) ->
-
-    case ?getAttr(alarm_actuator_specs) of
-
-        [] ->
-            send_alarm_trace( warning, "Deactivating alarm immediately "
-                "- yet there is no alarm actuator registered.", State );
-
-        CanonEmittedEvSpecs ->
-            OcSrvPid = ?getAttr(oc_srv_pid),
-            send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
-                "reciprocal triggering of the corresponding actuators: ~ts.",
-                [ oceanic_text:canon_emitted_event_specs_to_string(
-                    CanonEmittedEvSpecs, OcSrvPid ) ], State ),
-
-            % The switching off is derived from the base switching on by
-            % Oceanic, as based on the EURID it knows the actual device types:
-            %
-            oceanic:trigger_actuators_reciprocal( CanonEmittedEvSpecs,
-                                                  OcSrvPid )
-
-    end,
-
-    setAttribute( State, alarm_triggered, false ).
-
 
 
 -doc """
@@ -5628,8 +5533,24 @@ apply_alarm_status( NewStatus=true, ReasonStr, State ) ->
     send_alarm_trace( notice, AlarmMsg ++ ".", State ),
 
     % First priority:
-    oceanic:trigger_actuators( ?getAttr(alarm_actuator_specs),
-                               ?getAttr(oc_srv_pid) ),
+    case ?getAttr(alarm_actuator_specs) of
+
+        [] ->
+            % Therefore mostly useless:
+            send_alarm_trace( warning, "Activating alarm immediately "
+                "- yet there is no alarm actuator registered.", State );
+
+        CanonEmittedEvSpecs ->
+            OcSrvPid = ?getAttr(oc_srv_pid),
+
+            send_alarm_trace_fmt( warning, "Activating alarm immediately, "
+                "triggering the corresponding actuators: ~ts.",
+                [ oceanic_text:canon_emitted_event_specs_to_string(
+                    CanonEmittedEvSpecs, OcSrvPid ) ], State ),
+
+            oceanic:trigger_actuators( CanonEmittedEvSpecs, OcSrvPid )
+
+    end,
 
     SchedPid = class_USScheduler:get_server_pid(),
 
@@ -5680,9 +5601,11 @@ apply_alarm_status( NewStatus=true, ReasonStr, State ) ->
     % For debug, no noise:
     %LightState = State,
 
+    Now = time_utils:get_timestamp(),
+
     % Later is safer; specifying the hostname would be an hazard:
     AlarmMsgBin = text_utils:bin_format( "~ts, on ~ts.",
-        [ AlarmMsg, time_utils:get_textual_timestamp() ] ),
+        [ AlarmMsg, time_utils:timestamp_to_string( Now ) ] ),
 
     class_USCommunicationGateway:get_server_pid() !
         { notifyBySMS, AlarmMsgBin },
@@ -5702,6 +5625,7 @@ apply_alarm_status( NewStatus=true, ReasonStr, State ) ->
     end,
 
     setAttributes( LightState, [ { alarm_triggered, NewStatus },
+                                 { last_alarm_trigger, Now },
                                  { alarm_stop_task_id, MaybeTaskId } ] );
 
 
@@ -5713,8 +5637,26 @@ apply_alarm_status( NewStatus=false, ReasonStr, State ) ->
 
     send_alarm_trace( notice, AlarmMsg ++ ".", State ),
 
-    oceanic:trigger_actuators_reciprocal( ?getAttr(alarm_actuator_specs),
-                                          ?getAttr(oc_srv_pid) ),
+    case ?getAttr(alarm_actuator_specs) of
+
+        [] ->
+            send_alarm_trace( warning, "Deactivating alarm immediately "
+                "- yet there is no alarm actuator registered.", State );
+
+        CanonEmittedEvSpecs ->
+            OcSrvPid = ?getAttr(oc_srv_pid),
+            send_alarm_trace_fmt( warning, "Deactivating alarm immediately, "
+                "reciprocal triggering of the corresponding actuators: ~ts.",
+                [ oceanic_text:canon_emitted_event_specs_to_string(
+                    CanonEmittedEvSpecs, OcSrvPid ) ], State ),
+
+            % The switching off is derived from the base switching on by
+            % Oceanic, as based on the EURID it knows the actual device types:
+            %
+            oceanic:trigger_actuators_reciprocal( CanonEmittedEvSpecs,
+                                                  OcSrvPid )
+
+    end,
 
     SetState = setAttributes( State, [ { alarm_triggered, NewStatus },
                                        % Anticipating next actions:
