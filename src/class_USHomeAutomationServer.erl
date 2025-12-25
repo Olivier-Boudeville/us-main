@@ -278,7 +278,7 @@ typically as triggered by actions.
 A table allowing to translate the short name of a device into an actual EURID.
 
 Useful, as the user may specify their custom actions based on short names
-(whereas the corresponding EURIDs are not known, at least yet.
+(whereas the corresponding EURIDs are not known, at least yet).
 """.
 -type short_name_table() :: table( device_short_name(), eurid() ).
 
@@ -5971,7 +5971,7 @@ list_devices_ordered( DevStates ) ->
     OrderedDevStates = lists:reverse(
         lists:keysort( _LastSeenIndex=10, DevStates ) ),
 
-    [ device_state_to_concise_string( DS ) || DS <- OrderedDevStates ].
+    [ device_state_to_short_string( DS ) || DS <- OrderedDevStates ].
 
 
 
@@ -7317,7 +7317,7 @@ device_state_to_string( #device_state{
 
 -doc """
 Returns a short textual description of the specified device state.
-<
+
 Typically useful to report compact statuses on limited text interfaces (command
 line, SMS, etc.).
 """.
@@ -7331,7 +7331,7 @@ device_state_to_short_string( #device_state{
         [ BinName, splitter_to_string( MaybeSplitter ),
           last_seen_info_to_string( MaybeLastSeenTimestamp ) ] );
 
-% availability=online from there.
+% availability=online:
 device_state_to_short_string( #device_state{
         name=BinName,
         splitter=MaybeSplitter,
@@ -7340,7 +7340,7 @@ device_state_to_short_string( #device_state{
         current_status=MaybeStatus } ) ->
     text_utils:format( "'~ts'~ts ~ts~ts",
         [ BinName, splitter_to_string( MaybeSplitter ),
-          maybe_status_to_string( MaybeStatus, DevType ),
+          maybe_status_to_short_string( MaybeStatus, DevType ),
           last_seen_info_with_type_to_string( MaybeLastSeenTimestamp,
                                               DevType ) ] ).
 
@@ -7528,6 +7528,175 @@ maybe_status_to_string( DevStatus, _DevType=undefined ) ->
 maybe_status_to_string( DevStatus, DevType ) ->
     text_utils:format( "reports an unknown ~ts status (~p)",
         [ oceanic_text:device_type_to_string( DevType ), DevStatus ] ).
+
+
+
+
+-doc """
+Returns a short textual description of any specified status of a device of any
+specified type.
+
+Expected to be appended after sentences like "This device ", thus to be followed
+by a conjugated verb (thus like "reports XXX", or "is YYY").
+""".
+-spec maybe_status_to_short_string( option( device_status() ),
+                              option( device_type() ) ) -> ustring().
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=thermometer ) ->
+    "reports no temperature";
+
+maybe_status_to_short_string( _DevStatus=Temperature, _DevType=thermometer ) ->
+    text_utils:format( "reports ~ts",
+                       [ unit_utils:temperature_to_string( Temperature ) ] );
+
+
+maybe_status_to_short_string( _DevStatus=undefined,
+                              _DevType=thermo_hygro_sensor ) ->
+    "reports no temperature or hygrometry";
+
+maybe_status_to_short_string( _DevStatus={ Temperature, RelHumidity },
+                        _DevType=thermo_hygro_sensor ) ->
+    text_utils:format( "reports ~ts and ~ts",
+        [ unit_utils:temperature_to_string( Temperature ),
+          oceanic_text:relative_humidity_to_short_string( RelHumidity ) ] );
+
+
+maybe_status_to_short_string( _DevStatus=undefined,
+                              _DevType=motion_detector ) ->
+    "has no motion status";
+
+maybe_status_to_short_string( _DevStatus={ MotionDetected, _MaybeVoltage },
+                        _DevType=motion_detector ) ->
+    "reports "
+        ++ oceanic_text:motion_detection_to_short_string( MotionDetected );
+
+
+maybe_status_to_short_string(
+        _DevStatus={ MotionDetected, _MaybeVoltage, MaybeIlluminance },
+        _DevType=motion_detector ) ->
+
+    IllumStr = case MaybeIlluminance of
+
+        undefined ->
+            "";
+
+        Illum ->
+            text_utils:format( " and ~ts", [
+                oceanic_text:illuminance_to_short_string( Illum ) ] )
+
+    end,
+
+    text_utils:format( "reports ~ts~ts",
+        [ oceanic_text:motion_detection_to_short_string( MotionDetected ),
+          IllumStr ] );
+
+
+maybe_status_to_short_string( _DevStatus=undefined,
+                              _DevType=opening_detector ) ->
+    "has no contact state to report yet";
+
+maybe_status_to_short_string( _DevStatus=ContactStatus,
+                              _DevType=opening_detector ) ->
+    text_utils:format( "is in ~ts state",
+        [ oceanic_text:get_contact_status_description( ContactStatus ) ] );
+
+
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=push_button ) ->
+    "has no push-button state to report yet";
+
+maybe_status_to_short_string( _DevStatus=ButtonState, _DevType=push_button ) ->
+    text_utils:format( "reports being ~ts",
+        [ oceanic_text:get_button_state_description( ButtonState ) ] );
+
+
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=double_rocker ) ->
+    "has no double-rocker state to report yet";
+
+maybe_status_to_short_string( _DevStatus={ AIState, AOState, BIState, BOState },
+                        _DevType=double_rocker ) ->
+
+    PressedButs = case AIState of
+        is_pressed -> [ "AI" ];
+        is_released -> []
+    end ++ case AOState of
+        is_pressed -> [ "AO" ];
+        is_released -> []
+    end  ++ case BIState of
+        is_pressed -> [ "BI" ];
+        is_released -> []
+    end ++ case BOState of
+        is_pressed -> [ "BO" ];
+        is_released -> []
+    end,
+
+    "has " ++ case PressedButs of
+
+        [] ->
+            "no button pressed";
+
+        [ SingleButName ] ->
+            text_utils:format( "the ~ts button pressed", [ SingleButName ] );
+
+        ButNames ->
+            text_utils:format( "the ~ts buttons pressed",
+                               [ text_utils:strings_to_string( ButNames ) ] )
+
+    end;
+
+
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=in_wall_module ) ->
+    "has no module state to report yet";
+
+
+% Generally the status cannot be decoded if the EEP of the smart plug is not
+% known a priori:
+%
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=smart_plug ) ->
+    "has no state to report yet";
+
+maybe_status_to_short_string( _DevStatus={ OutputPower, PowerFailureDetected,
+        SwitchedOffDueToOvercurrent, HardwareStatus, _LocalControlEnabled },
+        _DevType=smart_plug ) ->
+
+    % Only report (briefly) extraordinary elements:
+
+    MaybePfStr = oceanic_text:interpret_briefly_power_failure(
+        PowerFailureDetected ),
+
+    MaybeOcStr = oceanic_text:interpret_briefly_overcurrent_trigger(
+        SwitchedOffDueToOvercurrent ),
+
+    MaybeHSStr = oceanic_text:interpret_briefly_hardware_status(
+        HardwareStatus ),
+
+    ReportStr = case text_utils:join_maybe( _Sep=", ",
+            [ MaybePfStr, MaybeOcStr, MaybeHSStr ] ) of
+
+        "" ->
+            "";
+
+        Str ->
+            ", with " ++ Str
+
+    end,
+
+    text_utils:format( "~ts~ts",
+        [ oceanic_text:interpret_briefly_power_report( OutputPower ),
+          ReportStr ] );
+
+
+%status_to_string( _DevStatus=, _DevType=in_wall_module ) ->
+%    text_utils:format( "~", [  ] );
+
+maybe_status_to_short_string( _DevStatus=undefined, _DevType=undefined ) ->
+    "reports no specific status (and its type is not known)";
+
+maybe_status_to_short_string( DevStatus, _DevType=undefined ) ->
+    text_utils:format( "reports an unknown status (~p)", [ DevStatus ] );
+
+maybe_status_to_short_string( DevStatus, DevType ) ->
+    text_utils:format( "reports an unknown ~ts status (~p)",
+        [ oceanic_text:device_type_to_string( DevType ), DevStatus ] ).
+
 
 
 -doc """
