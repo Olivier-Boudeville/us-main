@@ -3,7 +3,18 @@
 # The default US-Main configuration file *for remote access*:
 um_cfg_filename="us-main-remote-access.config"
 
-usage="Usage: $(basename $0) [-h|--help] [US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME]: monitors the traces emitted by a US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute).
+do_download=1
+
+download_short_opt="-d"
+download_long_opt="--download-trace-file"
+
+download_trace_filename="us-main.traces"
+
+
+usage="Usage: $(basename $0) [-h|--help] [${download_short_opt}|${download_long_opt}] [US_MAIN_REMOTE_ACCESS_CONFIG_FILENAME]: monitors the traces emitted by a US-Main instance (possibly running on a remote host), based either on a default '${um_cfg_filename}' configuration filename or on a specified one, both looked-up in the US configuration directory found through the default US search paths (if not already absolute).
+
+Options:
+  ${download_short_opt} or ${download_long_opt}: downloads the corresponding trace file, as '$(download_trace_filename)', typically so that it can be fetched/sent afterwards from the local host
 
 Example of use: './$(basename $0) us-main-remote-access-for-development.config', this configuration file being located in the standard US configuration search paths, for example in the ~/.config/universal-server/ directory."
 
@@ -21,6 +32,17 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
 fi
 
+
+if [ "$1" = "${download_short_opt}" ] || [ "$1" = "${download_long_opt}" ]; then
+
+	echo "(will download the trace file for later reuse)"
+	do_download=0
+	download_final_opt="${download_long_opt} ${download_trace_filename}"
+	shift
+
+fi
+
+
 if [ $# -gt 1 ]; then
 
 	echo "  Error, extra argument specified.
@@ -33,6 +55,7 @@ fi
 
 # Overrides defaults if specified:
 if [ -n "$1" ]; then
+
 	um_cfg_filename="$1"
 	located_cfg_file="${um_cfg_filename}"
 
@@ -77,6 +100,6 @@ cd "${app_dir}"
 # Any argument(s) specified to this script shall be interpreted as a plain,
 # extra one:
 #
-#echo make -s us_main_monitor_exec CMD_LINE_OPT="$* --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
+#echo make -s us_main_monitor_exec CMD_LINE_OPT="$* ${download_final_opt} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
 
-make -s us_main_monitor_exec CMD_LINE_OPT="$* --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}
+make -s us_main_monitor_exec CMD_LINE_OPT="$* ${download_final_opt} --config-file ${located_um_cfg_file} --target-cookie ${remote_vm_cookie}" ${epmd_opt}

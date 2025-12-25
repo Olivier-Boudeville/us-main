@@ -55,6 +55,18 @@ exec() ->
     { ActualTargetNodeName, IsVerbose, CfgTable, FinalArgTable } =
         us_client:setup( _ServerPrefix=us_main ),
 
+    { MaybeDownloadTraceFilePath, FinalArgTable } = case
+            table:extract_entry_if_existing( _K='-download-trace-file',
+                                             CfgTable ) of
+
+        false ->
+            { undefined, CfgTable };
+
+        { [ [ DownloadTraceFilePath  ] ], ShrunkArgTable } ->
+            { DownloadTraceFilePath, ShrunkArgTable }
+
+    end,
+
     list_table:is_empty( FinalArgTable ) orelse
         throw( { unexpected_arguments,
                  list_table:enumerate( FinalArgTable ) } ),
@@ -77,16 +89,19 @@ exec() ->
 
         undefined ->
             class_TraceListener:synchronous_new_link( AggregatorPid,
-                _CloseListenerPid=self() );
+                MaybeDownloadTraceFilePath, _CloseListenerPid=self() );
 
         { MinTCPPort, MaxTCPPort } ->
             class_TraceListener:synchronous_new_link( AggregatorPid,
-                MinTCPPort, MaxTCPPort, _CloseListenerPid=self() )
+                MinTCPPort, MaxTCPPort, MaybeDownloadTraceFilePath,
+                _CloseListenerPid=self() )
 
     end,
 
     IsVerbose andalso app_facilities:display(
                         "Waiting for the trace listener to be closed." ),
+
+
 
     % To troubleshoot problems in terms of overlapping partitions:
     %wait( TraceListenerPid ),

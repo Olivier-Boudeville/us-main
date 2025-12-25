@@ -1,4 +1,4 @@
-% Copyright (C) 2021-2025 Olivier Boudeville
+% Copyright (C) 2021-2026 Olivier Boudeville
 %
 % This file belongs to the US-Main project, a part of the Universal Server
 % framework.
@@ -98,7 +98,7 @@ test_us_main_sensor_management( OrderedAppNames ) ->
 
     receive
 
-        {'EXIT', SensorManagerPid, normal } ->
+        { 'EXIT', SensorManagerPid, normal } ->
             ok
 
     end,
@@ -111,13 +111,14 @@ test_us_main_sensor_management( OrderedAppNames ) ->
 
 
 
-% Runs the tests.
-%
-% Note that the {us_main, us_common, traces, wooper, myriad}.app files will have
-% to be found and used for this test to succeed: US-Web, US-Common, Traces,
-% WOOPER and Myriad must be already available as prerequisite, fully-built OTP
-% applications.
-%
+-doc """
+Runs the tests.
+
+Note that the `{us_main, us_common, traces, wooper, myriad}.app` files will have
+to be found and used for this test to succeed: US-Web, US-Common, Traces, WOOPER
+and Myriad must be already available as prerequisite, fully-built OTP
+applications.
+""".
 -spec run() -> no_return().
 run() ->
 
