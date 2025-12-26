@@ -189,8 +189,8 @@ is obtained by pushing the other button of the rocker.
       TargetedPscActuators :: [ emitted_event_spec() ],
 
       % Tells whether lighting shall be switched off during a presence slot when
-      % the light of day should be available (provided that the position of the
-      % server is known):
+      % the light of day should be available (provided that the global position
+      % of the server is known):
       %
       SmartLighting :: boolean(),
 
@@ -1615,8 +1615,8 @@ init_presence_simulation( [ { _PscProg=default_program, TargetedPscActuators,
     PscSlots = [ { TEndOfNightStart, TEndOfNightStop },
                  { TDayStart, TDayStop } ],
 
-    ExpandedPscSimUSetting = { PscSlots, TargetedPscActuators, SmartLighting,
-                               RandActSettings },
+    ExpandedPscSimUSetting =
+        { PscSlots, TargetedPscActuators, SmartLighting, RandActSettings },
 
     % Branch then to the general rule:
     init_presence_simulation( [ ExpandedPscSimUSetting | T ], OcSrvPid,
@@ -2077,11 +2077,6 @@ presence simuation is wanted and that nobody is at home.
                                    wooper:state() ) -> wooper:state().
 update_presence_simulations( PscSims, State ) ->
 
-    cond_utils:if_defined( us_main_debug_presence_simulation,
-        send_psc_trace_fmt( debug, "Updating ~B presence "
-            "simulation(s) now (supposedly nobody is at home).",
-            [ length( PscSims ) ], State ) ),
-
     % Keep only relevant information (if any):
     CleanedMaybeCelestialInfo = case ?getAttr(celestial_info) of
 
@@ -2101,6 +2096,13 @@ update_presence_simulations( PscSims, State ) ->
             end
 
     end,
+
+    cond_utils:if_defined( us_main_debug_presence_simulation,
+        send_psc_trace_fmt( debug, "Updating ~B presence "
+            "simulation(s) now (supposedly nobody is at home); "
+            "celestial information: ~w.",
+            [ length( PscSims ), CleanedMaybeCelestialInfo ], State ) ),
+
 
     update_presence_simulations( PscSims, _CurrentTime=erlang:time(),
         CleanedMaybeCelestialInfo, _EmptyTable=table:new(), State ).
@@ -2432,8 +2434,9 @@ manage_presence_simulation( PscSim=#presence_simulation{
         get_celestial_info( MaybeCelestialInfo, State ),
 
     cond_utils:if_defined( us_main_debug_presence_simulation,
-        send_psc_trace_fmt( debug, "Getting programmed presence for "
-            "slots: ~ts.", [ text_utils:strings_to_string(
+        send_psc_trace_fmt( debug, "Getting programmed presence for all "
+            "theoritical slots (any smart lighting will be decided live): ~ts.",
+            [ text_utils:strings_to_string(
                 [ slot_to_string( S ) || S <- Slots ] ) ], State ) ),
 
     NewPscSim = case get_programmed_presence( Slots, CurrentTime ) of
@@ -3225,10 +3228,11 @@ ensure_light_from( StartTime, _CurrentTime, _DawnTime, DuskTime, PscSim,
 
 -doc """
 Ensures that all possible lighting is activated, for all presence simulations.
-
-Trusted their internal activation status, now, for easier direct testing, done
-unconditionally.
 """.
+% Initially their internal activation status was trusted, then, for easier
+% direct testing, it was done unconditionally; now done again conditionally, to
+% avoid failures when trying to switch on a smart plug that was already on.
+%
 -spec ensure_all_lighting( wooper:state() ) -> wooper:state().
 ensure_all_lighting( State ) ->
 
@@ -3246,7 +3250,8 @@ ensure_all_lighting( _PscSims=[], PscTable, State ) ->
 % If not activated, must be switched on:
 ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
                         id=Id,
-                        % Unconditional now: activated=false,
+                        % Conditional again:
+                        activated=false,
                         actuator_event_specs=ActEvSpecs } | T ],
                      PscTable, State ) ->
 
@@ -3256,27 +3261,27 @@ ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{
 
     NewPscTable = table:add_new_entry( _K=Id, _V=NewPscSim, PscTable ),
 
-    ensure_all_lighting( T, NewPscTable, State ).
+    ensure_all_lighting( T, NewPscTable, State );
 
-% (clause used when was conditional)
-%
-% Nothing to do:
-% ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
-%                    PscTable, State ) ->
 
-%   NewPscTable = table:add_new_entry( _K=Id, _V=PscSim, PscTable ),
+% Nothing to do, already on:
+ensure_all_lighting( _PscSims=[ PscSim=#presence_simulation{ id=Id } | T ],
+                   PscTable, State ) ->
 
-%   ensure_all_lighting( T, NewPscTable, State ).
+  NewPscTable = table:add_new_entry( _K=Id, _V=PscSim, PscTable ),
+
+  ensure_all_lighting( T, NewPscTable, State ).
 
 
 
 
 -doc """
 Ensures that there is no more lighting at all, for all presence simulations.
-
-Trusted their internal activation status, now, for easier direct testing, done
-unconditionally.
 """.
+% Initially their internal activation status was trusted, then, for easier
+% direct testing, it was done unconditionally; now done again conditionally, to
+% avoid failures when trying to switch off a smart plug that was already off.
+%
 -spec ensure_not_any_lighting( wooper:state() ) -> wooper:state().
 ensure_not_any_lighting( State ) ->
 
@@ -3286,39 +3291,37 @@ ensure_not_any_lighting( State ) ->
                              State ).
 
 
+
 % (helper)
 ensure_not_any_lighting( _PscSims=[], PscTable, State ) ->
     setAttribute( State, presence_table, PscTable );
 
 % If activated, must be switched off:
 ensure_not_any_lighting( _PscSims=[ PscSim=#presence_simulation{
-        id=PscId
-        % Unconditional now: activated=true
-                                                               } | T ],
+        id=PscId,
+        % Conditional again:
+        activated=true } | T ],
                          PscTable, State ) ->
 
     NewPscSim = ensure_not_lighting( PscSim, _IsActivated=true, State ),
 
     NewPscTable = table:add_new_entry( _K=PscId, _V=NewPscSim, PscTable ),
 
-    ensure_not_any_lighting( T, NewPscTable, State ).
+    ensure_not_any_lighting( T, NewPscTable, State );
 
+% Nothing to do, already off:
+ensure_not_any_lighting(
+      _PscSims=[ PscSim=#presence_simulation{ id=PscId } | T ],
+      PscTable, State ) ->
 
-% (clause used when was conditional)
-%
-% Not activated, nothing to do:
-% ensure_not_any_lighting(
-%       _PscSims=[ PscSim=#presence_simulation{ id=PscId } | T ],
-%       PscTable, State ) ->
+  cond_utils:if_defined( us_main_debug_presence_simulation,
+      send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
+          "presence simulation #~B was already not activated.",
+          [ PscId ], State ) ),
 
-%   cond_utils:if_defined( us_main_debug_presence_simulation,
-%       send_psc_trace_fmt( debug, "ensure_not_any_lighting: "
-%           "presence simulation #~B was already not activated.",
-%           [ PscId ], State ) ),
+  NewPscTable = table:add_new_entry( _K=PscId, _V=PscSim, PscTable ),
 
-%   NewPscTable = table:add_new_entry( _K=PscId, _V=PscSim, PscTable ),
-
-%   ensure_not_any_lighting( T, NewPscTable, State ).
+  ensure_not_any_lighting( T, NewPscTable, State ).
 
 
 
@@ -3772,31 +3775,24 @@ getAlarmStatus( State ) ->
     LastStr = case ?getAttr(last_alarm_trigger) of
 
         undefined ->
-            "the alarm has never been triggered yet";
+            "it has never been triggered yet";
 
         LastTrigTimestamp ->
-            text_utils:format( "the alarm has been last triggered on ~ts",
+            text_utils:format( "it has been last triggered on ~ts",
                 [ time_utils:get_textual_duration_since( LastTrigTimestamp ) ] )
 
     end,
 
-    Str = "Alarm is currently " ++ case ?getAttr(alarm_triggered) of
-
-        true ->
-            "triggered (intrusion in progress!)";
-
-        false ->
-            "off (inactive)"
-
-    end ++ ", and is " ++ case ?getAttr(alarm_inhibited) of
-
-        true ->
-            "";
-
-        false ->
-            "not "
-
-                         end ++ "inhibited; " ++ LastStr,
+    Str = text_utils:format(
+        "Alarm is currently ~ts and is ~tsinhibited; ~ts.",
+        [ case ?getAttr(alarm_triggered) of
+            true -> "triggered (intrusion in progress!)";
+            false ->"off (inactive)"
+          end,
+          case ?getAttr(alarm_inhibited) of
+              true -> "";
+              false -> "not "
+          end, LastStr ] ),
 
     wooper:const_return_result( { ok, Str } ).
 
@@ -4474,16 +4470,18 @@ onEnoceanDeviceEvent( State, DeviceEvent, _BackOnlineInfo=undefined, OcSrvPid )
     % Check:
     OcSrvPid = ?getAttr(oc_srv_pid),
 
-    % Verbose, yet needed so that this event is reported in the traces at least
-    % once:
+    % More or less verbose, yet needed so that this event is reported in the
+    % traces at least once:
     %
-    %cond_utils:if_defined( us_main_debug_home_automation,
-    %   begin
-    Msg = oceanic_text:device_event_to_short_string( DeviceEvent ),
+    Msg = text_utils:format( "Received event: ~ts",
+        [ cond_utils:if_defined( us_main_debug_home_automation,
+               oceanic_text:device_event_to_string( DeviceEvent ),
+               oceanic_text:device_event_to_short_string( DeviceEvent ) ) ] ),
+
     BinDevName = oceanic:get_best_device_name_from( DeviceEvent ),
+
     class_TraceEmitter:send_named_emitter( info, State, Msg,
         get_trace_emitter_name_from( BinDevName ) ),
-    %   end),
 
     ProcState = process_device_event( DeviceEvent, State ),
 
