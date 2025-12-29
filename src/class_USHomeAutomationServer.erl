@@ -3778,7 +3778,7 @@ getAlarmStatus( State ) ->
             "it has never been triggered yet";
 
         LastTrigTimestamp ->
-            text_utils:format( "it has been last triggered on ~ts",
+            text_utils:format( "it has been last triggered ~ts ago",
                 [ time_utils:get_textual_duration_since( LastTrigTimestamp ) ] )
 
     end,
