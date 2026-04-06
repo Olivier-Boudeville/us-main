@@ -83,7 +83,7 @@ Such gateways rely on a contact directory.
 -doc "Settings gathered for the communication server.".
 -type communication_settings() ::
     { NotifiedBinNumbers :: [ bin_phone_number() ],
-      MasterBinNumbers :: [ bin_phone_number() ] }.
+      MasterBinNumbers ::   [ bin_phone_number() ] }.
 
 
 -doc "The PID of a communication gateway.".
@@ -145,7 +145,7 @@ Such gateways rely on a contact directory.
       "through SMSs, can control the overall US-Main instance" },
 
     { parent_comm_gateway_lookup_info, option( lookup_info() ),
-      "the lookup naming information  of any parent, authoritative gateway "
+      "the lookup naming information of any parent, authoritative gateway "
       "(e.g. able to send SMSs)" } ] ).
 
 
@@ -215,7 +215,7 @@ Such gateways rely on a contact directory.
 Starts and links a supervision bridge for the communication gateway.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
 -spec start_link() -> term().
@@ -232,10 +232,10 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 above being executed.
+`start_link/0` above being executed.
 """.
 -spec init( [] ) -> { 'ok', pid(), State :: term() }
-                    | 'ignore' | { 'error', Error :: term() }.
+                  | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
     trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
@@ -703,6 +703,14 @@ get_server_pid() ->
 -spec init_communications( wooper:state() ) ->  wooper:state().
 init_communications( State ) ->
 
+    % Note that calling the Mobile API results in a processing done in the
+    % current process; as a result, if Mobile's telecom backend crashes, this
+    % gateway will crash as well; so the restart strategy of the gateway (see
+    % us_main_sup) should preferably by 'permanent', rather than 'temporary' (in
+    % turn the execution target shall be 'production' rather than
+    % 'development'). At least currently, this is absolutely not a problem, as
+    % this gateway is mostly stateless.
+    %
     mobile:start(),
 
     ?debug( "Testing whether a usable Ceylan-Mobile exists." ),
