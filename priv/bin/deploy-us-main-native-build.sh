@@ -523,7 +523,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	# Our build; uses Myriad's sibling tree:
 	display_and_log " - building Ceylan-WOOPER"
-	cd wooper && "${make}" ${ceylan_opts} all 1>>"${log_file}"
+	cd wooper && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-WOOPER failed." 1>&2
 		exit 55
@@ -532,7 +532,7 @@ if [ ${do_build} -eq 0 ]; then
 
 	# Our build; uses Myriad's and WOOPER's sibling trees:
 	display_and_log " - building Ceylan-Traces"
-	cd traces && "${make}" ${ceylan_opts} all 1>>"${log_file}"
+	cd traces && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Traces failed." 1>&2
 		exit 60
@@ -542,7 +542,7 @@ if [ ${do_build} -eq 0 ]; then
 
 
 	display_and_log " - building Ceylan-Oceanic"
-	cd oceanic && "${make}" ${ceylan_opts} all 1>>"${log_file}"
+	cd oceanic && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Oceanic failed." 1>&2
 		exit 70
@@ -550,7 +550,7 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	display_and_log " - building Ceylan-Seaplus"
-	cd seaplus && "${make}" ${ceylan_opts} all 1>>"${log_file}"
+	cd seaplus && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Seaplus failed." 1>&2
 		exit 75
@@ -558,7 +558,7 @@ if [ ${do_build} -eq 0 ]; then
 	cd ..
 
 	display_and_log " - building Ceylan-Mobile"
-	cd mobile && "${make}" ${ceylan_opts} all 1>>"${log_file}"
+	cd mobile && "${make}" all ${ceylan_opts} 1>>"${log_file}"
 	if [ ! $? -eq 0 ]; then
 		echo " Error, the build of Ceylan-Mobile failed." 1>&2
 		exit 80
