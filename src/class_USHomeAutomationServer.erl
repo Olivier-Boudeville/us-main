@@ -1651,10 +1651,11 @@ init_presence_simulation( _PresenceSimSettings=[], _OcSrvPid, PscTable,
             % Every day:
             DHMSPeriodicity = { _D=1, _H=0, _M=0, _S=0 },
 
+            % Not in DST (should be in UTC):
             class_USScheduler:get_server_pid() ! { registerTask,
                 [ _CmdMsg=updatePresencePrograms,
                   _StartTime=NextMidnightTimestamp, DHMSPeriodicity,
-                  _Count=unlimited ], self() },
+                  _DSTBound=false, _Count=unlimited ], self() },
 
             receive
 
@@ -6320,10 +6321,10 @@ This is a request, as actions only trigger such methods, for synchronisation.
 """.
 -spec schedulePeriodicalActionOnDevice( wooper:state(),
     user_device_designator(), extended_device_operation(), extended_timestamp(),
-    user_periodicity(), schedule_count() ) ->
+    user_periodicity(), boolean(), schedule_count() ) ->
         request_return( string_fallible() ).
 schedulePeriodicalActionOnDevice( State, UserDevDesig, ExtDevOp,
-        StartExtTimestamp, DHMSPeriodicity, SchedCount ) ->
+        StartExtTimestamp, DHMSPeriodicity, DoApplyDST, SchedCount ) ->
 
     cond_utils:if_defined( us_main_debug_actions, ?debug_fmt( "Scheduling a "
         "periodical '~ts' operation on device designated by ~w, "
@@ -6377,7 +6378,7 @@ schedulePeriodicalActionOnDevice( State, UserDevDesig, ExtDevOp,
     %
     SchedPid ! { registerTask,
         [ UserTaskCommand, StartTimestamp, _UserPeriodicity=DHMSPeriodicity,
-          SchedCount, _UserActPid=self() ], self() },
+          DoApplyDST, SchedCount, _UserActPid=self() ], self() },
 
     { ActionResStr, SchedState } = receive
 
