@@ -647,6 +647,13 @@ As mentioned `in this section <https://mobile.esperide.org/#managing-dev-ttyusb-
 
 So ``gpasswd -a us-main-user uucp`` can be executed as root (and possibly ``us-main-user`` may run ``newgrp uucp`` to update its group identification).
 
+A relevant Gammu configuration file is also expected to be found.
+
+Often, user accounts (like the one of a regular user and the root one) will have a ``~/.gammurc`` Gammu configuration file defined, pointing to a dummy device (e.g. ``/tmp/gammu-dummy-device``) so that running tests interactively will not send actual SMS messages.
+
+On the contrary the actual US-Main instance will run as a specific user (e.g. ``us-main-user``), whose account will not comprise any specified Gammu configuration file, and thus Gammu will be expected to read its configuration from the system (typically ``/etc/gammurc``), pointing to an actual device.
+
+Therefore, if wanting to perform a test from the command-line to emulate what the US-Main communication gateway does, just "hide" any ``~/.gammurc`` file for that testing user.
 
 
 
