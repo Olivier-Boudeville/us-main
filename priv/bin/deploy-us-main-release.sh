@@ -1,6 +1,16 @@
 #!/bin/sh
 
-usage="Usage: $(basename $0): deploys (installs and runs) locally a US-Main release."
+# Copyright (C) 2029-2026 Olivier Boudeville
+#
+# Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
+#
+# This file is part of the US-Main project (see http://us-main.esperide.org).
+
+
+usage="Usage: $(basename $0): deploys (installs and runs) locally a US-Main release.
+
+Note that we nowadays recommend to rely on the deploy-us-main-native-build.sh script instead.
+"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 
