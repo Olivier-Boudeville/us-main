@@ -83,7 +83,7 @@ Such gateways rely on a contact directory.
 -doc "Settings gathered for the communication server.".
 -type communication_settings() ::
     { NotifiedBinNumbers :: [ bin_phone_number() ],
-      MasterBinNumbers :: [ bin_phone_number() ] }.
+      MasterBinNumbers ::   [ bin_phone_number() ] }.
 
 
 -doc "The PID of a communication gateway.".
@@ -145,7 +145,7 @@ Such gateways rely on a contact directory.
       "through SMSs, can control the overall US-Main instance" },
 
     { parent_comm_gateway_lookup_info, option( lookup_info() ),
-      "the lookup naming information  of any parent, authoritative gateway "
+      "the lookup naming information of any parent, authoritative gateway "
       "(e.g. able to send SMSs)" } ] ).
 
 
@@ -174,7 +174,7 @@ Such gateways rely on a contact directory.
 
 % Implementation notes
 %
-% As the polling frequency od SMS is adaptative (it is set to high as soon as a
+% As the polling frequency of SMS is adaptative (it is set to high as soon as a
 % SMS is received, and gradually increases back to its minimal frequency), this
 % server does not rely on the US scheduler, but takes care directly of this
 % polling.
@@ -215,7 +215,7 @@ Such gateways rely on a contact directory.
 Starts and links a supervision bridge for the communication gateway.
 
 Note: typically spawned as a supervised child of the US-Main root supervisor
-(see us_main_sup:init/1), hence generally triggered by the application
+(see `us_main_sup:init/1`), hence generally triggered by the application
 initialisation.
 """.
 -spec start_link() -> term().
@@ -232,10 +232,10 @@ start_link() ->
 
 -doc """
 Callback to initialise this supervisor bridge, typically in answer to
-start_link/0 above being executed.
+`start_link/0` above being executed.
 """.
 -spec init( [] ) -> { 'ok', pid(), State :: term() }
-                    | 'ignore' | { 'error', Error :: term() }.
+                  | 'ignore' | { 'error', Error :: term() }.
 init( _Args=[] ) ->
 
     trace_bridge:info_fmt( "Initialising the US-Main supervisor bridge ~w for "
@@ -311,34 +311,37 @@ construct( State ) ->
 
     % Starts the SMS polling mechanism if relevant:
     getAttribute( SetState, sms_support_active ) =:= true andalso
-         case NotifiedBinPhoneNumbers of
+        begin
+            case NotifiedBinPhoneNumbers of
 
-            [] ->
-                ?send_notice( SetState, "SMS support active, yet with "
-                    "no phone number to notify defined; SMS-based "
-                    "server-side notifications disabled." );
+                [] ->
+                    ?send_notice( SetState, "SMS support active, yet with "
+                        "no phone number to notify defined; SMS-based "
+                        "server-side notifications disabled." );
 
-            _ ->
-                ?send_info_fmt( SetState, "SMS support active, with "
-                    "on the following phone numbers to notify: ~ts.",
-                    [ text_utils:strings_to_listed_string(
-                        NotifiedBinPhoneNumbers ) ] )
+                _ ->
+                    ?send_info_fmt( SetState, "SMS support active, with "
+                        "on the following phone numbers to notify: ~ts.",
+                        [ text_utils:strings_to_listed_string(
+                            NotifiedBinPhoneNumbers ) ] )
 
-        end,
+            end,
 
-         case MasterBinPhoneNumbers of
+            case MasterBinPhoneNumbers of
 
-            [] ->
-                ?send_notice( SetState, "SMS support active, yet with "
-                    "no master phone number defined; SMS-based "
-                    "actions disabled." );
+                [] ->
+                    ?send_notice( SetState, "SMS support active, yet with "
+                        "no master phone number defined; SMS-based "
+                        "actions disabled." );
 
-            _ ->
-                ?send_info_fmt( SetState, "SMS support active, with "
-                    "the following master phone numbers defined: ~ts.",
-                    [ text_utils:strings_to_listed_string(
-                        MasterBinPhoneNumbers ) ] ),
-                 self() ! pollSMS
+                _ ->
+                    ?send_info_fmt( SetState, "SMS support active, with "
+                        "the following master phone numbers defined: ~ts.",
+                        [ text_utils:strings_to_listed_string(
+                            MasterBinPhoneNumbers ) ] ),
+                    self() ! pollSMS
+
+            end
 
         end,
 
@@ -485,15 +488,20 @@ corresponding action.
                         { RelevantSMSRead :: boolean(), wooper:state() }.
 process_sms_messages( MasterBinPhoneNumbers, State ) ->
 
-    % Nominal setting:
-    DeleteOnReading = true,
 
-    % Just for testing (note that this server will then endlessly loop with the
-    % same pollings):
+    % Was just for testing (noting that this server would then endlessly loop
+    % with the same pollings), was kept to false due to Gammu's apparent
+    % inability to delete SMS on the fly in some contexts:
     %
     %DeleteOnReading = false,
 
-    case mobile:read_all_sms( DeleteOnReading ) of
+    % Nominal setting, waiting that it gets possibly fixed thanks to a Gammu
+    % update (it is apparently unable in some
+    % contexts to delete SMS on the fly); fails without crashing:
+    %
+    DeleteOnReading = true,
+
+    Res = case mobile:read_all_sms( DeleteOnReading ) of
 
         [] ->
             cond_utils:if_defined( us_main_debug_sms_communication,
@@ -508,7 +516,27 @@ process_sms_messages( MasterBinPhoneNumbers, State ) ->
             filter_sms_messages( SMSs, _RelevantSMSFound=false,
                                  MasterBinPhoneNumbers, State )
 
-    end.
+    end,
+
+    % Now preferring the risk of missing any SMS (if new ones were received
+    % while processing others) to the one of looping until the end of time over
+    % SMS that cannot be deleted:
+    %
+    case mobile:delete_all_sms() of
+
+        { DeletionCount, _ErrorCount=0 } ->
+            cond_utils:if_defined( us_main_debug_sms_communication, ?debug_fmt(
+                "~B SMS have been successfully deleted.", [ DeletionCount ] ),
+                basic_utils:ignore_unused( DeletionCount ) );
+
+        { DeletionCount, ErrorCount } ->
+            trace_utils:warning_fmt( "~B SMS have been successfully deleted, "
+                "but ~B errors were also reported.",
+                [ DeletionCount, ErrorCount ] )
+
+    end,
+
+    Res.
 
 
 
@@ -703,6 +731,14 @@ get_server_pid() ->
 -spec init_communications( wooper:state() ) ->  wooper:state().
 init_communications( State ) ->
 
+    % Note that calling the Mobile API results in a processing done in the
+    % current process; as a result, if Mobile's telecom backend crashes, this
+    % gateway will crash as well; so the restart strategy of the gateway (see
+    % us_main_sup) should preferably by 'permanent', rather than 'temporary' (in
+    % turn the execution target shall be 'production' rather than
+    % 'development'). At least currently, this is absolutely not a problem, as
+    % this gateway is mostly stateless.
+    %
     mobile:start(),
 
     ?debug( "Testing whether a usable Ceylan-Mobile exists." ),
