@@ -1,11 +1,11 @@
 [Unit]
 Description=Universal Server service (US-Main), as a native build
 
-# Should for example an encrypted filesystem be needed right after boot:
-Requires=network.target local-fs.target
-
-# As DNS resolution may be needed:
+# Should for example an encrypted filesystem be needed right after boot, and as
+# DNS resolution may be needed:
+#
 After=network.target network-online.target local-fs.target
+Requires=network.target local-fs.target
 
 
 [Service]
