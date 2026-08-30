@@ -3919,7 +3919,7 @@ stopAlarmAsAction( State ) ->
     StopState = apply_alarm_status( _NewStatus=false,
                                     _ReasonStr="triggered by action", State ),
 
-    wooper:return_state_result( StopState, { ok, "Alarm stoped." } ).
+    wooper:return_state_result( StopState, { ok, "Alarm stopped." } ).
 
 
 
