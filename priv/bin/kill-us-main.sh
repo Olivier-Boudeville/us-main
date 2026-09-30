@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# Copyright (C) 2021-2026 Olivier Boudeville
+#
+# Author: Olivier Boudeville [olivier (dot) boudeville (at) esperide (dot) com]
+#
+# This file is part of the US-Main project (see http://us-main.esperide.org).
+
+
 # A script to kill for sure a local US-Main instance (and, hopefully, only such
 # an instance).
 #
