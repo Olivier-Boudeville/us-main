@@ -102,7 +102,6 @@ exec() ->
                         "Waiting for the trace listener to be closed." ),
 
 
-
     % To troubleshoot problems in terms of overlapping partitions:
     %wait( TraceListenerPid ),
 
