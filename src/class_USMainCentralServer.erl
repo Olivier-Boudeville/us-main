@@ -331,15 +331,11 @@ Constructs the US-Main central server.
 -spec construct( wooper:state(), application_run_context() ) -> wooper:state().
 construct( State, AppRunContext ) ->
 
-    trace_utils:warning( "vvv1" ),
-
     % First the direct mother classes, then this class-specific actions:
     SrvState = class_USCentralServer:construct( State, _USAppShortName="main",
         _ServerInit=?trace_categorize("Main central server"), AppRunContext ),
 
-    trace_utils:warning( "vvv2" ),
     CfgState = load_and_apply_configuration( SrvState ),
-    trace_utils:warning( "vvv3" ),
 
     % Done rather late on purpose, so that the existence of this trace file can
     % be seen as a sign that the initialisation went well (used by
@@ -347,10 +343,8 @@ construct( State, AppRunContext ) ->
     %
     % Now that the log directory is known, we can properly redirect the traces:
     executeConstOneway( CfgState, finaliseTraceSetup ),
-    trace_utils:warning( "vvv4" ),
 
     ?send_info_fmt( CfgState, "Constructed: ~ts.", [ to_string( CfgState ) ] ),
-    trace_utils:warning( "vvv5" ),
 
     CfgState.
 
